@@ -8,14 +8,32 @@
 # Como female.py decide o modo do busto pelo metal, as placas levam a propriedade fem_mode = "plate".
 
 
-def dragonknight_mats():
+# Paletas do conjunto: "" = Cavaleiro Dragão (vermelho e ouro); "dark" = versão sombria. Cada variante tem materiais
+# próprios (drk_<variante>_*), então os itens existentes não mudam de cor.
+DRK_PALETTES = {
+    "": dict(red="#6C3232", red_d="#472022", gold="#B8924C", line="#2A1012", under="#3E4047", lea="#5E3D2B",
+             cloth="#6B2226", bone="#D9CBA8", gem=("#C8401A", "#E0401A", 0.35), sole="#1E1A1A"),
+    # placas pretas (sem tom de cor), vermelho-sangue só nos traços das escamas, bordas em bronze envelhecido no lugar do ouro
+    # (contrasta com o preto), gemas de brasa; chifres e garras em marfim cinzento
+    "dark": dict(red="#151517", red_d="#0C0C0E", gold="#A9875A", line="#A3121E", under="#121214", lea="#1E1612",
+                 cloth="#1C0C10", bone="#A39A88", gem=("#E8301C", "#FF4A1A", 0.5), sole="#0E0D0E"),
+    # gelo: placas azul-glacial, bordas em prata-branca, traços das escamas em azul-marinho, gemas ciano
+    "ice": dict(red="#6F9CC4", red_d="#46688F", gold="#DCE8F2", line="#1B3A66", under="#34455E", lea="#46566E",
+                cloth="#2C5B94", bone="#EAF6FF", gem=("#5FE0FF", "#7FEAFF", 0.55), sole="#2B3A52"),
+}
+
+
+def dragonknight_mats(variant=""):
+    c = DRK_PALETTES[variant]
+    pre = "drk_" + (variant + "_" if variant else "")
     return dict(
-        red=gm("drk_red", "#6C3232", 0.85), red_d=gm("drk_red_d", "#472022", 0.85),
-        gold=gm("drk_gold", "#B8924C", 0.7), line=gm("drk_line", "#2A1012", 0.9),
-        under=gm("drk_under", "#3E4047", 0.9),
-        lea=gm("drk_leather", "#5E3D2B", 0.9), cloth=gm("drk_cloth", "#6B2226", 0.9),
-        bone=gm("drk_bone", "#D9CBA8", 0.8),
-        gem=mat("drk_gem_flat", hexc("#C8401A"), 0.3, 0.0, emit=hexc("#E0401A"), strength=0.35),
+        red=gm(pre + "red", c["red"], 0.85), red_d=gm(pre + "red_d", c["red_d"], 0.85),
+        gold=gm(pre + "gold", c["gold"], 0.7), line=gm(pre + "line", c["line"], 0.9),
+        under=gm(pre + "under", c["under"], 0.9),
+        lea=gm(pre + "leather", c["lea"], 0.9), cloth=gm(pre + "cloth", c["cloth"], 0.9),
+        bone=gm(pre + "bone", c["bone"], 0.8),
+        gem=mat(pre + "gem_flat", hexc(c["gem"][0]), 0.3, 0.0, emit=hexc(c["gem"][1]), strength=c["gem"][2]),
+        sole=gm(pre + "sole", c["sole"], 0.9),
     )
 
 
@@ -529,13 +547,12 @@ def dragonknight_cape(K, body):
     return parts
 
 
-def build_a_dragonknight():
+def _build_a_dragonknight(style, variant, cape=True):
     """Placas do Cavaleiro Dragão (lendário nv 50). Tronco com emblema, ombreiras, braços, cintura e capa; mangas e pernas na casca cinza-escura até
     as próximas peças."""
-    style = "a_dragonknight"
     P, R = g_rig(style)
     M = g_mats()
-    K = dragonknight_mats()
+    K = dragonknight_mats(variant)
     body = R["Body"]
     rig, src = _cb_start(M)
     neck(R, M["skin"])
@@ -545,7 +562,7 @@ def build_a_dragonknight():
     shoulder = dragonknight_pauldron(K, src, body, 1) + dragonknight_pauldron(K, src, body, -1)
     arms = dragonknight_arm(K, src, body, 1) + dragonknight_arm(K, src, body, -1)
     belt, tas, rear, mid = dragonknight_skirt(K, src, body)
-    cape = dragonknight_cape(K, body)
+    cape = dragonknight_cape(K, body) if cape else []
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.01, K["under"])
     g_subdiv(sleeves)
@@ -553,25 +570,25 @@ def build_a_dragonknight():
     os.makedirs(OUT + "gear", exist_ok=True)
     targets = [o for o in scn.objects if o.type == 'MESH']
     bake_ao(targets, _occluders(style, P, R, M))
-    cel_paint(targets, skip=("g_skin", "drk_gem_flat"))
+    cel_paint(targets, skip=("g_skin",))
     horns = [o for o in shoulder if "Horn" in o.name]        # rígidos: peso por vértice esticava a ponta
     plates = [o for o in shoulder if o not in horns]
     g_skin_finish(rig, src, [(tas, "fn", _cs_tasset_w, 1.0), (mid, "fn", _wk_cloth_w, 1.0),
-                             (cape, "fn", _drk_cape_w, 1.0),
+                             ] + ([(cape, "fn", _drk_cape_w, 1.0)] if cape else []) + [
                              (rear, "fn", _gb_skirt_w, 1.0), (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0), (plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
                              (horns, "fn", lambda q: {"Body": 0.6, ("ArmL" if q.x > 0 else "ArmR"): 0.4}, 1.0)])
     join_objs("DragonKnight", parts + shoulder + arms + belt + tas + rear + mid + cape)["fem_mode"] = "plate"
     g_export_skinned(style)
 
 
-def build_g_dragonknight():
+def _build_g_dragonknight(style, variant):
     """Manoplas do Cavaleiro Dragão: mão de placa vermelha (fechada e aberta) com traços escuros separando as
     falanges, um losango cor de osso em cada nó dos dedos e garras cor de osso: na mão aberta continuam a ponta
     de cada dedo e do polegar; na mão fechada (pontas dos dedos escondidas) saem dos nós. Punho curto de
     placa com friso de ouro grosso na boca e anel de ouro no pulso."""
     from mathutils.bvhtree import BVHTree
-    P, R = g_rig("g_dragonknight")
-    K = dragonknight_mats()
+    P, R = g_rig(style)
+    K = dragonknight_mats(variant)
     N = 24
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
@@ -639,17 +656,17 @@ def build_g_dragonknight():
         join_objs("Arm%s_Hand" % n, fp)
         join_objs("Arm%s_HandOpen" % n, op)
         join_objs("Arm%s_Gauntlet" % n, cp)
-    g_export("g_dragonknight", P, R)
+    g_export(style, P, R)
 
 
-def build_f_dragonknight():
+def _build_f_dragonknight(style, variant):
     """Grevas do Cavaleiro Dragão: volta do joelho e canela em casca cinza-escura; greva de escamas vermelhas
     pela frente e pelos lados da canela (desenho em losango), com a borda de cima em V e friso de ouro grosso
     nela, e anel de ouro no tornozelo; joelheira em cabeça de dragão com chifres (o rosto do elmo, em miniatura);
     bota de placa vermelha com lâminas no peito do pé e sola escura."""
-    P, R = g_rig("f_dragonknight")
-    K = dragonknight_mats()
-    sole = gm("drk_sole", "#1E1A1A", 0.9)
+    P, R = g_rig(style)
+    K = dragonknight_mats(variant)
+    sole = K["sole"]
     N = 32
     A = 1.95
     head0 = _drk_knee_head(K)
@@ -751,5 +768,41 @@ def build_f_dragonknight():
             foot.append(g_pipe("Leg%s_SabatonLame%d" % (n, k), arc, 0.003, K["line"], ankle, sides=6))
         join_objs("Leg%s_BootFoot" % n, foot)
     bpy.data.objects.remove(head0, do_unlink=True)
-    g_loose_world("f_dragonknight")
-    g_export("f_dragonknight", P, R)
+    g_loose_world(style)
+    g_export(style, P, R)
+
+
+def build_a_dragonknight():
+    _build_a_dragonknight("a_dragonknight", "")
+
+
+def build_g_dragonknight():
+    _build_g_dragonknight("g_dragonknight", "")
+
+
+def build_f_dragonknight():
+    _build_f_dragonknight("f_dragonknight", "")
+
+
+def build_a_dragonknight_ice():
+    _build_a_dragonknight("a_dragonknight_ice", "ice", cape=False)
+
+
+def build_g_dragonknight_ice():
+    _build_g_dragonknight("g_dragonknight_ice", "ice")
+
+
+def build_f_dragonknight_ice():
+    _build_f_dragonknight("f_dragonknight_ice", "ice")
+
+
+def build_a_dragonknight_dark():
+    _build_a_dragonknight("a_dragonknight_dark", "dark", cape=False)    # a capa é um item das costas (c_dragonknight_dark)
+
+
+def build_g_dragonknight_dark():
+    _build_g_dragonknight("g_dragonknight_dark", "dark")
+
+
+def build_f_dragonknight_dark():
+    _build_f_dragonknight("f_dragonknight_dark", "dark")
