@@ -213,6 +213,13 @@ const MIGRATIONS := [
 	[
 		"ALTER TABLE characters ADD COLUMN hair TEXT NOT NULL DEFAULT ''",
 	],
+	# v12: bestiário (JSON tipo -> {"n", "a", "d"}), profissões (JSON id -> {"lv", "xp", "done"}) e receitas
+	# aprendidas (JSON [ids]). O CharState já tinha os três, mas sem coluna eles sumiam a cada reinício do servidor
+	[
+		"ALTER TABLE characters ADD COLUMN bestiary TEXT NOT NULL DEFAULT '{}'",
+		"ALTER TABLE characters ADD COLUMN professions TEXT NOT NULL DEFAULT '{}'",
+		"ALTER TABLE characters ADD COLUMN recipes TEXT NOT NULL DEFAULT '[]'",
+	],
 ]
 
 

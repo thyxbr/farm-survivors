@@ -302,6 +302,29 @@ func test_class_and_body_persist_in_sqlite() -> void:
 	db2.close()
 
 
+## Bestiário, profissões e receitas aprendidas vão para o SQLite (colunas próprias, v12): sem isso, todo
+## reinício do servidor zerava os três.
+func test_bestiary_professions_recipes_persist_in_sqlite() -> void:
+	var db := _fresh()
+	var bt := _tables()
+	var store := SqliteCharStore.new(db)
+	var s := CharacterService.new(store, bt).load_or_create(2)
+	var kind: String = BestiaryRules.all_kinds(bt)[0]
+	var prof: String = bt.get_table("professions")["professions"].keys()[0]
+	var recipe: String = bt.get_table("recipes").keys()[0]
+	s.bestiary = {kind: {"n": 12, "a": ["campos_norte"], "d": ["slime_gel"]}}
+	s.professions = {prof: {"lv": 3, "xp": 40, "done": [recipe]}}
+	s.recipes = [recipe]
+	T.ok(store.save_char(2, s.to_dict(), [], 1), "gravou: %s" % store.last_error)
+	db.close()
+	var db2 := Db.open(PATH)
+	var s2 := CharacterService.new(SqliteCharStore.new(db2), bt).load_or_create(2)
+	T.eq(s2.bestiary, {kind: {"n": 12, "a": ["campos_norte"], "d": ["slime_gel"]}}, "bestiário sobrevive a reabrir o banco")
+	T.eq(s2.professions, {prof: {"lv": 3, "xp": 40, "done": [recipe]}}, "profissões sobrevivem a reabrir o banco")
+	T.eq(s2.recipes, [recipe], "receitas sobrevivem a reabrir o banco")
+	db2.close()
+
+
 func test_enchant_bad_args_and_refusal() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
