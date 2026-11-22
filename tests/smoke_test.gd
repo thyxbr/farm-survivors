@@ -60,7 +60,7 @@ func _check_aegis(player: Node, world: Node) -> void:
 	Game.add_item("wooden_shield")
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield")
-	check(Game.ability_kit()[0] == "sword_aegis" and Game.ability_kit().size() == 4,
+	check(Game.ability_kit()[0] == "sword_aegis" and Game.ability_kit().size() == 5,
 		"Égide: espada + escudo troca a habilidade 1 (%s)" % [Game.ability_kit()])
 	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
 	var hp0: float = Game.hp
@@ -257,7 +257,7 @@ func _check_hammer(player: Node, world: Node) -> void:
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[3] == "sword_hammer" and kit[1] == "sword_earthquake" and not ("sword_whirl" in kit),
+	check(kit.size() == 5 and kit[4] == "sword_rally" and kit[3] == "sword_hammer" and kit[1] == "sword_earthquake" and not ("sword_whirl" in kit),
 		"Martelo: espada + escudo troca a habilidade 4 (%s)" % [kit])
 	check(Game.knows_ability("sword_hammer"), "Martelo: liberado no nível %d" % ItemDB.ABILITIES.sword_hammer.level)
 	var count_fx := func(cls: String) -> int:
@@ -423,7 +423,7 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[1] == "sword_earthquake" and not ("sword_quake" in kit),
+	check(kit.size() == 5 and kit[1] == "sword_earthquake" and not ("sword_quake" in kit),
 		"Terremoto: espada + escudo troca a habilidade 2 (%s)" % [kit])
 	check(Game.knows_ability("sword_earthquake"), "Terremoto: liberado no nível %d" % ItemDB.ABILITIES.sword_earthquake.level)
 	var count_fx := func(cls: String) -> int:
@@ -565,7 +565,7 @@ func _check_dark_taunt(player: Node, world: Node) -> void:
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 5)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[2] == "sword_taunt" and not ("sword_fury" in kit),
+	check(kit.size() == 5 and kit[2] == "sword_taunt" and not ("sword_fury" in kit),
 		"Provocação: espada + escudo troca a habilidade 3 (%s)" % [kit])
 	check(Game.knows_ability("sword_taunt"), "Provocação: liberada no nível %d" % ItemDB.ABILITIES.sword_taunt.level)
 	var count_fx := func(cls: String) -> int:
@@ -753,6 +753,202 @@ func _check_dark_taunt(player: Node, world: Node) -> void:
 	player.global_position = back
 	player.velocity = Vector3.ZERO
 	player.cooldowns.sword_taunt = 0.0
+	player.invuln = 0.0
+
+
+## Grito do Bastião (espada + escudo, tecla 5): HUD sem o M1 e com o 5 ao lado do 4, a animação com a aura azul
+## suave, o buff só no fim da animação, a defesa (fixa e percentual) entrando e saindo limpa, os escudos girando no
+## personagem e se desfazendo em partículas, reaplicar renova sem empilhar, esquiva cancela sem buff, réplica só
+## visual, e sem escudo a tecla 5 some.
+func _check_party_shield(player: Node, world: Node) -> void:
+	var cfg: PartyShieldConfig = PartyShieldAbilities.CONFIG
+	var id := PartyShieldRules.ID
+	var buff := PartyShieldRules.BUFF
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	Econ.test_force_level(maxi(lv0, int(ItemDB.ABILITIES[id].level)))
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= int(ItemDB.ABILITIES[id].level))
+	Game.clear_buffs(true)
+	var kit := Game.ability_kit()
+	check(kit == ["sword_aegis", "sword_earthquake", "sword_taunt", "sword_hammer", id],
+		"Bastião: espada + escudo ganha a habilidade 5 (%s)" % [kit])
+	check(Game.knows_ability(id), "Bastião: liberado no nível %d" % ItemDB.ABILITIES[id].level)
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	# --- HUD: o M1 não aparece (o clique continua atacando), o 5 fica logo depois do 4 e a doca fica centrada
+	var hud = world.hud
+	await wait(0.1)
+	var s4: Control = hud.slots["slot_4"]
+	var s5: Control = hud.slots["slot_5"]
+	check(not hud.slots["attack"].visible, "HUD: o M1 não aparece mais na barra")
+	check(s5.visible and s5.get_index() == s4.get_index() + 1 and s5.icon_tex == ItemSlot.skill_art(id) and s5.icon_tex != null,
+		"HUD: a habilidade 5 aparece ao lado da 4, com o ícone do Grito do Bastião")
+	check(s5.key_text == "5" and s4.key_text == "4", "HUD: selos de tecla 4 e 5")
+	check(hud_slot_ids() == kit, "HUD: a barra mostra o kit com escudo (%s)" % [hud_slot_ids()])
+	var dock: Control = hud.dock
+	check(absf(dock.offset_left + dock.offset_right) < 1.5, "HUD: a doca continua centrada com o 5 (%.1f, %.1f)" % [dock.offset_left, dock.offset_right])
+	# --- o herói longe da vila, parado; o ataque do clique esquerdo continua funcionando sem o M1 na barra
+	var spot := Vector3(-105, 0.3, 36)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.invuln = 99.0
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	Input.action_press("attack")
+	await wait(0.1)
+	Input.action_release("attack")
+	check(player.attacking or player.combo > 0, "HUD: sem o M1 na barra, o clique esquerdo ainda ataca")
+	await wait_until(func(): return not player.attacking, 2.0)
+	await wait(0.3)
+	var def0: float = Game.defense()
+	# --- tecla 5: a habilidade começa, com a recarga da config (nunca abaixo do buff + 4 s)
+	player.cooldowns[id] = 0.0
+	player.use_slot(5)
+	check(player.ability == id and player.ability_slot == 5, "Bastião: a tecla 5 começa o Grito do Bastião")
+	var cd: float = player.cooldowns[id]
+	var want_cd := maxf(cfg.cooldown * Game.cooldown_mult(), Game.buff_duration(buff) + 4.0)
+	check(absf(cd - want_cd) < 0.05, "Bastião: recarga %.1f s (config %.0f s, piso do buff)" % [cd, cfg.cooldown])
+	var fx: PartyShieldCast = player.ability_data.get("fx")
+	check(is_instance_valid(fx) and fx.get_parent() == player, "Bastião: a aura azul nasce no herói (segue ele)")
+	# a aura acende devagar (sem tranco) e respira
+	await wait(cfg.aura_fade_in * 0.35)
+	var w1: float = fx.weight() if is_instance_valid(fx) else -1.0
+	check(w1 > 0.05 and w1 < 0.95, "Bastião: a aura acende aos poucos (%.2f)" % w1)
+	await wait(cfg.aura_fade_in)
+	check(is_instance_valid(fx) and fx.weight() > 0.98, "Bastião: aura acesa durante a animação")
+	check(is_instance_valid(fx) and fx.light.visible and fx.light.light_color.b > fx.light.light_color.r, "Bastião: luz azul junto da aura")
+	# parado enquanto grita, a câmera recua um pouco
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.25)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05, "Bastião: parado enquanto grita")
+	check(player.cam_back > 0.5, "Bastião: a câmera recua")
+	check(player.ability_data.get("shout", false), "Bastião: o grito sai na explosão do clipe")
+	# antes do fim da animação: nada de buff
+	await wait_until(func(): return player.ability_t >= PartyShieldAbilities.total_time() - 0.15, 4.0)
+	check(player.ability == id and not Game.has_buff(buff) and absf(Game.defense() - def0) < 0.01,
+		"Bastião: o buff ainda não entrou durante a animação")
+	# fim da animação: o buff entra (solo: direto no herói), com o tempo da tabela
+	await wait_until(func(): return player.ability == "", 2.0)
+	check(Game.has_buff(buff), "Bastião: a animação termina e o buff entra")
+	check(absf(float(Game.buffs.get(buff, 0.0)) - Game.buff_duration(buff)) < 0.3, "Bastião: dura %.0f s" % Game.buff_duration(buff))
+	var add: Dictionary = ItemDB.BUFFS[buff].add
+	var def_want := PartyShieldRules.defense_with(def0 + float(add.defense), float(add.defense_pct))
+	check(absf(Game.defense() - def_want) < 0.01 and Game.defense() > def0,
+		"Bastião: defesa %.1f -> %.1f (+%d e +%d%%)" % [def0, Game.defense(), int(add.defense), int(float(add.defense_pct) * 100.0)])
+	# a aura do grito apaga devagar e se libera
+	check(is_instance_valid(fx) and fx.finished, "Bastião: a aura começa a apagar no fim")
+	await wait_until(func(): return not is_instance_valid(fx), cfg.aura_fade_out + 1.5)
+	check(not is_instance_valid(fx) and count_fx.call("PartyShieldCast") == 0, "Bastião: a aura do grito se libera")
+	# os escudos azuis no herói (BuffAura, estilo "bastiao"), girando
+	await wait_until(func(): return player.find_children("*", "PartyShieldBuff", true, false).size() > 0, 1.0)
+	var vis: Array = player.find_children("*", "PartyShieldBuff", true, false)
+	check(vis.size() == 1, "Bastião: um PartyShieldBuff no herói (%d)" % vis.size())
+	if vis.size() == 1:
+		var pb: PartyShieldBuff = vis[0]
+		check(pb.shield_nodes().size() == cfg.shield_count, "Bastião: %d escudos pequenos" % cfg.shield_count)
+		check(pb.get_child_count() == 2 and pb.get_node_or_null("Orbit") != null and pb.find_children("*", "GPUParticles3D", true, false).size() == 1,
+			"Bastião: no corpo só os escudos girando (sem anel da sheet nem faíscas)")
+		var aura: BuffAura = player.vfx_aura
+		check(aura != null and aura._ground_root != null and aura._ground_root.get_child_count() == 0 and aura._rim == null,
+			"Bastião: sem marca no chão nem contorno no corpo")
+		await wait(cfg.intro_time + 0.1)
+		var sh: MeshInstance3D = pb.shield_nodes()[0]
+		var p0: Vector3 = sh.global_position - player.global_position
+		await wait(0.3)
+		var p1: Vector3 = sh.global_position - player.global_position
+		var ang := absf(Vector2(p0.x, p0.z).angle_to(Vector2(p1.x, p1.z)))
+		check(ang > 0.2 and absf(Vector2(p1.x, p1.z).length() - cfg.orbit_radius) < 0.1,
+			"Bastião: os escudos giram em volta (%.2f rad em 0,3 s, raio %.2f m)" % [ang, Vector2(p1.x, p1.z).length()])
+		check(sh.global_position.y - player.global_position.y > 0.5, "Bastião: na altura do corpo")
+	# --- reaplicar renova o tempo, sem empilhar a defesa nem duplicar o visual
+	var def_on: float = Game.defense()
+	Game.buffs[buff] = 3.0
+	player.cooldowns[id] = 0.0
+	player.use_slot(5)
+	await wait_until(func(): return player.ability == "", PartyShieldAbilities.total_time() + 1.0)
+	check(float(Game.buffs.get(buff, 0.0)) > Game.buff_duration(buff) - 0.5, "Bastião: reaplicar renova o tempo (%.1f s)" % float(Game.buffs.get(buff, 0.0)))
+	check(absf(Game.defense() - def_on) < 0.01, "Bastião: reaplicar não empilha a defesa")
+	await wait(0.2)
+	var live := player.find_children("*", "PartyShieldBuff", true, false).filter(func(n): return not n.dissipating)
+	check(live.size() == 1, "Bastião: reaplicar não duplica os escudos (%d)" % live.size())
+	# --- o buff acaba: a defesa volta exatamente e os escudos se desfazem em partículas, depois somem
+	Game.buffs[buff] = 0.05
+	await wait(0.25)
+	check(not Game.has_buff(buff) and absf(Game.defense() - def0) < 0.01, "Bastião: acabou, a defesa volta a %.1f" % Game.defense())
+	var dis: Array = player.find_children("*", "PartyShieldBuff", true, false)
+	check(dis.size() == 1 and dis[0].dissipating and dis[0].dissipate_fx.emitting,
+		"Bastião: os escudos se desfazem em partículas (não somem de uma vez)")
+	await wait(cfg.dissipate_time + PartyShieldBuff.PARTICLE_LIFE + 0.5)
+	check(player.find_children("*", "PartyShieldBuff", true, false).is_empty(), "Bastião: depois da dissipação nada fica no herói")
+	# limpar os buffs (morte, troca de mapa) também tira a defesa
+	Game.add_buff(buff, 10.0)
+	check(Game.defense() > def0, "Bastião: add_buff direto vale")
+	Game.clear_buffs(true)
+	check(absf(Game.defense() - def0) < 0.01, "Bastião: buffs limpos, a defesa não fica presa")
+	await wait(cfg.dissipate_time + PartyShieldBuff.PARTICLE_LIFE + 0.5)
+	check(player.find_children("*", "PartyShieldBuff", true, false).is_empty(), "Bastião: buffs limpos, os escudos somem")
+	# --- esquiva antes do fim cancela: sem buff, aura apaga e se libera
+	player.cooldowns[id] = 0.0
+	player.use_slot(5)
+	var fx2: PartyShieldCast = player.ability_data.get("fx")
+	await wait(PartyShieldAbilities.total_time() * 0.5)
+	check(PartyShieldAbilities.can_dodge_cancel(player), "Bastião: a esquiva pode cancelar antes do fim")
+	PartyShieldAbilities.dodge_cancel(player)
+	check(player.ability == "" and is_instance_valid(fx2) and fx2.finished, "Bastião: cancelado pela esquiva, a aura apaga")
+	await wait(PartyShieldAbilities.total_time())
+	check(not Game.has_buff(buff), "Bastião: cancelado não dá o buff")
+	check(not is_instance_valid(fx2), "Bastião: aura cancelada se libera")
+	# --- réplica de outro jogador: só o visual (animação e aura), sem dar buff a ninguém aqui
+	var ally := Player.new()
+	ally.remote = true
+	world.add_child(ally)
+	ally.global_position = spot + Vector3(3, 0, 0)
+	ally._net_pos = ally.global_position
+	await wait(0.2)
+	ally.play_remote_event(id, ally.global_position, Vector3.ZERO)
+	check(ally.ability == id and ally.find_children("*", "PartyShieldCast", true, false).size() == 1,
+		"Bastião: a réplica grita com a mesma aura")
+	await wait_until(func(): return ally.ability == "", PartyShieldAbilities.total_time() + 1.0)
+	check(ally.ability == "" and not Game.has_buff(buff), "Bastião: a réplica termina sem dar buff por conta própria")
+	ally.play_remote_event(id, ally.global_position, Vector3.ZERO)
+	await wait(0.3)
+	ally.play_remote_event(PartyShieldAbilities.CANCEL_EVENT, ally.global_position, Vector3.ZERO)
+	check(ally.ability == "", "Bastião: o cancelamento chega na réplica")
+	# o buff de um colega aparece na réplica dele (estilo de aura pela rede) e se desfaz quando ele perde o buff
+	ally._vfx_apply({"auras": ["bastiao"], "en": "", "lv": 0}, false)
+	await wait(0.1)
+	check(ally.find_children("*", "PartyShieldBuff", true, false).size() == 1, "Bastião: os escudos aparecem no colega com o buff")
+	ally._vfx_apply({"auras": [], "en": "", "lv": 0}, false)
+	await wait(0.1)
+	var ad: Array = ally.find_children("*", "PartyShieldBuff", true, false)
+	check(ad.size() == 1 and ad[0].dissipating, "Bastião: no colega também se desfazem em partículas")
+	await wait(cfg.dissipate_time + PartyShieldBuff.PARTICLE_LIFE + 0.5)
+	check(ally.find_children("*", "PartyShieldBuff", true, false).is_empty(), "Bastião: e somem do colega")
+	ally.queue_free()
+	await wait(0.5)
+	check(count_fx.call("PartyShieldCast") == 0 and count_fx.call("PartyShieldBuff") == 0, "Bastião: nada sobra na cena")
+	# --- sem escudo: a tecla 5 some do HUD e não faz nada
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	await wait(0.1)
+	check(Game.ability_kit().size() == 4 and not (id in Game.ability_kit()), "Bastião: sem escudo o kit volta a 4 habilidades")
+	check(not hud.slots["slot_5"].visible, "HUD: sem escudo a tecla 5 some da barra")
+	check(absf(dock.offset_left + dock.offset_right) < 1.5, "HUD: a doca recentraliza sem o 5")
+	player.use_slot(5)
+	check(player.ability == "", "Bastião: sem escudo a tecla 5 não faz nada")
+	Game.clear_buffs(true)
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns[id] = 0.0
 	player.invuln = 0.0
 
 
@@ -1257,6 +1453,7 @@ func _ready() -> void:
 	await _check_hammer(player, world)
 	await _check_earthquake(player, world)
 	await _check_dark_taunt(player, world)
+	await _check_party_shield(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

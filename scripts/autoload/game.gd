@@ -111,6 +111,9 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
+		elif a.begins_with("--groupdemo="):
+			# demonstração do Grito do Bastião em grupo, com servidor local (tools/party_group_demo.gd)
+			get_tree().root.add_child.call_deferred(load("res://tools/party_group_demo.gd").new())
 		elif a.begins_with("--atlasshot="):
 			get_tree().root.add_child.call_deferred(load("res://tools/atlas_shot.gd").new())
 		elif a.begins_with("--teleportshot="):
@@ -121,6 +124,9 @@ func _ready() -> void:
 	if "--hammerdemo" in OS.get_cmdline_user_args():
 		# demonstração do Martelo de Energia (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/hammer_demo.gd").new())
+	if "--rallydemo" in OS.get_cmdline_user_args():
+		# demonstração do Grito do Bastião (use com --weapon=iron_sword: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/party_shield_demo.gd").new())
 	if "--earthquakedemo" in OS.get_cmdline_user_args():
 		# demonstração do Terremoto Devastador (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/earthquake_demo.gd").new())
@@ -664,8 +670,11 @@ func buff_duration(buff_id: String) -> float:
 	return float(ItemDB.BUFFS.get(buff_id, {}).get("time", 0.0)) + ability_time_bonus(ability_id)
 
 
+## Defesa total: a fixa (armadura, VIT e bônus "defense") vezes 1 + os bônus percentuais "defense_pct" (o Bastião de
+## Escudos dá os dois). Os buffs entram por mod(): buff_mods é refeito do zero a cada buff que entra ou sai
+## (_recalc_buff_mods), então o bônus nunca fica preso depois que o buff acaba, morre ou é limpo.
 func defense() -> float:
-	return armor_defense() + attr("vit") * 0.4 + mod("defense")
+	return PartyShieldRules.defense_with(armor_defense() + attr("vit") * 0.4 + mod("defense"), mod("defense_pct"))
 
 
 func speed_multiplier() -> float:
@@ -745,7 +754,7 @@ func knows_ability(id: String) -> bool:
 	return level >= ItemDB.ABILITIES[id].level
 
 
-## Habilidades da arma equipada (slots 1..4, em ordem).
+## Habilidades da arma equipada (slots 1..5, em ordem).
 func ability_kit() -> Array[String]:
 	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class), offhand_kind())
 
@@ -1259,7 +1268,8 @@ static func harness_class(args: PackedStringArray) -> Array:
 		elif a.begins_with("--weapon="):
 			weapon = a.substr(9)
 			harness = true
-		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest="):
+		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest=") \
+				or a.begins_with("--groupdemo="):
 			harness = true
 	if cls == "" and weapon != "":
 		var wc := CharRules.weapon_class(Balance.tables, weapon)
