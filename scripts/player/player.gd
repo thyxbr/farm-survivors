@@ -1939,6 +1939,7 @@ func apply_look(l: Dictionary) -> void:
 func _on_level_up(lvl: int) -> void:
 	Sfx.play("level_up_fanfare", 0.0)
 	LevelUpFX.play(self, lvl)
+	Network.send_event("level_up", Vector3(lvl, 0, 0))   # os outros jogadores da zona veem e ouvem também
 
 
 func add_shake(amount: float) -> void:
@@ -2092,6 +2093,9 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		_ab_module(kind).play_remote(self, kind, a, b)
 		return
 	match kind:
+		"level_up":
+			LevelUpFX.play(self, int(a.x))
+			Sfx.play_at("level_up_fanfare", global_position, 0.0)
 		"staff_fireball":
 			MageStaffAttack.play_remote(self, a, b)
 		"fireball":
