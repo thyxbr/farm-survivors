@@ -355,7 +355,7 @@ func _ready() -> void:
 			parts[n] = model.find_child(n, true, false)
 	for n in ["Tongue", "VineL", "VineR", "WingL", "WingR"]:   # Bocarrão, Flor-faminta e Asa-couro
 		parts[n] = model.find_child(n, true, false)
-	if data.model in ["goblin", "skeleton"]:   # cotovelos, arco e cajado (EnemyPose)
+	if data.model in ["goblin", "skeleton", "brejeiro"]:   # cotovelos, arco e cajado (EnemyPose); o Brejeiro tem os pivôs do goblin
 		for n in ["ElbowL", "ElbowR"]:
 			parts[n] = model.find_child(n, true, false)
 		parts["Bow"] = model.find_child("Opt_Bow", true, false)

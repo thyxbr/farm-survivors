@@ -1538,42 +1538,42 @@ respawn = 60.0
 level = 12
 level_max = 20
 
-[node name="goblin_xama" type="Node3D" parent="Monstros" unique_id=306104404]
+[node name="brejeiro_xama" type="Node3D" parent="Monstros" unique_id=306104404]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 6)
 script = ExtResource("7_pea20")
-kind = "goblin_xama"
+kind = "brejeiro_xama"
 respawn = 90.0
 level = 12
 level_max = 20
 
-[node name="goblin_xama 2" type="Node3D" parent="Monstros" unique_id=1204500778]
+[node name="brejeiro_xama 2" type="Node3D" parent="Monstros" unique_id=1204500778]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 9)
 script = ExtResource("7_pea20")
-kind = "goblin_xama"
+kind = "brejeiro_xama"
 respawn = 90.0
 level = 12
 level_max = 20
 
-[node name="goblin_xama 3" type="Node3D" parent="Monstros" unique_id=406188974]
+[node name="brejeiro_xama 3" type="Node3D" parent="Monstros" unique_id=406188974]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 11)
 script = ExtResource("7_pea20")
-kind = "goblin_xama"
+kind = "brejeiro_xama"
 respawn = 90.0
 level = 12
 level_max = 20
 
-[node name="goblin_arqueiro" type="Node3D" parent="Monstros" unique_id=2054022755]
+[node name="brejeiro_arqueiro" type="Node3D" parent="Monstros" unique_id=2054022755]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 2)
 script = ExtResource("7_pea20")
-kind = "goblin_arqueiro"
+kind = "brejeiro_arqueiro"
 respawn = 75.0
 level = 12
 level_max = 20
 
-[node name="goblin_arqueiro 2" type="Node3D" parent="Monstros" unique_id=935145600]
+[node name="brejeiro_arqueiro 2" type="Node3D" parent="Monstros" unique_id=935145600]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, 14)
 script = ExtResource("7_pea20")
-kind = "goblin_arqueiro"
+kind = "brejeiro_arqueiro"
 respawn = 75.0
 level = 12
 level_max = 20
@@ -1691,26 +1691,26 @@ count = 3
 radius = 4.0
 respawn = 25.0
 
-[node name="bando goblin_xama 1" type="Node3D" parent="Monstros"]
+[node name="bando brejeiro_xama 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, 0)
 script = ExtResource("7_pea20")
-kind = "goblin_xama"
+kind = "brejeiro_xama"
 count = 3
 radius = 4.0
 respawn = 25.0
 
-[node name="bando goblin_arqueiro 1" type="Node3D" parent="Monstros"]
+[node name="bando brejeiro_arqueiro 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 0, 22)
 script = ExtResource("7_pea20")
-kind = "goblin_arqueiro"
+kind = "brejeiro_arqueiro"
 count = 4
 radius = 5.0
 respawn = 25.0
 
-[node name="bando goblin 1" type="Node3D" parent="Monstros"]
+[node name="bando brejeiro 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, -5)
 script = ExtResource("7_pea20")
-kind = "goblin"
+kind = "brejeiro"
 count = 4
 radius = 4.0
 respawn = 25.0
