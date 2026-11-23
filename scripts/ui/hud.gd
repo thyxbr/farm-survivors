@@ -41,7 +41,7 @@ var gather_title: Label
 var gather_bar: ProgressBar
 var gather_info: Label
 var slots := {}
-var _slot_ids: Array[String] = ["", "", "", "", ""]   # id da habilidade em cada slot 1..ItemDB.SLOT_COUNT
+var _slot_ids: Array[String] = ["", "", "", "", "", ""]   # id da habilidade em cada slot 1..ItemDB.SLOT_COUNT
 var _fury_ring: Control   # anel de fúria em volta do slot 4 (escondido quando ali não há ultimate)
 var _kit_class := ""
 var boss_panel: VBoxContainer
@@ -589,10 +589,13 @@ func _redraw(s: ItemSlot) -> void:
 
 
 ## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; o 5 (Julgamento de
-## Luz do cetro, Grito do Bastião da espada com escudo, Fúria Picante da montante) só quando o kit tem habilidade nele.
+## Luz do cetro, Grito do Bastião da espada com escudo, Fúria Picante da montante, Vórtice Sombrio da espada) e o 6
+## (Vórtice Sombrio da montante) só quando o kit tem habilidade neles.
 func _refresh_kit() -> void:
 	_kit_class = Game.weapon_class()
-	_slot_ids = ["", "", "", "", ""]
+	_slot_ids = []
+	_slot_ids.resize(ItemDB.SLOT_COUNT)
+	_slot_ids.fill("")
 	for id in Game.ability_kit():
 		_slot_ids[ItemDB.ABILITIES[id].slot - 1] = id
 	for n in range(1, ItemDB.SLOT_COUNT + 1):

@@ -396,7 +396,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
-		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4], "spell_5": [KEY_5],
+		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4], "spell_5": [KEY_5], "spell_6": [KEY_6],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "gather": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "bestiary": [KEY_B], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
