@@ -119,6 +119,36 @@ vértice com a cor do osso dominante e marque os pivôs numa vista de lado.
 Em aberto: olhos e cristais sem brilho (a pintura da IA é fosca; o conceito tem olhos e
 cristais acesos), trocar o `wolf.glb` de vez, custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
 
+### Espinheira, a Guardiã-Raiz (chefe do Covil das Raízes; rodada 1 aprovada em 2026-11-22)
+
+![Conceito x jogo](renders/espinheira_ia/conceito_x_jogo.png) — `tools/blender/thorn_ia_build.py` →
+`assets/models/thorn_tree_ia.glb` (6,3 m, 20 mil faces, textura 2048). Folhas do lab em `renders/espinheira_ia/ia_*.png`
+(andar, varrer e as três habilidades: raízes, brotos, esporos). É o modelo da Espinheira no jogo
+(`EnemyModel.MODELS["thorn_tree"]`); a de código continua em `thorn_tree.glb` (`--glb=thorn_tree` no monster_lab).
+
+- **Vista de lado diferente das outras não estragou.** No lado o braço veio esticado para a frente; na frente e nas
+  costas, aberto e para baixo. O gerador seguiu frente e costas (braço aberto, um pouco para a frente). Vale gerar
+  antes de pedir outra imagem.
+- **Copa em tufos grandes** (pedido no prompt: "chunky stylized leaf masses, not individual leaves") saiu limpa e
+  de uma peça só. Os cipós finos também (presos na copa, longe dos braços).
+- **Cipós achados por fatia.** Em cada fatia de 6 cm, grupos de vértices ligados a até 15 cm; grupo com menos de
+  30 cm é fio. Com 7 cm a malha reduzida (~8 cm entre vértices) quebrava o tronco em "fios" e o alto do tronco ia
+  inteiro para o `Hang`. Filtros que faltaram: a ponta de baixo do fio fica fora da planta do tronco, e o fio sobe
+  até a copa (z > 4); sem eles, os tocos de galho do ombro viravam cipó. Cada fio vai no `Hang` do lado e da metade
+  (frente/trás) dele, com a raiz misturada no galho.
+- **Regra de um membro não pode pegar o outro.** A massa do quadril (z 1,3–1,95) ia para a perna sem limite em x, e
+  as mãos pendem nessa mesma altura (x ~2): os dedos ficaram 85% na perna e viraram tiras esticadas quando o braço
+  subia no golpe. Toda regra de região precisa de um limite no eixo do membro. Abaixo da virilha, ponto mais perto da
+  mão que da coluna da perna é dedo. Conferir com a contagem de grupos por vértice de um lado (`LegR+HandR` = erro),
+  não só pela cor do osso dominante, que esconde mistura.
+- **Boca na fenda esculpida.** A pintura quase não mostra a boca, mas a IA esculpiu a fenda sob o nariz: o corte
+  segue a fenda (z 3,345) e para antes da ponta do nariz, que desce até a mesma altura mais à frente (cortá-la soltou
+  uma lasca de 17 vértices, e o resto do nariz ia junto com a mandíbula). O saco escuro precisa de UV e textura lisa,
+  senão a prévia de textura mostra branco.
+- **Em aberto:** com o tronco curvado (raízes, esporos) a copa, mais alta e maior que a de código, desce na frente
+  do rosto; o rosa das veias virou um tom avermelhado espalhado e a copa rosa vazou para os dois lados; a pintura
+  é fosca (olhos sem brilho), como no lobo.
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).
