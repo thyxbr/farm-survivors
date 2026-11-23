@@ -4113,12 +4113,106 @@ func _test_tecela_web() -> void:
 
 # ---------------------------------------------------------------- Efeitos dos elementos
 ## Um slime grande de teste num canto vazio do mapa (longe dos outros inimigos).
-func _fx_dummy(at: Vector3) -> Enemy:
+func _fx_dummy(at: Vector3, kind := "slime_grande") -> Enemy:
 	var e := Enemy.new()
-	e.kind = "slime_grande"
+	e.kind = kind
 	world.add_child(e)
 	e.global_position = at
 	return e
+
+
+## Status elementais direto no componente do monstro (sem chance: Enemy.apply_status aplica sempre).
+func _test_status_effects(spot: Vector3) -> void:
+	var a := _fx_dummy(spot + Vector3(0, 0, 4))
+	await wait(0.1)
+	a.apply_status("fogo", 30.0, 3.0)
+	check(a.status.has("fogo") and a.status.mask() & StatusRules.BITS.fogo != 0, "fogo aplicado entra no bitmask")
+	var hp0: float = a.hp
+	a.status.tick(1.01)
+	check(a.hp < hp0, "queimadura tira vida no primeiro tick (%.1f -> %.1f)" % [hp0, a.hp])
+	a.status.tick(3.0)
+	check(not a.status.has("fogo"), "queimadura acaba")
+	a.apply_status("veneno", 50.0, 5.0)
+	var hp1: float = a.hp
+	for i in 6:
+		a.status.tick(1.0)
+	check(absf((hp1 - a.hp) - 50.0 * a.element_mult("veneno")) < 1.0, "veneno dá a força toda em 5 s (x%.2f: %.1f)" % [a.element_mult("veneno"), hp1 - a.hp])
+	check(not a.status.has("veneno"), "veneno acaba")
+	for i in 3:
+		a.apply_status("gelo", 0.0, 2.0)
+	check(a.status.has("congelado") and a.stagger > 0.0 and a.slow_timer > 0.0, "3 gelos congelam")
+	a.status.tick(1.1)
+	check(not a.status.has("congelado"), "congelamento dura ~1 s")
+	a.stagger = 0.0
+	for i in 3:
+		a.apply_status("gelo", 0.0, 2.0)
+	check(not a.status.has("congelado") and a.stagger <= 0.0, "em recarga não congela de novo")
+	# reaplicar só renova: os pulsos seguem no ritmo (arma rápida não pode adiar a queimadura para sempre)
+	var hpr: float = a.hp
+	a.apply_status("fogo", 30.0, 3.0)
+	for i in 3:
+		a.status.tick(0.6)
+		a.apply_status("fogo", 30.0, 3.0)
+	check(a.hp < hpr, "reaplicar fogo a cada 0,6 s não adia os pulsos (%.1f -> %.1f)" % [hpr, a.hp])
+	a.status.tick(10.0)
+	# pulso de status não faz o monstro recuar nem cancela o ataque dele
+	a.stagger = 0.0
+	a.apply_status("veneno", 20.0, 5.0)
+	a.status.tick(1.01)
+	check(a.stagger <= 0.0, "pulso de veneno não faz recuar (%.2f)" % a.stagger)
+	a.status.tick(10.0)
+	# morrer num pulso com dois efeitos ativos não quebra o laço
+	var weak := _fx_dummy(spot + Vector3(4, 0, 4))
+	await wait(0.1)
+	weak.apply_status("fogo", 500.0, 3.0)
+	weak.apply_status("veneno", 500.0, 5.0)
+	weak.hp = 1.0
+	weak.status.tick(1.01)
+	check(weak.dead and weak.status.mask() == 0 and weak.status.active_count() == 0, "morte no pulso com dois efeitos limpa tudo")
+	weak.queue_free()
+	# a aura acompanha o bitmask (a réplica recebe o mesmo pelo snapshot)
+	a.apply_status("veneno", 50.0, 5.0)
+	check(a.status_aura != null and a.status_aura.shown() == "veneno", "aura de veneno no corpo do monstro")
+	a.status.tick(6.0)
+	check(a.status_aura.shown() == "", "aura some quando o veneno acaba")
+	await _test_status_aura_cap()
+	var boss := _fx_dummy(spot + Vector3(-4, 0, 4))
+	await wait(0.1)
+	boss.is_boss = true
+	for i in 3:
+		boss.apply_status("gelo", 0.0, 2.0)
+	check(not boss.status.has("congelado") and boss.slow_timer > 0.0, "chefe fica lento, nunca congela")
+	a.queue_free()
+	boss.queue_free()
+	await wait(0.1)
+
+
+## Horda em chamas: só StatusAura.MAX_PARTICLE_AURAS auras ganham partícula; as outras ficam só no contorno e
+## tentam de novo no próximo set_mask delas.
+func _test_status_aura_cap() -> void:
+	var base := StatusAura.particle_slots_used()
+	var auras: Array = []
+	for i in 15:
+		var au := StatusAura.new()
+		world.add_child(au)
+		auras.append(au)
+	var free_slots := StatusAura.MAX_PARTICLE_AURAS - base
+	for au in auras:
+		au.set_mask(StatusRules.BITS.fogo)
+	check(StatusAura.particle_slots_used() == StatusAura.MAX_PARTICLE_AURAS, "teto de auras com partícula (%d)" % StatusAura.particle_slots_used())
+	var with_p := auras.filter(func(x) -> bool: return x.has_particles())
+	var without := auras.filter(func(x) -> bool: return not x.has_particles())
+	check(with_p.size() == free_slots and without.size() == 15 - free_slots, "as que passaram do teto ficam só no contorno")
+	for k in 3:
+		with_p[k].set_mask(0)
+	check(StatusAura.particle_slots_used() == StatusAura.MAX_PARTICLE_AURAS - 3, "máscara 0 libera a vaga")
+	for au in without:
+		au.set_mask(StatusRules.BITS.fogo)
+	check(StatusAura.particle_slots_used() == StatusAura.MAX_PARTICLE_AURAS, "aura sem vaga pega a vaga livre no próximo set_mask")
+	for au in auras:
+		au.queue_free()
+	await wait(0.1)
+	check(StatusAura.particle_slots_used() == base, "aura que sai da árvore devolve a vaga")
 
 
 ## Troca o elemento da arma equipada pelo serviço (mantém o nível) e confere que trocou.
@@ -4152,25 +4246,32 @@ func _test_enchant_effects() -> void:
 	var a := _fx_dummy(spot + Vector3(3, 0, 0))
 	await wait(0.1)
 
-	# fogo +2: 22% do dano do golpe, em 3 pulsos ao longo de 3 s
+	# fogo +2: 30% de chance; pegando, 22% do dano do golpe em 3 pulsos ao longo de 3 s
+	var fx_fogo := Game.weapon_effect()
+	check(absf(float(fx_fogo.get("chance", 0.0)) - 0.30) < 0.001, "fogo +2: 30% de chance")
 	var hp0: float = a.hp
-	EnchantHit.on_hit(a, 100.0)
+	check(EnchantHit.try_status(a, 100.0, fx_fogo, 0.99) == "none" and not a.status.has("fogo"), "rolagem alta não pega")
+	check(EnchantHit.try_status(a, 100.0, fx_fogo, 0.10) == "applied" and a.status.has("fogo"), "fogo pega no slime")
 	check(a.hp == hp0, "queimadura não tira vida na hora")
 	await wait(3.4)
 	# (os números destes testes levam a afinidade do boneco: queimadura é fogo, corrente é raio; ElementRules)
 	check(absf((hp0 - a.hp) - 22.0 * a.element_mult("fogo")) < 1.0, "queimadura +2 tira 22 de vida em 3 s (x%.2f de fogo: %.1f)" % [a.element_mult("fogo"), hp0 - a.hp])
-	var gone := _fx_dummy(spot + Vector3(-6, 0, -6))
+	var immune := _fx_dummy(spot + Vector3(-6, 0, -6), "slime_explosivo")
 	await wait(0.1)
-	EnchantHit.on_hit(gone, 100.0)
+	check(EnchantHit.try_status(immune, 100.0, fx_fogo, 0.10) == "resisted" and not immune.status.has("fogo"), "imune resiste")
+	immune.queue_free()
+	var gone := _fx_dummy(spot + Vector3(-6, 0, 6))
+	await wait(0.1)
+	EnchantHit.try_status(gone, 100.0, fx_fogo, 0.0)
 	gone.queue_free()   # o alvo some antes dos pulsos da queimadura
 	await wait(1.3)
 	check(true, "queimadura em alvo que sumiu não quebra")
 	check(EnchantHit.scale(a, 100.0) == 100.0, "fogo não muda o dano do golpe")
 
-	# gelo +2: lentidão por 0,9 s
+	# gelo +2: 35% de chance; pegando, lentidão por 0,9 s
 	await _swap_element("gelo", lv)
 	a.slow_timer = 0.0
-	EnchantHit.on_hit(a, 10.0)
+	EnchantHit.try_status(a, 10.0, Game.weapon_effect(), 0.0)
 	check(absf(a.slow_timer - 0.9) < 0.05, "gelo +2 deixa lento por 0,9 s (%.2f)" % a.slow_timer)
 
 	# raio +2: a corrente dá metade do dano no inimigo mais próximo a até 6 m
@@ -4188,13 +4289,8 @@ func _test_enchant_effects() -> void:
 	b.queue_free()
 	await wait(0.1)
 
-	# veneno +2: alvo marcado recebe +6% de dano por 4 s
-	await _swap_element("veneno", lv)
-	EnchantHit.on_hit(a, 1.0)
-	check(a.venom_timer > 3.5 and absf(a.venom_amp - 0.06) < 0.001, "veneno +2 marca o alvo por 4 s com +6%")
-	var hp1: float = a.hp
-	a.take_damage(50.0, player.global_position, false)
-	check(absf((hp1 - a.hp) - 53.0 * a.element_mult("fisico")) < 0.01, "alvo marcado: 50 de dano vira 53 (x%.2f de físico: %.1f)" % [a.element_mult("fisico"), hp1 - a.hp])
+	# status elementais no dono (StatusEffects): ticks, fim, congelamento e recarga
+	await _test_status_effects(spot)
 
 	# sagrado +2: +12% de dano em chefes e elites
 	await _swap_element("sagrado", lv)

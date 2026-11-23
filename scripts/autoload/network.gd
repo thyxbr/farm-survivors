@@ -41,7 +41,7 @@ const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web",
 	"hammer", "vent", "rune_shield",   # Forjador Rúnico
 	"volley", "voids", "mirage", "collapse",   # Arauto do Abismo (AbyssRules.KINDS)
 	"breath", "icicles", "blizzard"]   # Sentinela da Nevasca
-const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
+const SNAP_STRIDE := 11   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags, status (StatusRules.BITS)
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
 const HORDE_LOBBY_ALL := 3.0
@@ -747,7 +747,8 @@ func _send_enemy_snapshot() -> void:
 		if e.taunt_t > 0.0:
 			flags |= Enemy.TAUNT_FLAG   # provocado: as réplicas mostram os olhos vermelhos (depois dos pacotes acima)
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
-			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
+			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags,
+			e.status.mask()]
 		snap_world.append_array(row)
 	if snap_world.is_empty():
 		return
@@ -796,23 +797,32 @@ func _taunt_enemy(net_id: int, hold: float, secs: float) -> void:
 	e.apply_taunt(rp, clampf(hold, 0.0, cfg.hold_time), clampf(secs, 0.0, cfg.taunt_time))
 
 
-## Marca tóxica pedida por um cliente: mesmas conferências de um acerto (zona e alcance) e os valores
-## limitados ao que a tabela permite (o cliente não escolhe quanto dano a mais o alvo leva).
+## Número de dano de um acerto nas réplicas de `e` (já com o nível de quem bateu e o elemento). Usado pelo
+## acerto de cliente e pelos pulsos de status (StatusEffects), que rodam aqui.
+func server_show_hit(e: Enemy, amount: float, mix, crit := false) -> void:
+	var em := e.element_mult(mix)
+	for pid in _enemy_peers(e):
+		_enemy_hit_fx.rpc_id(pid, e.net_id, e.incoming(amount) * em, crit, em)
+
+
+## Status elemental pedido por um cliente (Enemy.apply_status): mesmas conferências de um acerto (zona e
+## alcance). O cliente rolou a chance; o servidor recusa alvo imune ao elemento e corta força e tempo ao que a
+## tabela permite (StatusRules.cap_*). Quem pediu fica como dono dos pulsos (abate, XP e loot).
 @rpc("any_peer", "call_remote", "reliable")
-func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
+func _apply_status(net_id: int, el: String, power: float, secs: float) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
 	var e: Enemy = enemies.get(net_id)
 	if e == null or not is_instance_valid(e) or e.dead or zone_of(id) != "world":
 		return
+	if not (el in StatusRules.STATUS_ELEMENTS) or not is_finite(power) or not is_finite(secs):
+		return
 	if not HitGuard.accepts(0.0, last_pos.get(id, Vector3.INF), e.global_position):
 		return
-	var max_amp := EnchantRules.max_effect(Balance.tables, "veneno")
-	var max_secs := float(Balance.tables.get_table("enchant").get("effects", {}).get("veneno", {}).get("secs", 0.0))
-	if not is_finite(amp) or not is_finite(secs) or max_amp <= 0.0 or max_secs <= 0.0:
+	if StatusRules.enemy_resist(Balance.tables, e.kind, el) >= 1.0:
 		return
-	e.apply_venom(clampf(amp, 0.0, max_amp), clampf(secs, 0.0, max_secs))
+	e.status.apply(el, StatusRules.cap_power(Balance.tables, el, power), StatusRules.cap_secs(Balance.tables, el, secs), id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -831,10 +841,8 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if amount > 0.0:
 		# o elemento vem do cliente, mas o % é o da tabela do servidor (ElementRules.mix_of joga fora o desconhecido)
 		var mix := ElementRules.mix_of(element)
-		var em := e.element_mult(mix)
 		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
-		for pid in _enemy_peers(e):
-			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount) * em, crit, em)   # o número já com a marca tóxica e o elemento
+		server_show_hit(e, amount, mix, crit)
 		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0), mix)
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
@@ -1317,10 +1325,10 @@ func client_taunt_enemy(net_id: int, hold: float, secs: float) -> void:
 		_taunt_enemy.rpc_id(1, net_id, hold, secs)
 
 
-## Marca tóxica da arma encantada com Veneno (ver Enemy.apply_venom): quem aplica é o servidor.
-func client_mark_enemy(net_id: int, amp: float, secs: float) -> void:
+## Status elemental da arma encantada (ver Enemy.apply_status): quem aplica é o servidor.
+func client_apply_status(net_id: int, el: String, power: float, secs: float) -> void:
 	if is_client():
-		_mark_enemy.rpc_id(1, net_id, amp, secs)
+		_apply_status.rpc_id(1, net_id, el, power, secs)
 
 
 func request_boss() -> void:
@@ -1517,7 +1525,7 @@ func _enemy_snapshot(snap: PackedFloat32Array) -> void:
 		var e: Enemy = enemies.get(int(snap[i]))
 		if e and is_instance_valid(e) and not e.dead:
 			e.apply_snapshot(Vector3(snap[i + 1], snap[i + 2], snap[i + 3]), snap[i + 4], snap[i + 5],
-				STATES[int(snap[i + 6])], snap[i + 7], ATTACK_KINDS[int(snap[i + 8])], int(snap[i + 9]))
+				STATES[int(snap[i + 6])], snap[i + 7], ATTACK_KINDS[int(snap[i + 8])], int(snap[i + 9]), int(snap[i + 10]))
 		i += SNAP_STRIDE
 
 

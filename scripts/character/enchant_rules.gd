@@ -106,8 +106,9 @@ static func mods(s: CharState, bt: BalanceTables) -> Dictionary:
 # ================================================================ efeitos dos elementos
 ## Efeito do elemento no nível dado: {"el", "value"} mais os campos fixos da tabela ("secs", "mult",
 ## "radius"). O significado de "value" depende do elemento: fogo = fração do dano do golpe que vira
-## queimadura; gelo = segundos de lentidão; raio = chance de corrente; veneno = dano extra que o alvo
-## marcado recebe; sagrado = dano extra em chefes e elites; sombra = fração do dano que vira cura.
+## queimadura; gelo = segundos de lentidão; raio = chance de corrente; veneno = fração do dano do golpe
+## que vira veneno (ticks); sagrado = dano extra em chefes e elites; sombra = fração do dano que vira cura.
+## Fogo, gelo e veneno têm também "chance" por nível (StatusRules.chance).
 ## Sem efeito (nível 0, elemento desconhecido, tabela sem "effects"): {}.
 static func effect(bt: BalanceTables, element: String, level: int) -> Dictionary:
 	if level <= 0:
@@ -120,6 +121,8 @@ static func effect(bt: BalanceTables, element: String, level: int) -> Dictionary
 	out.erase("values")
 	out["el"] = element
 	out["value"] = float(values[mini(level, values.size()) - 1])
+	if out.has("chance"):
+		out["chance"] = StatusRules.chance(bt, element, level)   # a lista vira a chance do nível
 	return out
 
 
@@ -147,13 +150,16 @@ static func effect_text(bt: BalanceTables, element: String, level: int) -> Strin
 	var v: float = fx.value
 	match element:
 		"fogo":
-			return "Queimadura: %s%% do dano em %s s" % [_num(v * 100.0), _num(float(fx.get("secs", 3)))]
+			return "%s%% de chance — Queimadura: %s%% do dano em %s s" % [_num(StatusRules.chance(bt, element, level) * 100.0),
+				_num(v * 100.0), _num(float(fx.get("secs", 3)))]
 		"gelo":
-			return "Lentidão por %s s" % _num(v)
+			return "%s%% de chance — Lentidão por %s s; %d acertos congelam" % [_num(StatusRules.chance(bt, element, level) * 100.0),
+				_num(v), int(fx.get("freeze_stacks", 3))]
 		"raio":
 			return "Corrente: %s%% de chance de saltar a outro inimigo" % _num(v * 100.0)
 		"veneno":
-			return "Marca tóxica: alvo recebe +%s%% de dano por %s s" % [_num(v * 100.0), _num(float(fx.get("secs", 4)))]
+			return "%s%% de chance — Veneno: %s%% do dano em %s s" % [_num(StatusRules.chance(bt, element, level) * 100.0),
+				_num(v * 100.0), _num(float(fx.get("secs", 5)))]
 		"sagrado":
 			return "+%s%% de dano em chefes e elites" % _num(v * 100.0)
 		"sombra":
