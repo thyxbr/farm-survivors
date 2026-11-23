@@ -15,7 +15,7 @@ extends Node3D
 ## Com `--seq=<pasta>` grava os quadros e fecha (rode com `--fixed-fps 30`); `--noon` grava de dia.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
-const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44, "ice": 75, "breath": 80, "roar": 50, "quake": 75,
+const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44, "ice": 75, "breath": 80, "roar": 50, "quake": 75, "quakeside": 75,
 	"rock": 90, "acid": 120}
 const BLADE_SPEED := 17.0
 const TARGET := Vector3(0.0, 0.0, -15.0)
@@ -87,6 +87,9 @@ func _ready() -> void:
 		"quake":
 			cam.position = Vector3(0.0, 9.0, 17.0)
 			cam.look_at(Vector3(0.0, 0.5, 2.0))
+		"quakeside":   # rente ao chão, de lado: os cristais têm de ter volume
+			cam.position = Vector3(9.5, 1.7, 6.0)
+			cam.look_at(Vector3(3.0, 1.3, 0.0))
 		"rock":
 			cam.position = Vector3(0.0, 6.0, 9.0)
 			cam.look_at(Vector3(0.0, 0.8, 0.0))
@@ -190,7 +193,7 @@ func _record(dir: String) -> void:
 		if i == 19 and _fx == "ice":
 			BlizzardFX.spike_impact(Vector3.ZERO, 1.8)
 			add_child(IceSpike.new())
-		if _fx == "quake" and i in [4, 19]:   # dois anéis da Onda, 0,5 s um do outro
+		if _fx.begins_with("quake") and i in [4, 19]:   # dois anéis da Onda, 0,5 s um do outro
 			var r := 3.5 if i == 4 else 7.5
 			BossFX.crystal_ring(Vector3.ZERO, r, clampi(int(r * 2.4), 8, 40), false)
 		if i == 4 and _fx == "rock":

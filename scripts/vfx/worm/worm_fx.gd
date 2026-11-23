@@ -1,8 +1,8 @@
 class_name WormFX
 extends RefCounted
-## Efeitos pintados da Mãe-Verme das Profundezas, feitos em código sobre sete pinturas (claro em fundo preto,
-## tingidas no shader):
-##   crystal_ring  um anel da Onda de Cristais: cachos de cristal (cristais_cacho.png) que sobem de dentro do chão
+## Efeitos da Mãe-Verme das Profundezas, feitos em código sobre seis pinturas (claro em fundo preto, tingidas no
+## shader); os cristais são malha 3D pintada como desenho (de lado, pintura chapada denunciava o truque):
+##   crystal_ring  um anel da Onda de Cristais: cachos de cristais 3D facetados que sobem de dentro do chão
 ##                 num jorro de terra (jorro_terra.png, 4 quadros), com lascas de pedra (pedras_folha.png), poeira
 ##                 (a nuvem da explosão, em tons de terra) e a crista de choque correndo o anel; depois afundam
 ##   falling_rock  o pedregulho do Desmoronamento caindo (pedras_folha.png) e o impacto: chão quebrado com as
@@ -12,7 +12,6 @@ extends RefCounted
 ##   acid_pool     a poça (acido_poca.png girando, com a trama de acido_bolhas.png fervendo): a tela de AcidPool
 ## Em jogo: BossFX.crystal_ring / falling_rock / lob, Enemy._acid_hit, AcidPool e EnemyArrow (cuspe).
 
-const CRYSTALS_TEX := preload("res://assets/vfx/worm/cristais_cacho.png")
 const DIRT_TEX := preload("res://assets/vfx/worm/jorro_terra.png")
 const ROCKS_TEX := preload("res://assets/vfx/worm/pedras_folha.png")
 const CRATER_TEX := preload("res://assets/vfx/worm/chao_rachado.png")
@@ -27,6 +26,8 @@ const GROUND := preload("res://shaders/worm/worm_ground.gdshader")
 const POOL := preload("res://shaders/worm/acid_pool.gdshader")
 const CLOUD := preload("res://shaders/explosion/cloud_flip.gdshader")
 const RING := preload("res://shaders/lightning_shockwave/wave_ring.gdshader")
+const CRYSTAL := preload("res://shaders/worm/worm_crystal.gdshader")
+const CRYSTAL_INK := preload("res://shaders/worm/worm_crystal_ink.gdshader")
 
 ## Cores como se vê na tela (sRGB); `_v` converte para o shader. Cada paleta: face clara, cor, sombra.
 const CYAN := [Color(0.88, 0.99, 1.0), Color(0.22, 0.8, 1.0), Color(0.16, 0.12, 0.62)]
@@ -46,6 +47,7 @@ static var _quad: QuadMesh
 static var _strip: QuadMesh
 static var _plane: PlaneMesh
 static var _annulus: ArrayMesh
+static var _crystal: ArrayMesh
 
 
 static func _v(c: Color) -> Vector3:
@@ -63,7 +65,7 @@ static func _shared() -> void:
 	_plane.size = Vector2.ONE
 	_annulus = LightningShockwaveFX._annulus()
 	# [pintura, linha do pé na célula, prioridade]: a terra atrás, os cristais na frente
-	for spec in [["dirt", DIRT_TEX, 0.13, 1], ["crystal", CRYSTALS_TEX, 0.09, 3], ["rock", ROCKS_TEX, 0.0, 4],
+	for spec in [["dirt", DIRT_TEX, 0.13, 1], ["rock", ROCKS_TEX, 0.0, 4],
 			["splash", SPLASH_TEX, 0.1, 3]]:
 		var m := ShaderMaterial.new()
 		m.shader = CARD
@@ -73,6 +75,13 @@ static func _shared() -> void:
 		m.set_shader_parameter("foot_fade", 0.14 if spec[0] == "splash" else 0.0)
 		m.render_priority = spec[3]
 		_mats[spec[0]] = m
+	var ink := ShaderMaterial.new()
+	ink.shader = CRYSTAL_INK
+	var gem := ShaderMaterial.new()
+	gem.shader = CRYSTAL
+	gem.next_pass = ink
+	_mats["crystal"] = gem
+	_crystal = _crystal_mesh()
 	var cloud := ShaderMaterial.new()
 	cloud.shader = CLOUD
 	cloud.set_shader_parameter("sheet", CLOUD_TEX)
@@ -108,7 +117,57 @@ static func _node(parent: Node, mesh: Mesh, mat: Material, cull := 4.0) -> MeshI
 	return n
 
 
-## Uma pintura da folha `sheet` ("crystal", "dirt", "rock", "splash"), célula `cell`, nas cores de `pal`.
+## Um cristal: prisma de seis faces de raio 1 e altura 1, com o pé um pouco mais fino e a ponta a partir de 0,68.
+## Normais chapadas (uma por face): cada face ganha um tom só no shader.
+static func _crystal_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tip := Vector3(0.0, 1.0, 0.0)
+	for i in 6:
+		var a0 := TAU * i / 6.0
+		var a1 := TAU * (i + 1) / 6.0
+		var b0 := Vector3(cos(a0) * 0.7, 0.0, sin(a0) * 0.7)
+		var b1 := Vector3(cos(a1) * 0.7, 0.0, sin(a1) * 0.7)
+		var s0 := Vector3(cos(a0), 0.68, sin(a0))
+		var s1 := Vector3(cos(a1), 0.68, sin(a1))
+		for tri in [[b0, s0, s1], [b0, s1, b1], [s0, tip, s1]]:
+			var nrm := ((tri[1] as Vector3) - (tri[0] as Vector3)).cross((tri[2] as Vector3) - (tri[0] as Vector3)).normalized()
+			if nrm.dot(Vector3(cos((a0 + a1) / 2.0), 0.2, sin((a0 + a1) / 2.0))) < 0.0:
+				nrm = -nrm
+				tri = [tri[0], tri[2], tri[1]]
+			for v in [tri[0], tri[2], tri[1]]:   # o Godot quer a face da frente no sentido horário
+				st.set_normal(nrm)
+				st.add_vertex(v)
+	return st.commit()
+
+
+## Um cacho de cristais 3D com o pé na origem de `parent`: um grande no meio e outros menores abrindo em leque.
+## `h` = altura do maior (m). Devolve os cristais (para animar o brilho).
+static func crystal_cluster(parent: Node3D, h: float, pal: Array) -> Array[MeshInstance3D]:
+	_shared()
+	var out: Array[MeshInstance3D] = []
+	var count := 5 + randi() % 3
+	var turn := randf() * TAU
+	for i in count:
+		var n := _node(parent, _crystal, _mats["crystal"], h)
+		var k := 1.0 if i == 0 else randf_range(0.4, 0.75)
+		var thick := h * k * randf_range(0.13, 0.18)
+		n.scale = Vector3(thick, h * k, thick)
+		if i > 0:   # os menores tombam para fora, em volta do grande
+			var a := turn + TAU * i / float(count - 1) + randf_range(-0.3, 0.3)
+			var lean := Vector3(cos(a), 0.0, sin(a))
+			n.position = lean * h * randf_range(0.05, 0.12)
+			n.basis = Basis(lean.cross(Vector3.UP).normalized(), -randf_range(0.35, 0.8)) * Basis.from_scale(n.scale)
+		n.rotate_object_local(Vector3.UP, randf() * TAU)
+		n.position.y -= h * 0.12      # o pé fica enterrado
+		n.set_instance_shader_parameter("core", _v(pal[0]))
+		n.set_instance_shader_parameter("mid", _v(pal[1]))
+		n.set_instance_shader_parameter("shade", _v(pal[2]))
+		out.append(n)
+	return out
+
+
+## Uma pintura da folha `sheet` ("dirt", "rock", "splash"), célula `cell`, nas cores de `pal`.
 ## `upright`: em pé, com o pé na origem do nó (a escala é largura, altura); senão virada para a câmera.
 static func card(parent: Node, sheet: String, cell: int, pal: Array, upright := false) -> MeshInstance3D:
 	_shared()
@@ -186,12 +245,12 @@ static func crystal_ring(root: Node, pos: Vector3, r: float, n: int, fury := fal
 		holder.basis = RuneBladesFX.basis_along((Vector3.UP + out * randf_range(0.15, 0.5)).normalized())
 		var h := randf_range(2.3, 3.4)
 		var dirt := card(holder, "dirt", 0, EARTH, true)
-		var dw := h * randf_range(1.25, 1.5)
+		var dw := h * randf_range(1.0, 1.25)
 		dirt.scale = Vector3(dw, dw, 1.0)
-		var cr := card(holder, "crystal", randi() % 4, pal, true)
-		cr.scale = Vector3(h, h, 1.0)
-		cr.set_instance_shader_parameter("glow", 0.9)
-		clusters.append({"dirt": dirt, "crystal": cr, "delay": randf_range(0.0, 0.07)})
+		var grp := Node3D.new()
+		holder.add_child(grp)
+		clusters.append({"dirt": dirt, "grp": grp, "h": h, "gems": crystal_cluster(grp, h, pal),
+			"delay": randf_range(0.0, 0.07)})
 		if i % 3 == 0:
 			var rock := card(fx, "rock", 1 + randi() % 3, ROCK)
 			rock.scale = Vector3.ONE * randf_range(0.45, 0.8)
@@ -209,8 +268,11 @@ static func crystal_ring(root: Node, pos: Vector3, r: float, n: int, fury := fal
 			var ct := t - float(c.delay)
 			var up := _k(ct, 0.0, 0.1)
 			var rise := (up + 0.12 * sin(up * PI)) * (1.0 - _k(ct, 0.6, 0.9))   # passa do ponto, fica e afunda
-			(c.crystal as MeshInstance3D).set_instance_shader_parameter("rise", rise)
-			(c.crystal as MeshInstance3D).set_instance_shader_parameter("glow", lerpf(1.8, 0.7, _k(ct, 0.05, 0.4)))
+			# os cristais sobem de verdade de dentro do chão (o terreno esconde o que ainda está embaixo)
+			(c.grp as Node3D).position.y = -float(c.h) * 1.15 * (1.0 - rise)
+			(c.grp as Node3D).visible = ct >= 0.0 and rise > 0.01
+			for g in c.gems:
+				(g as MeshInstance3D).set_instance_shader_parameter("glow", lerpf(1.0, 0.2, _k(ct, 0.05, 0.4)))
 			var d: MeshInstance3D = c.dirt
 			d.visible = ct >= 0.0 and ct < 0.44
 			d.set_instance_shader_parameter("cell", floorf(clampf(ct / 0.11, 0.0, 3.0)))
