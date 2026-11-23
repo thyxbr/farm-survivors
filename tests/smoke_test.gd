@@ -2432,10 +2432,14 @@ func _ready() -> void:
 	var g := Game.gold
 	Game.buy("iron_sword")
 	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro (%d, ouro %d -> %d)" % [Game.count_item("iron_sword"), g, Game.gold])
+	# relativo ao que já havia na mochila: os slimes mortos acima soltam loot direto no inventário, e o sorteio de
+	# equipamento (semente aleatória) às vezes traz outro gume celeste (espada de nível 1 da classe)
+	var edge0 := Game.count_item("azure_edge")
 	equip_any("iron_sword", true)
-	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro (%s, gume %d)" % [Game.equipment.weapon, Game.count_item("azure_edge")])
+	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == edge0 + 1,
+		"equipou espada de ferro (%s, gume %d -> %d)" % [Game.equipment.weapon, edge0, Game.count_item("azure_edge")])
 	Game.sell("azure_edge")
-	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
+	check(Game.count_item("azure_edge") == edge0, "vendeu o gume celeste (%d)" % Game.count_item("azure_edge"))
 	world.modal._close()
 	await wait(0.05)
 
