@@ -5,6 +5,8 @@ extends Control
 ## Cada vendedor vende um tipo de coisa (`stall`, ver STALLS): a Mira as armas, a Tereza couro e tecido, o Seu
 ## Bento sementes e ferramentas, a Dona Cida provisões e a Pip poções. Todos compram qualquer item da mochila.
 ## O estoque é um só (shop.json); a barraca só escolhe o que mostra. "" = tudo, com os filtros.
+## Quantidade (embaixo da grade): itens que empilham (poções, comida, sementes...) saem no lote escolhido, limitado
+## ao ouro que o herói tem; equipamento sai sempre um por vez.
 
 signal closed
 
@@ -14,11 +16,16 @@ var wants_inventory := true
 
 const COLS := 7
 const SLOT := 62.0
+## Lotes rápidos da linha de quantidade; o campo aceita até MAX_QTY.
+const QTY_PRESETS := [1, 10, 50, 100]
+const MAX_QTY := 999
 
 var tooltip: ItemTooltip
 var gold_label: Label
 var buy_grid: GridContainer
 var info: Label
+var qty_spin: SpinBox
+var _qty_buttons: Array[Button] = []
 var filter := "all"
 var title := "Mercadorias de Valdoria"
 var quote := "\"Tudo que um herói precisa. Pago metade pelo que você trouxer!\""
@@ -94,8 +101,9 @@ func _ready() -> void:
 	else:
 		fr.free()
 	buy_grid = _grid(lv)
+	lv.add_child(_qty_row())
 
-	info = UITheme.label("Clique direito: comprar · na mochila: vender · Shift: comparar", 14, UITheme.DIM)
+	info = UITheme.label("Clique direito: comprar (poções e outros empilháveis na quantidade escolhida) · na mochila: vender · Shift: comparar", 14, UITheme.DIM)
 	v.add_child(UITheme.footer(info, [UITheme.button("Sair", _close)]))
 
 	tooltip = ItemTooltip.new()
@@ -105,6 +113,41 @@ func _ready() -> void:
 	Game.stats_changed.connect(_refresh)
 	Econ.result.connect(_on_econ_result)
 	_refresh()
+
+
+## Linha "Quantidade": botões de lote rápido + campo livre.
+func _qty_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(UITheme.label("Quantidade", 15, UITheme.DIM))
+	var g := ButtonGroup.new()
+	for n: int in QTY_PRESETS:
+		var b := Button.new()
+		b.text = "×%d" % n
+		b.toggle_mode = true
+		b.button_group = g
+		b.button_pressed = n == 1
+		b.custom_minimum_size = Vector2(52, 32)
+		b.add_theme_font_size_override("font_size", 15)
+		b.pressed.connect(func() -> void: qty_spin.value = n)
+		row.add_child(b)
+		_qty_buttons.append(b)
+	qty_spin = SpinBox.new()
+	qty_spin.min_value = 1
+	qty_spin.max_value = MAX_QTY
+	qty_spin.value = 1
+	qty_spin.rounded = true
+	qty_spin.custom_minimum_size.x = 96
+	qty_spin.size_flags_horizontal = Control.SIZE_SHRINK_END
+	qty_spin.value_changed.connect(_on_qty_changed)
+	row.add_child(UITheme.spacer())
+	row.add_child(qty_spin)
+	return row
+
+
+func _on_qty_changed(v: float) -> void:
+	for i in _qty_buttons.size():
+		_qty_buttons[i].set_pressed_no_signal(int(v) == QTY_PRESETS[i])
 
 
 func _inset() -> PanelContainer:
@@ -199,7 +242,20 @@ func _slot(ctx: String, id: String, q: int) -> ItemSlot:
 
 
 func _buy(s: ItemSlot) -> void:
-	Game.buy(s.item_id)
+	var id := s.item_id
+	var qty := 1
+	if ItemDB.is_stackable(id) and qty_spin != null:
+		var price: int = int(ItemDB.get_item(id).get("price", 0))
+		qty = int(qty_spin.value)
+		if price > 0:
+			qty = mini(qty, floori(float(Game.gold) / price))   # lote maior que o ouro: compra o que der
+		if qty < 1:
+			qty = 1   # deixa o servidor responder "Ouro insuficiente"
+	# o servidor aceita até CharRules.MAX_COUNT por pedido: lote grande vai em partes
+	while qty > 0:
+		var part := mini(qty, CharRules.MAX_COUNT)
+		Game.buy(id, part)
+		qty -= part
 
 
 func _sell(s: ItemSlot) -> void:
