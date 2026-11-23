@@ -264,7 +264,7 @@ func _ready() -> void:
 		global_position = follow.global_position
 
 
-func _valid(n: Node3D) -> bool:
+func _valid(n: Variant) -> bool:   # sem tipo: pode chegar um nó já liberado
 	return n != null and is_instance_valid(n) and n.is_inside_tree()
 
 

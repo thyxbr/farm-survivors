@@ -528,7 +528,8 @@ func _check_supreme(player: Node, world: Node) -> void:
 	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_supreme.level)))
 	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 8)
 	var kit := Game.ability_kit()
-	check(kit.size() == 5 and kit[3] == "sword_supreme" and not ("sword_whirl" in kit), "Lâmina Suprema: a montante troca a habilidade 4 (%s)" % [kit])
+	check(kit.size() == 6 and kit[3] == "sword_supreme" and kit[5] == "sword_vortex_great" and not ("sword_whirl" in kit),
+		"Lâmina Suprema: a montante troca a habilidade 4 (e o Vórtice vai para a 6) (%s)" % [kit])
 	var spot := Vector3(-105, 0.3, 40)   # fora da vila
 	player.global_position = spot
 	player.velocity = Vector3.ZERO
@@ -762,7 +763,7 @@ func _check_dark_combo(player: Node, world: Node) -> void:
 	equip_any("iron_zweihander")
 	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 5)
 	var kit := Game.ability_kit()
-	check(kit.size() == 5 and kit[2] == "sword_dark_combo" and kit[4] == "sword_fury_great" and not ("sword_fury" in kit),
+	check(kit.size() == 6 and kit[2] == "sword_dark_combo" and kit[4] == "sword_fury_great" and not ("sword_fury" in kit),
 		"Dança do Abismo: a montante põe o combo na tecla 3 e a Fúria na 5 (%s)" % [kit])
 	await wait(0.1)
 	var hud = world.hud
@@ -866,7 +867,7 @@ func _check_dark_combo(player: Node, world: Node) -> void:
 	check(Game.ability_kit()[2] == "sword_fury" and not ("sword_dark_combo" in Game.ability_kit()) and not ("sword_fury_great" in Game.ability_kit()),
 		"Dança do Abismo: sem a montante a habilidade 3 volta a ser a Fúria Picante")
 	await wait(0.1)
-	check(not hud.slots["slot_5"].visible, "Dança do Abismo: sem a montante a tecla 5 some da barra")
+	check(not hud.slots["slot_6"].visible, "Dança do Abismo: sem a montante a tecla 6 some da barra")
 	Econ.test_force_level(lv0)
 	player.global_position = back
 	player.velocity = Vector3.ZERO
@@ -1404,15 +1405,18 @@ func _check_party_shield(player: Node, world: Node) -> void:
 	ally.queue_free()
 	await wait(0.5)
 	check(count_fx.call("PartyShieldCast") == 0 and count_fx.call("PartyShieldBuff") == 0, "Bastião: nada sobra na cena")
-	# --- sem escudo: a tecla 5 some do HUD e não faz nada
+	# --- sem escudo: a tecla 5 volta a ser o Vórtice Sombrio (a espada sem escudo)
 	Game.unequip("offhand")
 	await wait_until(func(): return Game.offhand_kind() == "")
 	await wait(0.1)
-	check(Game.ability_kit().size() == 4 and not (id in Game.ability_kit()), "Bastião: sem escudo o kit volta a 4 habilidades")
-	check(not hud.slots["slot_5"].visible, "HUD: sem escudo a tecla 5 some da barra")
-	check(absf(dock.offset_left + dock.offset_right) < 1.5, "HUD: a doca recentraliza sem o 5")
+	check(Game.ability_kit().size() == 5 and not (id in Game.ability_kit()) and "sword_vortex" in Game.ability_kit(),
+		"Bastião: sem escudo a tecla 5 volta ao Vórtice Sombrio")
+	check(hud.slots["slot_5"].visible and not hud.slots["slot_6"].visible, "HUD: sem escudo a tecla 5 fica (Vórtice) e a 6 some")
+	check(absf(dock.offset_left + dock.offset_right) < 1.5, "HUD: a doca segue centralizada")
 	player.use_slot(5)
-	check(player.ability == "", "Bastião: sem escudo a tecla 5 não faz nada")
+	check(player.ability != id, "Bastião: sem escudo a tecla 5 não solta o Bastião")
+	if player.ability != "":
+		player.end_ability()
 	Game.clear_buffs(true)
 	Econ.test_force_level(lv0)
 	player.global_position = back
@@ -1939,7 +1943,7 @@ func _ready() -> void:
 
 	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
 	var kit_weapon: String = Game.equipment.weapon
-	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_fury", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
+	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_fury", "sword_whirl", "sword_vortex"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	await _check_aegis(player, world)
