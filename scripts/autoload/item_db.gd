@@ -191,6 +191,16 @@ func get_item(id: String) -> Dictionary:
 	return ITEMS.get(id, {})
 
 
+## A linha de poções de `base` (ela mesma + as com `potion_line` == base), da que cura menos para a que cura mais.
+func potion_line(base: String) -> Array:
+	var out: Array = [base]
+	for id in ITEMS:
+		if str(ITEMS[id].get("potion_line", "")) == base:
+			out.append(id)
+	out.sort_custom(func(a, b): return float(get_item(a).get("heal_hp", 0)) < float(get_item(b).get("heal_hp", 0)))
+	return out
+
+
 func is_stackable(id: String) -> bool:
 	return get_item(id).get("stack", false)
 

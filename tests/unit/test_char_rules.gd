@@ -660,6 +660,28 @@ func test_loot_roll_deterministic() -> void:
 	T.eq(LootRules.roll(bt, "nao_existe", _rng(1)), {"gold": 0, "items": {}}, "tipo desconhecido")
 
 
+func test_health_potion_upgrades_by_monster_level() -> void:
+	var bt := _tables()
+	T.eq(LootRules.potion_for_level(bt, "health_potion", 0), "health_potion", "sem nível: poção comum")
+	T.eq(LootRules.potion_for_level(bt, "health_potion", 14), "health_potion", "nível 14: comum")
+	T.eq(LootRules.potion_for_level(bt, "health_potion", 15), "health_potion_greater", "nível 15: Maior")
+	T.eq(LootRules.potion_for_level(bt, "health_potion", 30), "health_potion_superior", "nível 30: Superior")
+	T.eq(LootRules.potion_for_level(bt, "health_potion", 50), "health_potion_supreme", "nível 50: Suprema")
+	T.eq(LootRules.potion_for_level(bt, "mana_potion", 50), "mana_potion", "mana não muda")
+	# chefe com poção garantida: no nível alto ela já cai Suprema, e o bestiário (rolled) guarda a da tabela
+	var loot := LootRules.roll(bt, "goblin_king", _rng(7), "", 45)
+	T.eq(int(loot.items.get("health_potion_supreme", 0)), 1, "Rei Goblin nível 45 deixa a Suprema")
+	T.eq(int(loot.items.get("health_potion", 0)), 0, "e não a comum")
+	T.eq(int(loot.rolled.get("health_potion", 0)), 1, "rolled continua com a poção da tabela")
+	var items: Dictionary = bt.get_table("items")
+	var prev := 0.0
+	var prev_price := 0
+	for id in ["health_potion", "health_potion_greater", "health_potion_superior", "health_potion_supreme"]:
+		T.ok(float(items[id].heal_hp) > prev and int(items[id].price) > prev_price, "%s cura e custa mais que a anterior" % id)
+		prev = float(items[id].heal_hp)
+		prev_price = int(items[id].price)
+
+
 # ---------------------------------------------------------------- loot por nível
 ## Cópia das tabelas com `gear_drop.chance` trocado (não mexe nas tabelas compartilhadas).
 func _tables_gear_chance(chance: float) -> BalanceTables:

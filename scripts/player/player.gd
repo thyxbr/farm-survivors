@@ -592,7 +592,7 @@ func _local_process(delta: float) -> void:
 	if ability != "" and ability_slot >= 1 and Input.is_action_just_released("spell_%d" % ability_slot):
 		_ab_module(ability).release(self)
 	if Input.is_action_just_pressed("potion"):
-		_quick_potion("health_potion")
+		_quick_potion(Game.pick_health_potion())
 	# F divide a tecla: perto de um veio/árvore coleta (ou para de coletar); longe, toma a poção de mana
 	gather_target = GatherAction.nearest(self) if ability == "" else null
 	var gather_key := Input.is_action_just_pressed("gather")
@@ -1678,7 +1678,7 @@ func _quick_potion(id: String) -> void:
 		return
 	if Game.use_item(id):
 		Sfx.play("heal", 0.0, -4.0)
-		FX.burst(global_position + Vector3.UP, Color(1, 0.35, 0.35) if id == "health_potion" else Color(0.4, 0.5, 1), 20, 2.5, 0.08, 0.8, 2.0)
+		FX.burst(global_position + Vector3.UP, Color(1, 0.35, 0.35) if id.begins_with("health_potion") else Color(0.4, 0.5, 1), 20, 2.5, 0.08, 0.8, 2.0)
 
 
 # ------------------------------------------------------------ comida
