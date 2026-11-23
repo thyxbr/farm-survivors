@@ -95,8 +95,6 @@ var _air := 0.0      # 0..1: quanto está no ar
 var _cycle_w := 0.0  # 0..1: quanto o ciclo da passada ignora a suavização (KnightAnim.follow_cycle)
 var _cast_t := 99.0  # segundos desde a última magia (a pose toca até KnightMoves.CAST_TIME)
 var _cast_kind := "fireball"
-var _pending_spell := ""   # magia esperando o fim do movimento de apontar
-var _pending_t := 0.0
 var _lean := 0.0
 var _bank := 0.0
 var _land := 0.0
@@ -269,6 +267,7 @@ func _ready() -> void:
 	DragSlashAbilities.prewarm_instances.call_deferred(self)   # fagulhas, rastro e garras do Corte do Abismo
 	GreatswordSpinAbilities.prewarm_instances.call_deferred(self)   # rastro sombrio e partículas do Ciclone de Aço
 	GreatswordDarkComboAbilities.prewarm_instances.call_deferred(self)   # rastro sombrio, explosões e garras da Dança do Abismo
+	FlameChannelAbilities.prewarm_instances.call_deferred(self)   # círculo, labareda, brasas e calor da Canalização de Fogo
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -652,12 +651,6 @@ func _local_process(delta: float) -> void:
 
 
 func _tick_timers(delta: float) -> void:
-	if _pending_spell != "":
-		_pending_t -= delta
-		if _pending_t <= 0.0:
-			_pending_spell = ""
-			if not dead:
-				_cast_fireball()
 	invuln = max(0.0, invuln - delta)
 	cast_timer = max(0.0, cast_timer - delta)
 	stamina_delay = max(0.0, stamina_delay - delta)
@@ -1286,7 +1279,7 @@ func cast(id: String) -> void:
 		return
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
-	if not id in ["fireball", "heal", "frost_nova"]:
+	if not id in ["heal", "frost_nova"]:
 		var cd_mult := Game.cooldown_mult()   # antes do use(): o buff que a habilidade dá não encurta a própria recarga
 		if not sp.ready or not _ab_module(id).use(self, id):
 			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
@@ -1308,13 +1301,8 @@ func cast(id: String) -> void:
 	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 	cast_timer = 0.4
 	_start_cast_pose(id)
-	match id:
-		"fireball":
-			# sai da gema do cajado (ou da mão) depois do movimento de apontar
-			_pending_spell = id
-			_pending_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME
-		"frost_nova":
-			_cast_frost_nova()
+	if id == "frost_nova":
+		_cast_frost_nova()
 	Game.stats_changed.emit()
 
 
@@ -1561,6 +1549,8 @@ func _ab_module(id: String) -> Object:
 		return GreatswordSpinAbilities
 	if id.begins_with(GreatswordDarkComboAbilities.ID):   # a Dança do Abismo da montante (e o cancelamento) também
 		return GreatswordDarkComboAbilities
+	if id.begins_with(FlameChannelAbilities.ID):   # a Canalização de Fogo do cajado (e o fim) também
+		return FlameChannelAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
@@ -1584,8 +1574,9 @@ func _ab_module(id: String) -> Object:
 
 ## O `kind` de um evento remoto é de uma habilidade de arma (e não de uma magia antiga ou emote)?
 func _is_ability_kind(kind: String) -> bool:
-	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["fireball", "heal", "frost_nova"])
-	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor") or kind.begins_with("scepter_")
+	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["heal", "frost_nova"])
+	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor") or kind.begins_with("scepter_") \
+		or kind.begins_with(FlameChannelAbilities.ID)
 	return weapon_ability or by_prefix or kind == GatherAction.ID
 
 
@@ -1635,17 +1626,6 @@ func end_ability() -> void:
 	ability_t = 0.0
 	ability_slot = 0
 	ability_data = {}
-
-
-func _cast_fireball() -> void:
-	var origin := spell_origin()
-	var fb := FIREBALL.new()
-	fb.direction = aim_dir(origin)
-	fb.damage = (18.0 + Game.spell_power() * 2.5) * Game.damage_mult()
-	get_tree().current_scene.add_child(fb)
-	fb.global_position = origin
-	Sfx.play("fire")
-	Network.send_event("fireball", origin, fb.direction)
 
 
 func _cast_frost_nova() -> void:

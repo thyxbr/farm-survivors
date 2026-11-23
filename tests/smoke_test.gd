@@ -2204,6 +2204,7 @@ func _ready() -> void:
 	await _test_bow_gale()
 	await _test_mythic_bows()
 	await _test_meteor_rain()
+	await _test_flame_channel()
 	Game.level = lvl_bf
 	tt_s.hp = tt_max
 	tt_s.max_hp = tt_max
@@ -2215,7 +2216,7 @@ func _ready() -> void:
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
 	equip_any("apprentice_staff")
 	await wait(0.1)
-	check(Game.ability_kit() == ["fireball", "frost_nova", "staff_ember", "meteor_rain"], "trocar de arma troca o kit (cajado sem Cura)")
+	check(Game.ability_kit() == ["staff_flame", "frost_nova", "staff_ember", "meteor_rain"], "trocar de arma troca o kit (cajado sem Cura)")
 	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
 	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
 	var mp_m := Game.mp
@@ -2393,15 +2394,12 @@ func _ready() -> void:
 	Game.fury = 0.0
 	Game.hp = hp_f
 
-	# --- magia
+	# --- magia (a Canalização de Fogo inteira é _test_flame_channel)
 	var mp0 := Game.mp
-	var fb_watch := _watch_spawns()
-	player.cast("fireball")
-	# a bola de fogo sai depois do movimento de apontar
-	await wait_until(func(): return "fireball" in fb_watch[0])
-	_stop_spawn_watch(fb_watch)
-	check(Game.mp < mp0, "bola de fogo gasta mana")
-	check("fireball" in fb_watch[0], "projétil de bola de fogo criado")
+	player.cooldowns.staff_flame = 0.0
+	player.cast("staff_flame")
+	check(Game.mp < mp0 and player.ability == "staff_flame", "Canalização de Fogo gasta mana e começa")
+	player.end_ability()
 	# nível 1 de fato: uma resposta do Econ (XP de um abate) pode ter devolvido outro nível no meio do teste
 	var lvl_sp := Game.level
 	Game.level = 1
@@ -2434,10 +2432,14 @@ func _ready() -> void:
 	var g := Game.gold
 	Game.buy("iron_sword")
 	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro (%d, ouro %d -> %d)" % [Game.count_item("iron_sword"), g, Game.gold])
+	# relativo ao que já havia na mochila: os slimes mortos acima soltam loot direto no inventário, e o sorteio de
+	# equipamento (semente aleatória) às vezes traz outro gume celeste (espada de nível 1 da classe)
+	var edge0 := Game.count_item("azure_edge")
 	equip_any("iron_sword", true)
-	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro (%s, gume %d)" % [Game.equipment.weapon, Game.count_item("azure_edge")])
+	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == edge0 + 1,
+		"equipou espada de ferro (%s, gume %d -> %d)" % [Game.equipment.weapon, edge0, Game.count_item("azure_edge")])
 	Game.sell("azure_edge")
-	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
+	check(Game.count_item("azure_edge") == edge0, "vendeu o gume celeste (%d)" % Game.count_item("azure_edge"))
 	world.modal._close()
 	await wait(0.05)
 
@@ -2798,6 +2800,139 @@ func _test_bow_gale() -> void:
 	Game.fury = fury0
 	Game.level = lvl0
 	await wait(0.1)
+
+
+## Canalização de Fogo (tecla 1 do cajado): começa e gasta mana, a labareda fere só quem está nela, toque curto dura o
+## mínimo, soltar apaga num fade-out, a esquiva interrompe e a réplica toca o visual sem dano.
+func _test_flame_channel() -> void:
+	var lvl0: int = Game.level
+	var pos0 := player.global_position
+	equip_any("apprentice_staff")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
+	check(Game.ability_kit()[0] == FlameChannelAbilities.ID, "Fogo: a tecla 1 do cajado é a Canalização de Fogo (%s)" % [Game.ability_kit()])
+	var gs: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime" and not e.dead and not e.is_boss:
+			gs.append(e)
+	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+	gs = gs.slice(0, 3)
+	_targets(gs)
+	check(gs.size() == 3, "Fogo: 3 slimes para o teste (%d)" % gs.size())
+	if gs.size() < 3:
+		return
+	var saved: Array = []
+	for e in gs:
+		saved.append([e, e.max_hp, e.global_position])
+		e.max_hp = 100000.0
+	var cfg: FlameChannelConfig = FlameChannelAbilities.CONFIG
+	player.global_position = (gs[0].home as Vector3) + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(func() -> bool: return player.is_on_floor())
+	await wait(0.1)
+	var f := FlameChannelAbilities._cam_forward(player)
+	check(f != Vector3.ZERO, "Fogo: a câmera dá a direção da labareda")
+	# dois na labareda (perto e quase na ponta) e um logo depois do alcance
+	var place := func() -> void:
+		var o: Vector3 = player.global_position
+		gs[0].global_position = o + f * 1.6 + Vector3.UP * 0.3
+		gs[1].global_position = o + f * (cfg.length - 0.4) + Vector3.UP * 0.3
+		gs[2].global_position = o + f * (cfg.length + 3.5) + Vector3.UP * 0.3
+		for e in gs:
+			e.velocity = Vector3.ZERO
+			e.stagger = 10.0
+			e.hp = e.max_hp
+	player.invuln = 60.0
+	place.call()
+	await wait(0.2)
+	place.call()
+
+	# --- 1) segura: começa, grava a tecla 1, gasta mana enquanto canaliza; quem está na labareda queima
+	Game.level = maxi(Game.level, 1)
+	Game.mp = Game.max_mp()
+	var mp1: float = Game.mp
+	player.cooldowns[FlameChannelAbilities.ID] = 0.0
+	player.cast_timer = 0.0
+	player.use_slot(1)
+	check(player.ability == FlameChannelAbilities.ID and player.ability_slot == 1, "Fogo: começa na tecla 1 (%s, %d)" % [player.ability, player.ability_slot])
+	var skill = player.ability_data.get("skill")
+	check(skill is FlameChanneling, "Fogo: a cena do círculo e da labareda é criada")
+	check(Game.mp <= mp1 - float(ItemDB.ABILITIES[FlameChannelAbilities.ID].cost) + 0.01, "Fogo: o custo inicial sai da mana")
+	await wait(cfg.windup_time * 0.5)
+	check(gs[0].hp == gs[0].max_hp, "Fogo: sem dano no preparo (braço esticando, círculo se formando)")
+	var mp_w: float = Game.mp
+	await wait_until(func(): return gs[0].hp < gs[0].max_hp and gs[1].hp < gs[1].max_hp or player.ability == "", 2.5)
+	check(gs[0].hp < gs[0].max_hp and gs[1].hp < gs[1].max_hp, "Fogo: os dois slimes dentro do alcance queimam")
+	await wait(0.6)
+	check(gs[2].hp == gs[2].max_hp, "Fogo: o slime depois do alcance não queima")
+	check(Game.mp < mp_w - 1.0, "Fogo: a mana desce enquanto canaliza (%.1f -> %.1f)" % [mp_w, Game.mp])
+	check(is_instance_valid(skill) and skill.channeling and skill.flames.emitting, "Fogo: a labareda está saindo")
+	var tick_n: int = skill.hit_count if is_instance_valid(skill) else 0
+	check(tick_n >= 4, "Fogo: dano contínuo em tiques (%d)" % tick_n)
+	# --- 2) soltar: fim na hora (depois do mínimo), as partículas param e a cena se libera depois do fade-out
+	FlameChannelAbilities.release(player)
+	check(player.ability == "", "Fogo: soltar a tecla encerra a canalização")
+	check(is_instance_valid(skill) and not skill.channeling and not skill.flames.emitting, "Fogo: a emissão para e o fade-out começa")
+	var h2: int = gs[0].hp
+	await wait(0.4)
+	check(gs[0].hp == h2, "Fogo: sem dano depois de soltar")
+	await wait_until(func(): return not is_instance_valid(skill), 3.0)
+	check(not is_instance_valid(skill), "Fogo: a cena se libera depois do fade-out")
+	check(player.cam_back == 0.0, "Fogo: a câmera volta")
+
+	# --- 3) toque curto: soltar no preparo ainda canaliza o mínimo
+	await wait(0.1)
+	player.cooldowns[FlameChannelAbilities.ID] = 0.0
+	Game.mp = Game.max_mp()
+	player.use_slot(1)
+	FlameChannelAbilities.release(player)
+	check(player.ability == FlameChannelAbilities.ID, "Fogo: soltar no preparo fica guardado")
+	await wait_until(func(): return player.ability == "", 2.0)
+	check(player.ability == "" and player.ability_t == 0.0, "Fogo: o toque curto termina no mínimo")
+
+	# --- 4) esquiva interrompe; sem mana a chama apaga sozinha
+	await wait(0.1)
+	player.cooldowns[FlameChannelAbilities.ID] = 0.0
+	Game.mp = Game.max_mp()
+	player.use_slot(1)
+	await wait(0.4)
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "" and player.dodge_timer > 0.0, "Fogo: a esquiva interrompe a canalização")
+	await wait(0.6)
+	player.cooldowns[FlameChannelAbilities.ID] = 0.0
+	Game.mp = float(ItemDB.ABILITIES[FlameChannelAbilities.ID].cost) + 1.0
+	player.use_slot(1)
+	await wait_until(func(): return player.ability == "", 3.0)
+	check(player.ability == "" and Game.mp < 2.0, "Fogo: sem mana a chama apaga (%.2f)" % Game.mp)
+
+	# --- 5) réplica: o visual sem dano; para no evento "staff_flame_end"
+	place.call()
+	await wait(0.1)
+	var rp := Player.new()
+	rp.remote = true
+	world.add_child(rp)
+	rp.global_position = player.global_position
+	FlameChannelAbilities.play_remote(rp, FlameChannelAbilities.ID, rp.global_position, Vector3(atan2(f.x, f.z), 0, 0))
+	var rskill = rp.ability_data.get("skill")
+	check(rp.ability == FlameChannelAbilities.ID and rskill is FlameChanneling and not rskill.deal_damage, "Fogo: a réplica começa sem dano")
+	await wait(0.8)
+	check(gs[0].hp == gs[0].max_hp and gs[1].hp == gs[1].max_hp, "Fogo: a labareda da réplica não fere")
+	FlameChannelAbilities.play_remote(rp, FlameChannelAbilities.END_EVENT, rp.global_position, Vector3.ZERO)
+	check(rp.ability == "" and is_instance_valid(rskill) and not rskill.channeling, "Fogo: 'staff_flame_end' apaga a réplica")
+	rp.queue_free()
+
+	for s in saved:
+		var e = s[0]
+		if is_instance_valid(e):
+			e.max_hp = s[1]
+			e.hp = e.max_hp
+			e.global_position = s[2]
+			e.stagger = 0.0
+	player.invuln = 0.0
+	player.global_position = pos0
+	player.velocity = Vector3.ZERO
+	Game.level = lvl0
+	Game.mp = Game.max_mp()
 
 
 ## Chuva de Meteoros (ultimate do cajado, canalizada): soltar, tempo, esquiva, mirar no céu, morrer e réplica.

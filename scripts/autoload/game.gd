@@ -148,6 +148,9 @@ func _ready() -> void:
 	if "--darkcombodemo" in OS.get_cmdline_user_args():
 		# demonstração da Dança do Abismo (use com --weapon=iron_zweihander: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/dark_combo_demo.gd").new())
+	if "--flamedemo" in OS.get_cmdline_user_args():
+		# demonstração da Canalização de Fogo (use com --weapon=apprentice_staff: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/flame_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())

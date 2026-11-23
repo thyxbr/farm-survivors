@@ -10,7 +10,7 @@ extends RefCounted
 ##   - golpe e flecha: físico; faísca do cajado: o elemento do cajado (fogo, gelo ou arcano); esfera do cetro e
 ##     Lança de Luz: sagrado. Arma encantada: o golpe continua no elemento base e a fatia que o encantamento
 ##     soma ao dano (enchant.json "damage") vai no elemento dele (weapon_mix).
-##   - magias e habilidades: o elemento delas (Bola de Fogo e Chuva de Meteoros fogo, Nova Gélida gelo,
+##   - magias e habilidades: o elemento delas (Canalização de Fogo e Chuva de Meteoros fogo, Nova Gélida gelo,
 ##     Julgamento de Luz sagrado; as da espada e do arco são físicas).
 ##   - efeitos: queimadura fogo, corrente raio.
 ## "arcano" (faísca do cajado comum, Martelo de Energia) não tem afinidade: vale 100% em todo monstro.
