@@ -140,10 +140,16 @@ func _find_lighting() -> void:
 		_base.rim = _rim.light_energy
 
 
-## Base da luz com o bioma do mapa atual por cima (o Vale e a Arena: a base de sempre).
+## Base da luz com o bioma do mapa atual por cima (o Vale e a Arena: a base de sempre, só com a vista).
 func _eff_base() -> Dictionary:
-	if _bio.is_empty() or not _bio.has("sky_top"):
+	if _bio.is_empty():
 		return _base
+	if not _bio.has("sky_top"):   # o Vale: céu e luz de sempre, só a vista por distância
+		var v := _base.duplicate()
+		if _bio.has("view"):
+			v.view = float(_bio.view)
+			v.fog_sky = float(_bio.get("fog_sky", _base.get("fog_sky", 0.2)))
+		return v
 	var b := _base.duplicate()
 	b.fog_color = _bio.fog
 	b.fog_density = float(_bio.fog_density) * (0.6 if ToonLook.enabled() else 1.0)

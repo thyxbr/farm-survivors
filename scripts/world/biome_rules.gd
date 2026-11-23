@@ -104,14 +104,20 @@ const DUNGEON_FOG := {"dg_bosque": Color(0.035, 0.05, 0.03), "dg_mina": Color(0.
 	"dg_pico": Color(0.07, 0.03, 0.02), "dg_final": Color(0.07, 0.015, 0.03)}
 
 
-## Céu, névoa, luz e partículas do lugar `map_id`: o bioma nos mapas, debaixo da terra nas dungeons.
+## Vista do Vale (e da Arena, que cai na região dele): o céu e a luz são os de sempre, só a névoa vira por
+## distância, azul-clara como o horizonte, e fecha antes do outro lado do mapa.
+const VALE_VIEW := {"view": 180.0, "fog_sky": 0.6}
+
+
+## Céu, névoa, luz e partículas do lugar `map_id`: o bioma nos mapas, debaixo da terra nas dungeons, só a
+## vista no Vale.
 static func atmo(map_id: String) -> Dictionary:
 	if Regions.is_dungeon(map_id):
 		var u := UNDERGROUND.duplicate()
 		u.fog = DUNGEON_FOG.get(map_id, u.fog)
 		u.sky_hz = (u.fog as Color) * 1.2
 		return u
-	return of(map_id) if has_sky(map_id) else {}
+	return of(map_id) if has_sky(map_id) else VALE_VIEW.duplicate()
 
 
 ## Bioma do mapa `map_id` (dungeon: o do mapa de fora). Sem bioma próprio: o Vale.

@@ -2322,6 +2322,7 @@
 			]
 		},
 		"slam_every": 2,
+		"slam_fx": "lightning",
 		"bld": 2.0,
 		"death_blast": 3.0,
 		"death_delay": 0.8,
