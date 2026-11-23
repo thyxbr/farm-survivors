@@ -2275,6 +2275,16 @@ func _element_immune() -> void:
 	FX.damage_number(top, "Imune", ElementRules.C_IMMUNE, 44)
 
 
+## "Resistiu" na cor do elemento: a resistência total barrou um status que teria pego (EnchantHit.try_status).
+## Mesmo intervalo do "Imune" para não empilhar textos.
+func show_resisted(el: String) -> void:
+	if _hint_t > 0.0 or not EnchantFX.ELEMENTS.has(el):
+		return
+	_hint_t = HINT_GAP
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	FX.damage_number(top, "Resistiu", EnchantFX.ELEMENTS[el].color, 40)
+
+
 ## Nível de quem leva o golpe: o personagem do peer no servidor, o jogador local no solo. 0 = desconhecido.
 static func foe_level(p) -> int:
 	if not (p is Player):

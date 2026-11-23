@@ -128,6 +128,8 @@ func test_effect_values() -> void:
 			T.eq(fx.get("el"), el, "%s +%d: elemento" % [el, lvs[i]])
 			T.ok(absf(float(fx.get("value", -1.0)) - want[el][i]) < 0.0001, "%s +%d vale %s" % [el, lvs[i], str(want[el][i])])
 	T.eq(EnchantRules.effect(bt, "fogo", 3).secs, 3, "queimadura dura 3 s")
+	T.ok(absf(float(EnchantRules.effect(bt, "fogo", 2).chance) - 0.30) < 0.0001, "efeito já traz a chance do nível")
+	T.ok(not EnchantRules.effect(bt, "raio", 2).has("chance"), "raio não tem chance de status")
 	T.eq(EnchantRules.effect(bt, "veneno", 1).secs, 5, "veneno dura 5 s")
 	var raio := EnchantRules.effect(bt, "raio", 5)
 	T.ok(absf(float(raio.mult) - 0.5) < 0.0001 and int(raio.radius) == 6, "corrente: metade do dano, 6 m")

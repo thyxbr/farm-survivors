@@ -121,6 +121,8 @@ static func effect(bt: BalanceTables, element: String, level: int) -> Dictionary
 	out.erase("values")
 	out["el"] = element
 	out["value"] = float(values[mini(level, values.size()) - 1])
+	if out.has("chance"):
+		out["chance"] = StatusRules.chance(bt, element, level)   # a lista vira a chance do nível
 	return out
 
 

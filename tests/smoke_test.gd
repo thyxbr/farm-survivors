@@ -3978,9 +3978,9 @@ func _test_tecela_web() -> void:
 
 # ---------------------------------------------------------------- Efeitos dos elementos
 ## Um slime grande de teste num canto vazio do mapa (longe dos outros inimigos).
-func _fx_dummy(at: Vector3) -> Enemy:
+func _fx_dummy(at: Vector3, kind := "slime_grande") -> Enemy:
 	var e := Enemy.new()
-	e.kind = "slime_grande"
+	e.kind = kind
 	world.add_child(e)
 	e.global_position = at
 	return e
@@ -4054,25 +4054,32 @@ func _test_enchant_effects() -> void:
 	var a := _fx_dummy(spot + Vector3(3, 0, 0))
 	await wait(0.1)
 
-	# fogo +2: 22% do dano do golpe, em 3 pulsos ao longo de 3 s
+	# fogo +2: 30% de chance; pegando, 22% do dano do golpe em 3 pulsos ao longo de 3 s
+	var fx_fogo := Game.weapon_effect()
+	check(absf(float(fx_fogo.get("chance", 0.0)) - 0.30) < 0.001, "fogo +2: 30% de chance")
 	var hp0: float = a.hp
-	EnchantHit.on_hit(a, 100.0)
+	check(EnchantHit.try_status(a, 100.0, fx_fogo, 0.99) == "none" and not a.status.has("fogo"), "rolagem alta não pega")
+	check(EnchantHit.try_status(a, 100.0, fx_fogo, 0.10) == "applied" and a.status.has("fogo"), "fogo pega no slime")
 	check(a.hp == hp0, "queimadura não tira vida na hora")
 	await wait(3.4)
 	# (os números destes testes levam a afinidade do boneco: queimadura é fogo, corrente é raio; ElementRules)
 	check(absf((hp0 - a.hp) - 22.0 * a.element_mult("fogo")) < 1.0, "queimadura +2 tira 22 de vida em 3 s (x%.2f de fogo: %.1f)" % [a.element_mult("fogo"), hp0 - a.hp])
-	var gone := _fx_dummy(spot + Vector3(-6, 0, -6))
+	var immune := _fx_dummy(spot + Vector3(-6, 0, -6), "slime_explosivo")
 	await wait(0.1)
-	EnchantHit.on_hit(gone, 100.0)
+	check(EnchantHit.try_status(immune, 100.0, fx_fogo, 0.10) == "resisted" and not immune.status.has("fogo"), "imune resiste")
+	immune.queue_free()
+	var gone := _fx_dummy(spot + Vector3(-6, 0, 6))
+	await wait(0.1)
+	EnchantHit.try_status(gone, 100.0, fx_fogo, 0.0)
 	gone.queue_free()   # o alvo some antes dos pulsos da queimadura
 	await wait(1.3)
 	check(true, "queimadura em alvo que sumiu não quebra")
 	check(EnchantHit.scale(a, 100.0) == 100.0, "fogo não muda o dano do golpe")
 
-	# gelo +2: lentidão por 0,9 s
+	# gelo +2: 35% de chance; pegando, lentidão por 0,9 s
 	await _swap_element("gelo", lv)
 	a.slow_timer = 0.0
-	EnchantHit.on_hit(a, 10.0)
+	EnchantHit.try_status(a, 10.0, Game.weapon_effect(), 0.0)
 	check(absf(a.slow_timer - 0.9) < 0.05, "gelo +2 deixa lento por 0,9 s (%.2f)" % a.slow_timer)
 
 	# raio +2: a corrente dá metade do dano no inimigo mais próximo a até 6 m
