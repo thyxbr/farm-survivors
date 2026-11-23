@@ -933,6 +933,45 @@
 		],
 		"ref_level": 2
 	},
+	"tartaruga_musgo": {
+		"name": "Tartaruga-Musgo",
+		"elements": {"gelo": 0, "fogo": 150, "raio": 125},
+		"model": "turtle",
+		"hp": 70,
+		"damage": 10,
+		"speed": 2.6,
+		"xp": 24,
+		"gold": [
+			2,
+			5
+		],
+		"aggro": 12.0,
+		"reach": 1.6,
+		"cooldown": 1.6,
+		"radius": 0.55,
+		"height": 0.85,
+		"scale": 1.1,
+		"color": {
+			"$c": [
+				0.45,
+				0.62,
+				0.3,
+				1.0
+			]
+		},
+		"chill": 2.5,
+		"loot": [
+			[
+				"frost_drop",
+				0.35
+			],
+			[
+				"slime_gel",
+				0.25
+			]
+		],
+		"ref_level": 2
+	},
 	"slime_rainha": {
 		"name": "Slime Rainha",
 		"elements": {"fisico": 80, "fogo": 115, "veneno": 50, "sagrado": 75},

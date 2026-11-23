@@ -154,6 +154,37 @@ cristais acesos), custo de 14 mil faces com pele numa horda cheia (`/perf-profil
   do rosto; o rosa das veias virou um tom avermelhado espalhado e a copa rosa vazou para os dois lados; a pintura
   é fosca (olhos sem brilho), como no lobo.
 
+### Tartaruga-Musgo (Pântano Sussurrante; rodada 1 aprovada em 2026-11-22)
+
+![Conceito x jogo](renders/tartaruga_ia/conceito_x_jogo.png) — andando: `renders/tartaruga_ia/tartaruga_andar.gif`,
+bote: `renders/tartaruga_ia/tartaruga_bote.gif` (de perto: `tartaruga_bote_close.gif`), pesos: `renders/tartaruga_ia/pesos.png`.
+`tools/blender/turtle_ia_build.py` → `assets/models/turtle_ia.glb` (10 mil faces). Primeiro dos monstros próprios do
+Pântano, que repetia os da vila: o tipo `tartaruga_musgo` tem os números do Slime de Gelo (vida, dano, lentidão,
+resistências, loot) e ocupa os 17 lugares dele no `bosque.tscn`; a vila continua com o slime. Usa os pivôs e a
+animação do lobo (`_animate_wolf`, modelo `turtle`) com passada curta e um bote próprio: recolhe o pescoço com o bico
+aberto, estica a cabeça e fecha no acerto (é o `lunge` do slime, sem o pulo).
+
+- **Folha numa imagem só funciona**, mas as vistas vieram encostadas (garra da frente na cabeça do lado, cauda na
+  vista de costas) e o `recortar_folha.py` achou uma faixa só. Afastar as vistas numa cópia (cortar em x e apagar o
+  pedaço da vizinha) resolveu; no prompt, pedir "wide empty white space between them".
+- **Mistura de junta pelo eixo, não pelo ponto.** O `leg_weights` do lobo mistura perto do ponto da junta (3–5 cm);
+  na pata grossa da tartaruga (raio ~0,11) a pele fica toda fora desse raio, a junta vira corte seco e, no passo, a
+  pele dobra para dentro e o contorno preto do toon aparece pelo vão (manchas pretas que mudam a cada quadro; o lobo
+  tem algumas menores). Mistura pela altura ao longo do eixo da pata (±4,5 cm no cotovelo, ±3 cm no punho).
+- **Pata = raio em volta do eixo.** Com limite em `|y - eixo|` e `|x|` o calcanhar e a frente do pé ficavam meio no
+  `Body` e rasgavam. O eixo tem que passar no centro da coluna da pata (fatias com `|x| > 0,25`, fora da barriga);
+  perto do chão (z < 0,14) não há barriga e o pé inteiro vai na pata.
+- **Pescoço = tubo, com capuz.** A borda da frente do casco desce por baixo até z 0,60 em `|x|` 0,1, mais alta que o
+  pescoço ali: com limite só em x e z a borda ia junto com a cabeça e virava uma ponta marrom no bote. Com tubo de
+  corte seco abria um buraco escuro entre a borda e o pescoço esticado. O que serviu: tubo em volta do eixo do pescoço
+  com a borda macia até r 0,19 (a pele de dentro da borda estica como um capuz) e a borda de fora (r > 0,2) parada.
+- **Diagnóstico das manchas:** `--nooutline` e `--notoon` no `monster_lab` separam contorno de malha; a malha não
+  tinha faces dobradas (contagem de normais opostas às vizinhas: 0) nem LOD culpado (`generate_lods=false` não mudou
+  nada e ficou assim no `.import`). Reimportar o GLB exportado no Blender e listar os grupos de cada vértice da pata
+  achou os vértices meio no `Body`.
+- **Em aberto:** olhos foscos (no conceito brilham), a lentidão ainda tem o efeito visual de gelo e a tartaruga
+  herdou as resistências do slime (imune a gelo).
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).

@@ -45,6 +45,7 @@ func test_roundtrip_matches_consts() -> void:
 				(cur[kind] as Dictionary).erase("rank")
 				(snap_enemies[kind] as Dictionary).erase("rank")
 				(snap_enemies[kind] as Dictionary).erase("ref_level")   # snapshot regravado já traz o campo
+				(snap_enemies[kind] as Dictionary).erase("elements")    # idem (regravado com a Tartaruga-Musgo)
 			T.ok(cur == snap_enemies, "tabela enemies igual ao snapshot das const (sem loot)")
 			continue
 		elif n == "items":
