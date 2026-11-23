@@ -160,6 +160,7 @@ const WOLF_SIDES := ["FL", "FR", "BL", "BR"]
 ## do trote; Gralha: o ciclo da batida de asa. Ver _animate_wolf e _animate_crow.
 var _wolf_rest := {}
 var _leech_rest := {}   # Sanguessuga: posições de repouso do corpo e da cabeça (lidas no primeiro quadro)
+var _toad_rest := {}    # Sapo-Bufo: posição de repouso de cada pivô (lida no primeiro quadro)
 var _gait_ph := 0.0
 var _gait_amp := 0.0
 var _crow_ph := 0.0
@@ -315,6 +316,9 @@ func _ready() -> void:
 	if data.model == "leech":   # Sanguessuga do Lodo: cadeia Head < Body > Tail > Tail2 > Tail3
 		for n in ["Tail2", "Tail3"]:
 			parts[n] = model.find_child(n, true, false)
+	if data.model == "toad":   # Sapo-Bufo: mão e pé (apoio no chão) abaixo das patas
+		for n in ["HandL", "HandR", "FootL", "FootR"]:
+			parts[n] = model.find_child(n, true, false)
 	if data.model in ["wolf", "turtle"]:   # Lobo e Tartaruga-Musgo: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
 		for sd in WOLF_SIDES:
 			for b in ["Leg", "Knee", "Paw", "Foot"]:
@@ -369,7 +373,9 @@ func _ready() -> void:
 		aura.omni_range = 6.0 if is_boss else 4.0
 		aura.position.y = 2.0 if is_boss else 1.4
 		add_child(aura)
-	if data.get("ai", "") == "bomber":
+	# brilho do bomber (o slime é a própria brasa); o Sapo-Bufo não: a luz laranja pintava o sapo inteiro e as
+	# glândulas já vêm pintadas de laranja
+	if data.get("ai", "") == "bomber" and data.model != "toad":
 		var glow := OmniLight3D.new()
 		glow.light_color = data.color
 		glow.light_energy = 0.8
@@ -2647,6 +2653,9 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "frog":
 		_animate_frog(hspeed, k)
 		return
+	if data.model == "toad":
+		_animate_toad(hspeed, k)
+		return
 	if data.model in ["bat", "mosquito"]:
 		_animate_bat(hspeed, k)
 		return
@@ -3032,6 +3041,77 @@ func _animate_frog(hspeed: float, k: float) -> void:
 	for n in ["ArmL", "ArmR"]:
 		if parts[n]:
 			parts[n].rotation.x = lerp(parts[n].rotation.x, hop * 0.3, k)
+
+
+## Sapo-Bufo (pivôs do sapo com o Body no centro da barriga, patas filhas da raiz): anda em pulinhos, com o corpo
+## agachando antes, o sapo todo no ar com as pernas para trás e as mãos para a frente, e amassando ao pousar. No pavio
+## do bomber (`fuse`) para de pular, o Body incha (escala; o pivô sobe para a barriga não afundar) e treme cada vez
+## mais rápido até estourar no acerto.
+func _animate_toad(hspeed: float, k: float) -> void:
+	var body: Node3D = parts.Body
+	if _toad_rest.is_empty():
+		for n in ["Body", "ArmL", "ArmR", "LegL", "LegR"]:
+			if parts[n]:
+				_toad_rest[n] = (parts[n] as Node3D).position
+	var amp := clampf(hspeed / 2.0, 0.0, 1.0)
+	var u := fposmod(anim_t * 0.15, 1.0)   # um pulo por ciclo: agacha, voa, pousa, descansa
+	var lift := 0.0
+	var air := 0.0       # 0..1..0 durante o voo
+	var pitch := 0.0
+	var squash := 0.0    # > 0 amassa (agachado/pousando), < 0 estica (no ar)
+	if u < 0.15:
+		squash = sin(u / 0.15 * PI) * 0.6
+	elif u < 0.75:
+		var a := (u - 0.15) / 0.6
+		lift = 4.0 * a * (1.0 - a) * 0.2
+		air = sin(a * PI)
+		pitch = -0.22 * cos(a * PI)   # nariz para cima na saída, para baixo na chegada
+		squash = -air * 0.6
+	elif u < 0.95:
+		squash = sin((u - 0.75) / 0.2 * PI)
+	lift *= amp
+	air *= amp
+	pitch *= amp
+	squash *= amp
+	var swell := 1.0 + sin(_life_t * 2.2) * 0.02   # respira parado
+	var shake := Vector3.ZERO
+	if state == "attack" and attack_kind == "fuse":
+		var f := clampf(attack_timer / maxf(_hit_time(), 0.01), 0.0, 1.0)
+		var e := f * f * (3.0 - 2.0 * f)
+		swell = 1.0 + 0.5 * e + sin(_life_t * (12.0 + 40.0 * f)) * 0.04 * f   # incha pulsando cada vez mais rápido
+		var sa := 0.01 + 0.035 * f * f
+		shake = Vector3(sin(_life_t * 57.0) * sa, 0.0, cos(_life_t * 43.0) * sa)
+		lift = 0.0
+		air = 0.0
+		pitch = 0.0
+		squash = 0.0
+	var rest_y: float = (_toad_rest.Body as Vector3).y
+	var sq := Vector3(1.0 + squash * 0.06, 1.0 - squash * 0.1, 1.0 + squash * 0.06)
+	body.scale = body.scale.lerp(sq * swell, k)
+	var by := rest_y + lift - squash * 0.03 + (swell - 1.0) * (rest_y - 0.06)   # 0,06: a barriga no chão
+	body.position = body.position.lerp(Vector3(shake.x, by, (_toad_rest.Body as Vector3).z + shake.z), k)
+	body.rotation.x = lerpf(body.rotation.x, pitch, k)
+	# as patas não crescem, mas a raiz delas acompanha a pele inchada: o pivô se afasta do meio na mesma proporção, só
+	# no chão (x e z), e a pata abre como a de um sapo estufado; sem isso a coxa (no Body) se descolava da canela
+	var spread := 1.0 + (swell - 1.0) * 1.0
+	for n in ["LegL", "LegR"]:
+		var leg: Node3D = parts[n]
+		if leg:
+			var lr: Vector3 = _toad_rest[n]
+			leg.position = leg.position.lerp(Vector3(lr.x * spread, lr.y + lift, lr.z * spread), k)
+			leg.rotation.x = lerpf(leg.rotation.x, air * 0.55, k)   # no ar as pernas esticam para trás
+			var foot: Node3D = parts["Foot" + n.substr(3)]
+			if foot:
+				foot.rotation.x = lerpf(foot.rotation.x, air * 0.45, k)
+	for n in ["ArmL", "ArmR"]:
+		var arm: Node3D = parts[n]
+		if arm:
+			var ar: Vector3 = _toad_rest[n]
+			arm.position = arm.position.lerp(Vector3(ar.x * spread, ar.y + lift, ar.z * spread), k)
+			arm.rotation.x = lerpf(arm.rotation.x, -air * 0.4, k)   # mãos para a frente, prontas para pousar
+			var hand: Node3D = parts["Hand" + n.substr(3)]
+			if hand:
+				hand.rotation.x = lerpf(hand.rotation.x, air * 0.3, k)
 
 
 ## Asa-couro: bate as asas sem parar (mais rápido voando), o corpo sobe e desce no ritmo; no rasante desce até

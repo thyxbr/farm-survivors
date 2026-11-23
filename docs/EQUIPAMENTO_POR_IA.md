@@ -229,6 +229,33 @@ cauda, cada gomo com atraso; bote que ergue a frente e dispara a cabeça, com o 
 - **Onda pela direção absoluta.** Cada gomo tem a sua direção `A·sin(fase - i·atraso)`; o giro de cada pivô é a
   diferença para o pai. Assim a onda anda pelo corpo sem acumular giro na ponta.
 
+### Sapo-Bufo (Pântano Sussurrante; rodada 1 aprovada em 2026-11-23)
+
+![Conceito x jogo](renders/sapo_ia/conceito_x_jogo.png) — pulando: `renders/sapo_ia/sapo_pulando.gif`, pavio e estouro:
+`sapo_estouro.gif`, pesos: `pesos.png`, malha bruta: `malha_bruta.png`. `tools/blender/toad_ia_build.py` →
+`assets/models/toad_ia.glb` (8 mil faces). Tipo `sapo_bufo` com os números do Slime Explosivo (bomber, `blast` 3,2) no
+bando de 4 do `bosque.tscn`. Pivôs do sapo de código sem mandíbula nem língua (o bomber não usa boca): `Body` no centro
+da barriga e as patas filhas da raiz (`ArmL/R` > `HandL/R`, `LegL/R` > `FootL/R`); animação `_animate_toad` (modelo
+`toad`): pulinhos (agacha, voa com as pernas para trás, amassa ao pousar) e, no `fuse`, o `Body` incha 1,5x pulsando
+e treme cada vez mais rápido até o estouro.
+
+- **Inchar = escala do Body com o pivô no meio.** Com o pivô embaixo o corpo cresceria só para cima. O jogo sobe o
+  pivô junto (`(escala - 1) * (altura do pivô - barriga)`), senão a barriga afunda no chão.
+- **Patas não crescem, mas a raiz acompanha.** A coxa grossa do sapo é quase toda `Body` (incha) e a canela é `Leg`
+  (não incha): parado, abria um vão escuro entre as duas. O jogo afasta o pivô de cada pata do meio na mesma proporção
+  do inchaço, só no chão (x e z); a pata abre como a de um sapo estufado e o pé não sai do chão.
+- **Mão e pé pela altura, com folga.** As pontas dos dedos são bolas até z 0,08 e o dedo de dentro chega a |x| 0,05;
+  fora da regra eles ficavam no `Body` e rasgavam em tiras no inchaço. Tudo abaixo de z ~0,09 à frente da barriga é
+  mão, e atrás (|x| > 0,14) é pé; a barriga só começa em z 0,1 na frente e fica em |x| < 0,13 embaixo.
+- **Luz do bomber.** Todo bomber ganha uma `OmniLight3D` da cor do tipo (o slime é a brasa); no sapo ela pintava a
+  pintura inteira de laranja. Desligada para o modelo `toad` (as glândulas já vêm pintadas).
+- **Medir pivôs:** fatias em z com grupos ligados ficam ruidosas numa casca de 40 mil faces (a fatia da pele vira
+  dezenas de lascas). O que serviu: mapa de ocupação em ASCII por faixa de z (células de 2,5 cm em x/y) e vistas
+  ortográficas com grade de 5 cm atrás da malha.
+- **Em aberto:** cada lado tem duas glândulas laranja encostadas (o conceito tem uma); na vista 3/4 a pálpebra do olho
+  de trás aparece como uma ponta escura (vem da pintura da IA); com o inchaço máximo ficam linhas leves de pele
+  esticada na coxa.
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).
