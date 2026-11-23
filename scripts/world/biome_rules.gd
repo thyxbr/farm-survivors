@@ -8,6 +8,10 @@ extends RefCounted
 ##   pico   = Vulcão das Cinzas: chão de cinza e basalto, sem capim, cinza caindo, céu vermelho e névoa escura.
 ## As dungeons usam o bioma do mapa de onde se entra.
 ##
+## Névoa: com "view" (metros) o mapa usa névoa por distância, que começa perto e fecha por inteiro em "view",
+## escondendo a serra e o fim do mapa. "fog_sky" (0–1) é quanto a névoa cobre o céu, para o horizonte não descolar
+## dela. Sem "view": névoa exponencial de "fog_density".
+##
 ## Cores em sRGB (como no Inspector). Quem lê: ground.gd (chão, capim, serra), WeatherFX (céu, névoa, sol e clima).
 
 const VALE := {
@@ -38,7 +42,7 @@ const DATA := {
 		"ring_trees": {"tree_swamp": 0.55, "tree_dead": 0.15, "tree_fir": 0.3},
 		"ring_tint": Color(1, 1, 1, 0),
 		"sky_top": Color(0.42, 0.5, 0.46), "sky_hz": Color(0.66, 0.72, 0.6), "ground_hz": Color(0.5, 0.56, 0.45),
-		"fog": Color(0.5, 0.6, 0.46), "fog_density": 0.012,
+		"fog": Color(0.5, 0.6, 0.46), "fog_density": 0.012, "view": 115.0, "fog_sky": 1.0,
 		"sun": 0.8, "sun_color": Color(0.95, 0.95, 0.78), "ambient": 1.05, "saturation": 0.92,
 		# clima: sempre úmido (poças), nunca neva
 		"weather": {"wet_min": 0.55, "no_snow": true},
@@ -57,7 +61,7 @@ const DATA := {
 		"ring_trees": {"tree_frost": 0.6, "tree_fir": 0.4},
 		"ring_tint": Color(1, 1, 1, 0),
 		"sky_top": Color(0.42, 0.6, 0.86), "sky_hz": Color(0.86, 0.92, 0.98), "ground_hz": Color(0.82, 0.88, 0.95),
-		"fog": Color(0.82, 0.88, 0.96), "fog_density": 0.004,
+		"fog": Color(0.82, 0.88, 0.96), "fog_density": 0.004, "view": 210.0, "fog_sky": 0.6,
 		"sun": 1.0, "sun_color": Color(0.92, 0.96, 1.0), "ambient": 1.15, "saturation": 1.0,
 		# clima: neve cobrindo o chão sempre e nevando, nunca chove
 		"weather": {"cover": 1.0, "snow_min": 0.45, "no_rain": true},
@@ -77,7 +81,7 @@ const DATA := {
 		"ring_trees": {"tree_dead": 1.0},
 		"ring_tint": Color(1, 1, 1, 0),
 		"sky_top": Color(0.32, 0.12, 0.1), "sky_hz": Color(0.85, 0.42, 0.22), "ground_hz": Color(0.4, 0.2, 0.14),
-		"fog": Color(0.5, 0.3, 0.22), "fog_density": 0.007,
+		"fog": Color(0.5, 0.3, 0.22), "fog_density": 0.007, "view": 170.0, "fog_sky": 0.7,
 		"sun": 1.15, "sun_color": Color(1.0, 0.74, 0.52), "ambient": 1.35, "saturation": 1.05,
 		# clima: seco, sem chuva nem neve (cinza caindo e brasas no lugar)
 		"weather": {"no_rain": true, "no_snow": true, "cloud_min": 0.15},

@@ -124,6 +124,7 @@ func _find_lighting() -> void:
 	if _env != null:
 		_base.fog_density = _env.fog_density
 		_base.fog_color = _env.fog_light_color
+		_base.fog_sky = _env.fog_sky_affect
 		_base.ambient = _env.ambient_light_energy
 		_base.saturation = _env.adjustment_saturation
 		if _env.sky != null and _env.sky.sky_material is ProceduralSkyMaterial:
@@ -146,6 +147,9 @@ func _eff_base() -> Dictionary:
 	var b := _base.duplicate()
 	b.fog_color = _bio.fog
 	b.fog_density = float(_bio.fog_density) * (0.6 if ToonLook.enabled() else 1.0)
+	if _bio.has("view"):
+		b.view = float(_bio.view)
+		b.fog_sky = float(_bio.get("fog_sky", _base.get("fog_sky", 0.2)))
 	b.sky_top = _bio.sky_top
 	b.sky_hz = _bio.sky_hz
 	b.ground_hz = _bio.ground_hz
@@ -190,7 +194,20 @@ func _apply_light(s: Dictionary) -> void:
 	var dusty := Color(0.8, 0.76, 0.66)
 	var fog: Color = (b.fog_color as Color).lerp(Color(0.88, 0.74, 0.55), autumn * 0.3).lerp(grey, cloud).lerp(white, snow * 0.8).lerp(dusty, dust * 0.6)
 	_env.fog_light_color = fog
-	_env.fog_density = b.fog_density + (0.009 * rain + 0.009 * s.snow + 0.004 * dust) * fog_gain
+	if b.has("view"):
+		# Névoa por distância: limpa até um quinto da vista e fecha por inteiro no fim dela. Chuva, neve
+		# caindo e poeira encurtam a vista.
+		var view: float = b.view * (1.0 - (0.3 * rain + 0.25 * s.snow + 0.15 * dust) * fog_gain)
+		_env.fog_mode = Environment.FOG_MODE_DEPTH
+		_env.fog_density = 1.0
+		_env.fog_depth_begin = view * 0.2
+		_env.fog_depth_end = view
+		_env.fog_depth_curve = 0.8
+		_env.fog_sky_affect = b.fog_sky
+	else:
+		_env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
+		_env.fog_density = b.fog_density + (0.009 * rain + 0.009 * s.snow + 0.004 * dust) * fog_gain
+		_env.fog_sky_affect = _base.get("fog_sky", 0.2)
 	_env.ambient_light_energy = b.ambient * (1.0 + (0.12 * cloud + 0.15 * snow) * amb_gain)
 	_env.adjustment_saturation = b.saturation - sat_loss * cloud
 	if _sky != null:
