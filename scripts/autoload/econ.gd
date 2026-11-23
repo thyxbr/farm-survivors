@@ -31,6 +31,8 @@ const SOLO_SESSION := 0
 const REPORT_MIN_MS := 1000
 ## Servidor: de quanto em quanto tempo grava as contas que só mudaram por relatório.
 const FLUSH_EVERY := 60.0
+## Solo: de quanto em quanto tempo escreve no disco o abate e o loot que ficaram só na memória.
+const SOLO_FLUSH := 2.0
 ## Servidor: de quanto em quanto tempo limpa os pickups expirados.
 const PURGE_EVERY := 10.0
 ## seq das respostas que o servidor manda sem pedido (concessões: abate, loot, prêmios de partida).
@@ -64,6 +66,7 @@ var _report_t := 0.0
 var _test_server := false
 var _last_report := {}   # servidor: peer -> Time.get_ticks_msec() do último relatório aceito
 var _flush_t := FLUSH_EVERY
+var _solo_flush_t := SOLO_FLUSH
 ## Servidor: loot no chão de cada jogador (pickups com net_id).
 var pickups := PickupRegistry.new()
 var _loot_rng := RandomNumberGenerator.new()
@@ -321,7 +324,9 @@ func grant(gold: int, xp: int, items: Dictionary, source: String, silent := fals
 		return false
 	if not ensure_solo():
 		return false
+	_store.defer_writes = source == "loot"   # loot do abate: o disco fica para o flush
 	var r := _svc.grant(SOLO_ACCOUNT, gold, xp, items, source)
+	_store.defer_writes = false
 	if silent:
 		r.events = r.events.filter(func(e: Dictionary) -> bool: return e.get("t") != "looted")
 	_deliver("grant", [gold, xp, items, source], r)
@@ -336,7 +341,10 @@ func kill(kind: String, xp: int, enemy_level := 0, area := "", drops := {}) -> v
 		return
 	if not ensure_solo():
 		return
-	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp, enemy_level, 0, area, drops))
+	_store.defer_writes = true   # o disco fica para o flush (ver FileCharStore.defer_writes)
+	var r := _svc.kill(SOLO_ACCOUNT, kind, xp, enemy_level, 0, area, drops)
+	_store.defer_writes = false
+	_deliver("kill", [kind, xp], r)
 
 
 ## Começo de uma partida no solo: abre o registro (runs) e devolve o run_id. Online não faz nada (0): quem
@@ -488,6 +496,12 @@ func _physics_process(delta: float) -> void:
 			for id in _gather.expire_claims(now()):
 				_broadcast_busy(id, false)
 		return
+	# solo: o abate e o loot adiam a escrita no disco; aqui ela acontece no máximo a cada SOLO_FLUSH s
+	if _store != null and _store.has_pending():
+		_solo_flush_t -= delta
+		if _solo_flush_t <= 0.0:
+			_solo_flush_t = SOLO_FLUSH
+			_store.flush()
 	# solo: relatório periódico (online o Network cuida, com o mesmo intervalo)
 	if Network.is_online() or not _solo_loaded:
 		return
@@ -501,6 +515,13 @@ func _physics_process(delta: float) -> void:
 	var p = w.get("player")
 	if p is Player and is_instance_valid(p) and not p.dead:
 		report_vitals(p.global_position, p.model.rotation.y)
+
+
+## Saindo do jogo (fechar a janela ou quit): escreve o abate/loot que ainda estava só na memória.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE:
+		if _store != null:
+			_store.flush()
 
 
 # ================================================================ solo (user://solo_character.json)
