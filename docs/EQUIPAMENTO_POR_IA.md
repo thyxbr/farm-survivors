@@ -256,6 +256,34 @@ e treme cada vez mais rápido até o estouro.
   de trás aparece como uma ponta escura (vem da pintura da IA); com o inchaço máximo ficam linhas leves de pele
   esticada na coxa.
 
+### Brejeiro (Pântano Sussurrante; rodada 2 aprovada em 2026-11-23)
+
+![Conceito x jogo](renders/brejeiro_ia/conceito_x_jogo.png) — andando: `renders/brejeiro_ia/brejeiro_andar.gif`, golpes:
+`batedor_clava.gif`, `arqueiro_tiro.gif`, `xama_cajado.gif`, pesos: `pesos.png`, malha bruta: `malha_bruta.png`.
+`tools/blender/brejeiro_ia_build.py` → `assets/models/brejeiro_ia.glb` (8 mil faces + armas). Uma malha para três tipos
+com os números dos goblins que substituem no `bosque.tscn`: `brejeiro` (Goblin Batedor, bando de 4), `brejeiro_arqueiro`
+(6) e `brejeiro_xama` (6). Sem o `tint` dos goblins, que tingiria a pintura da IA; muda só nome, modelo e cor.
+
+- **Pivôs do goblin, animação do goblin.** `LegL/R` e `Body` na raiz (no quadril), `Head` e `ArmL/R` no `Body`,
+  `ElbowL/R` no braço. Com o modelo `brejeiro` na lista de humanoides do `enemy.gd` o `EnemyPose` (clava, arco com a
+  corda até o queixo, cajado) funciona sem mudança: ele lê ombro, cotovelo e mão dos pivôs, e a mão é a posição do
+  `Opt_*` dentro do cotovelo.
+- **Malha de mãos vazias, armas por código.** O prompt pediu "no weapons, nothing held"; o builder faz as armas como
+  peças rígidas `Opt_Club`, `Opt_Bow`, `Opt_Quiver`, `Opt_Staff` e `Opt_Mask` (aqui uma coroa de casca por trás dos
+  olhos, porque máscara na frente cobriria os olhos grandes) e o `EnemyGear` deixa só as do `gear` do tipo. A arma
+  nasce no meio da palma aberta (passa pelos dedos, lê como segurada). A primeira versão veio fina demais no jogo:
+  arco com raio de 3 cm no meio, cabo do cajado 2,6..3,8 cm, corda de 6 mm.
+- **Braço: tudo fora do tronco é braço.** Só o raio em volta da linha ombro-cotovelo-mão deixava o polegar e as pontas
+  dos dedos no `Body` (manchas cinza no mapa de pesos). Abaixo do ombro o braço pende longe do tronco (|x| > 0,27 contra
+  0,25): todo vértice fora do tronco é braço, mas só acima de z 0,2, porque o pé também chega a |x| 0,3.
+- **Lado de dentro das pernas na pintura.** A IA pinta pelas três vistas e o lado de dentro das pernas não aparece em
+  nenhuma: veio com manchas quase pretas que o andar mostrava na perna de trás (com `--nooutline` continuavam, então
+  não era contorno). O builder troca os texels escuros das faces viradas para a outra perna pela cor do lado de fora
+  na mesma altura (faixa de 2 cm), para a faixa marrom continuar marrom e a pele verde. Pintar com uma cor só (a
+  primeira tentativa) deixou um remendo verde em cima da faixa.
+- **Em aberto:** o arco fica mais perto do corpo que no goblin (braço curto para a barriga grande); sobram bordas leves
+  onde a faixa da canela encontra a pele, por dentro.
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).

@@ -4,6 +4,7 @@ extends RefCounted
 const MODELS := {
 	"goblin": "res://assets/models/goblin.glb",
 	"skeleton": "res://assets/models/skeleton.glb",
+	"brejeiro": "res://assets/models/brejeiro_ia.glb",   # malha da IA com as armas por código (Opt_*)
 }
 const PIVOTS := ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"]
 
