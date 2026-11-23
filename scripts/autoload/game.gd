@@ -139,6 +139,9 @@ func _ready() -> void:
 	if "--rallydemo" in OS.get_cmdline_user_args():
 		# demonstração do Grito do Bastião (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/party_shield_demo.gd").new())
+	if Array(OS.get_cmdline_user_args()).any(func(a: String) -> bool: return a.begins_with("--shadowdemo=")):
+		# demonstração da Esfera Sombria, das Lâminas Rúnicas e do Buraco Negro (tools/shadow_game_demo.gd)
+		get_tree().root.add_child.call_deferred(load("res://tools/shadow_game_demo.gd").new())
 	if "--golemdemo" in OS.get_cmdline_user_args():
 		# demonstração do Raio e Onda de Choque do Golem de Cristal (tools/lightning_golem_demo.gd)
 		get_tree().root.add_child.call_deferred(load("res://tools/lightning_golem_demo.gd").new())

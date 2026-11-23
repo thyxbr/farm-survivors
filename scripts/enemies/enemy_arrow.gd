@@ -1,5 +1,6 @@
 extends Node3D
-## Projétil dos inimigos à distância: flecha (arqueiros) ou orbe mágico (`magic`, Esqueleto Mago). No solo e
+## Projétil dos inimigos à distância: flecha (arqueiros), orbe mágico (`magic`: a Esfera Sombria do Esqueleto
+## Mago, ácido, gelo) ou lâmina rúnica (`blade`, Arauto do Abismo). No solo e
 ## no servidor causa dano: na Horda, em quem o modo sobrevivência persegue (source.targets()); no mundo e na
 ## cidade, nos jogadores do mesmo mundo 3D. A réplica no cliente usa damage = 0 e só desenha.
 ## Para no ar enquanto o grupo escolhe as cartas de nível (frozen).
@@ -18,6 +19,7 @@ var source: Node
 var magic := false
 ## Cuspe de ácido (Mãe-Verme): o orbe verde (com `magic`).
 var acid := false
+const BLADE_TRAIL := {"core": Color(0.12, 0.0, 0.01), "mid": Color(0.7, 0.05, 0.05), "edge": Color(1.0, 0.3, 0.2)}
 const ACID := {"core": Color(0.08, 0.14, 0.02), "mid": Color(0.3, 0.6, 0.05), "edge": Color(0.65, 1.0, 0.25)}
 ## Faísca do projétil batendo na Égide Cristalina (azul e branco, como a barreira).
 const AEGIS_SPARK := {"core": Color(0.2, 0.35, 0.8), "mid": Color(0.45, 0.75, 1.0), "edge": Color(0.9, 0.97, 1.0)}
@@ -27,6 +29,9 @@ var ice := false
 var chill := 0.0
 ## Bola de teia (Tecelã): ao acertar, prende o jogador por web_secs (Player.apply_web).
 var web := false
+## Lâmina rúnica (Rajada de Sombras do Arauto do Abismo): no lugar do orbe, uma lâmina de RuneBladesFX apontada
+## para onde voa; ao acertar, o estouro dela.
+var blade := false
 var web_secs := 0.0
 var _life := LIFE
 
@@ -34,6 +39,9 @@ var _life := LIFE
 func _ready() -> void:
 	direction.y = 0.0
 	direction = direction.normalized() if direction.length() > 0.01 else Vector3.FORWARD
+	if blade:
+		_build_blade()
+		return
 	if magic:
 		_build_orb()
 		# rastro desenhado atrás do orbe (lê `direction`)
@@ -103,7 +111,22 @@ func _build_web() -> void:
 		add_child(f)
 
 
+func _build_blade() -> void:
+	if FX._scene() == null:
+		return
+	var b := RuneBladesFX.make_blade(1.9)
+	add_child(b)
+	b.basis = RuneBladesFX.basis_along(direction)
+	FXToon.comet(self, BLADE_TRAIL, 1.8, 0.1, false)
+
+
 func _build_orb() -> void:
+	if not acid and not ice:   # a ameaça roxa dos magos: a Esfera Sombria (traz a própria luz)
+		if FX._scene() != null:
+			var o := ShadowOrbFX.new()
+			o.radius = 0.42
+			add_child(o)
+		return
 	var mi := MeshInstance3D.new()
 	var orb := SphereMesh.new()
 	orb.radius = 0.2
@@ -174,7 +197,9 @@ func _physics_process(delta: float) -> void:
 				p.apply_web(web_secs)
 			if chill > 0.0 and p.has_method("apply_chill"):
 				p.apply_chill(chill)
-			if magic:
+			if blade:
+				RuneBladesFX.impact(FX._scene(), global_position)
+			elif magic:
 				FXToon.spark_hit(global_position, direction, _pal(), 6, 1.1)
 			elif web:
 				FXToon.hit_splat(global_position, Color(0.93, 0.93, 0.97), 6)
