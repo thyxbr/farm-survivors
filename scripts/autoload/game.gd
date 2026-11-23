@@ -102,6 +102,12 @@ func _ready() -> void:
 	# Interpolação de física só onde se pede (jogadores e inimigos): o resto do jogo mexe em
 	# posições por quadro (tweens, efeitos) e tremeria se fosse interpolado.
 	get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	# Cliente com janela: no máximo 3 passos de física por quadro (o padrão é 8). Num quadro lento o Godot
+	# rodava até 7 passos para alcançar o relógio, e esse trabalho atrasava o quadro seguinte também
+	# (travadas em cadeia). Com o teto, um quadro muito lento deixa o jogo um instante mais lento em vez
+	# de engasgar. Servidor dedicado e testes (headless) seguem com o padrão.
+	if DisplayServer.get_name() != "headless":
+		Engine.max_physics_steps_per_frame = 3
 	_setup_input()
 	load_settings()
 	reset_run_mods()

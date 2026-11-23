@@ -390,36 +390,68 @@ func _ready() -> void:
 	w.player.global_position = here
 	await wait(0.3)
 
-	# marca de veneno adulterada: o servidor limita ao maior valor da tabela (12%).
-	# Cada cliente usa um alvo só seu, para o colega não mexer na mesma vida.
+	# status elemental adulterado (Network._apply_status): o servidor aceita fogo cortado ao máximo da tabela,
+	# recusa elemento sem status e alvo imune, manda o bit pelo snapshot e credita o abate por pulso a quem
+	# pediu. Cada cliente usa um alvo só seu, para o colega não mexer na mesma vida.
 	var mark_kind := "goblin_dourado" if my_name == "Ana" else "goblin_campeao"
 	var vt: Enemy = null
 	for en in Network.enemies.values():
 		if is_instance_valid(en) and not en.dead and en.kind == mark_kind:
 			vt = en
 			break
-	check(vt != null, "achou um %s para a marca de veneno" % mark_kind)
-	# Daqui até a vila os dois ficam no campo, parados, vendo um ao outro (marca, espada, arco e cajado): os
+	check(vt != null, "achou um %s para o status elemental" % mark_kind)
+	# Daqui até a vila os dois ficam no campo, parados, vendo um ao outro (status, espada, arco e cajado): os
 	# monstros de lá têm nível e batem forte, e o Beto chegava morto ao teste da cura (o servidor não cura
 	# caído, e a tela de morte ficava no lugar do livro do grupo). Renova a imunidade da entrada.
 	w.player.invuln = 600.0
 	if vt != null:
 		var before_mark: Vector3 = w.player.global_position
-		var mark_level: int = vt.level
 		w.player.global_position = vt.global_position + Vector3(4, 0.4, 0)
 		await wait(0.8)   # a posição nova chega ao servidor
-		Network.client_mark_enemy(vt.net_id, 5.0, 99.0)
+		Network.client_apply_status(vt.net_id, "raio", 10.0, 1.0)
 		await wait(0.6)
-		var vh: float = vt.hp
-		vt.take_damage(10.0, w.player.global_position, false)
-		await _wait_until(func() -> bool: return not is_instance_valid(vt) or vt.hp < vh, 4.0)
-		var drop: float = vh - vt.hp if is_instance_valid(vt) else 0.0
-		# monstro bem acima do nível de quem bate leva menos (placa vermelha, ProgressionRules.danger_mults):
-		# os 12% da marca valem sobre o dano já reduzido
-		# e a afinidade ao físico do monstro (ElementRules: dourado 110%, campeão 75%) também
-		var taken := float(ProgressionRules.danger_mults(Balance.tables, mark_level, Game.level).taken) 			* ElementRules.mult(Balance.tables, mark_kind, "fisico")
-		check(drop > 10.5 * taken and drop < 12.5 * taken,
-			"marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f; nível %d contra %d leva x%.2f)" % [drop, mark_level, Game.level, taken])
+		check(is_instance_valid(vt) and vt.status.mask() == 0, "servidor recusa status de raio (sem status nesta versão)")
+		Network.client_apply_status(vt.net_id, "fogo", 1.0, 3.0)   # fraco: o alvo segue vivo para o bit aparecer
+		check(await _wait_until(func() -> bool: return is_instance_valid(vt) and vt.status.has("fogo"), 2.0),
+			"o bit de fogo chega pelo snapshot")
+		check(await _wait_until(func() -> bool: return is_instance_valid(vt) and not vt.status.has("fogo"), 5.0),
+			"o bit de fogo some quando a queimadura acaba")
+		# abate por pulso: um slime só deste cliente (Ana o de menor net_id, Beto o seguinte), que a queimadura
+		# adulterada (cortada a 2250) mata no primeiro pulso; monstro de nível alto podia sobreviver e morrer
+		# depois, no meio de outra conta de XP
+		var burn_slimes: Array = []
+		for en in Network.enemies.values():
+			if is_instance_valid(en) and not en.dead and en.kind == "slime":
+				burn_slimes.append(en)
+		burn_slimes.sort_custom(func(a, b) -> bool: return a.net_id < b.net_id)
+		var bpick := 0 if my_name == "Ana" else 1
+		var bs: Enemy = burn_slimes[bpick] if burn_slimes.size() > bpick else null
+		check(bs != null, "achou um slime para a queimadura")
+		if bs != null:
+			w.player.global_position = bs.global_position + Vector3(4, 0.4, 0)
+			await wait(0.8)
+			var kills0 := Game.kills
+			var xp0 := Game.xp + Game.level * 100000
+			Network.client_apply_status(bs.net_id, "fogo", 1e9, 99.0)
+			check(await _wait_until(func() -> bool: return not is_instance_valid(bs) or bs.dead, 4.0),
+				"fogo adulterado (cortado a %.0f de dano) mata o slime no pulso" % StatusRules.cap_power(Balance.tables, "fogo", 1e9))
+			check(await _wait_until(func() -> bool: return Game.kills > kills0 or Game.xp + Game.level * 100000 > xp0, 4.0),
+				"abate pela queimadura conta para quem aplicou")
+		var imm: Enemy = null
+		for en in Network.enemies.values():
+			if is_instance_valid(en) and not en.dead and StatusRules.enemy_resist(Balance.tables, en.kind, "fogo") >= 1.0 					and en.global_position.distance_to(before_mark) < 400.0:
+				imm = en
+				break
+		if imm != null:
+			var imm_kind := imm.kind
+			w.player.global_position = imm.global_position + Vector3(4, 0.4, 0)
+			await wait(0.8)
+			if is_instance_valid(imm) and not imm.dead:
+				Network.client_apply_status(imm.net_id, "fogo", 50.0, 3.0)
+				await wait(0.8)
+				check(not is_instance_valid(imm) or not imm.status.has("fogo"), "servidor recusa fogo em %s (imune)" % imm_kind)
+		else:
+			print("(sem monstro imune a fogo por perto: pulei a recusa por imunidade)")
 		w.player.global_position = before_mark
 		await wait(0.3)
 

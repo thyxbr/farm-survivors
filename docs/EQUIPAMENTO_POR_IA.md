@@ -154,6 +154,81 @@ cristais acesos), custo de 14 mil faces com pele numa horda cheia (`/perf-profil
   do rosto; o rosa das veias virou um tom avermelhado espalhado e a copa rosa vazou para os dois lados; a pintura
   é fosca (olhos sem brilho), como no lobo.
 
+### Tartaruga-Musgo (Pântano Sussurrante; rodada 1 aprovada em 2026-11-22)
+
+![Conceito x jogo](renders/tartaruga_ia/conceito_x_jogo.png) — andando: `renders/tartaruga_ia/tartaruga_andar.gif`,
+bote: `renders/tartaruga_ia/tartaruga_bote.gif` (de perto: `tartaruga_bote_close.gif`), pesos: `renders/tartaruga_ia/pesos.png`.
+`tools/blender/turtle_ia_build.py` → `assets/models/turtle_ia.glb` (10 mil faces). Primeiro dos monstros próprios do
+Pântano, que repetia os da vila: o tipo `tartaruga_musgo` tem os números do Slime de Gelo (vida, dano, lentidão,
+resistências, loot) e ocupa os 17 lugares dele no `bosque.tscn`; a vila continua com o slime. Usa os pivôs e a
+animação do lobo (`_animate_wolf`, modelo `turtle`) com passada curta e um bote próprio: recolhe o pescoço com o bico
+aberto, estica a cabeça e fecha no acerto (é o `lunge` do slime, sem o pulo).
+
+- **Folha numa imagem só funciona**, mas as vistas vieram encostadas (garra da frente na cabeça do lado, cauda na
+  vista de costas) e o `recortar_folha.py` achou uma faixa só. Afastar as vistas numa cópia (cortar em x e apagar o
+  pedaço da vizinha) resolveu; no prompt, pedir "wide empty white space between them".
+- **Mistura de junta pelo eixo, não pelo ponto.** O `leg_weights` do lobo mistura perto do ponto da junta (3–5 cm);
+  na pata grossa da tartaruga (raio ~0,11) a pele fica toda fora desse raio, a junta vira corte seco e, no passo, a
+  pele dobra para dentro e o contorno preto do toon aparece pelo vão (manchas pretas que mudam a cada quadro; o lobo
+  tem algumas menores). Mistura pela altura ao longo do eixo da pata (±4,5 cm no cotovelo, ±3 cm no punho).
+- **Pata = raio em volta do eixo.** Com limite em `|y - eixo|` e `|x|` o calcanhar e a frente do pé ficavam meio no
+  `Body` e rasgavam. O eixo tem que passar no centro da coluna da pata (fatias com `|x| > 0,25`, fora da barriga);
+  perto do chão (z < 0,14) não há barriga e o pé inteiro vai na pata.
+- **Pescoço = tubo, com capuz.** A borda da frente do casco desce por baixo até z 0,60 em `|x|` 0,1, mais alta que o
+  pescoço ali: com limite só em x e z a borda ia junto com a cabeça e virava uma ponta marrom no bote. Com tubo de
+  corte seco abria um buraco escuro entre a borda e o pescoço esticado. O que serviu: tubo em volta do eixo do pescoço
+  com a borda macia até r 0,19 (a pele de dentro da borda estica como um capuz) e a borda de fora (r > 0,2) parada.
+- **Diagnóstico das manchas:** `--nooutline` e `--notoon` no `monster_lab` separam contorno de malha; a malha não
+  tinha faces dobradas (contagem de normais opostas às vizinhas: 0) nem LOD culpado (`generate_lods=false` não mudou
+  nada e ficou assim no `.import`). Reimportar o GLB exportado no Blender e listar os grupos de cada vértice da pata
+  achou os vértices meio no `Body`.
+- **Em aberto:** olhos foscos (no conceito brilham), a lentidão ainda tem o efeito visual de gelo e a tartaruga
+  herdou as resistências do slime (imune a gelo).
+
+### Pernilongo do Brejo (Pântano Sussurrante; rodada 2 aprovada em 2026-11-23)
+
+![Conceito x jogo](renders/pernilongo_ia/conceito_x_jogo.png) — voo: `renders/pernilongo_ia/pernilongo_voo.gif` (câmera
+lenta: `pernilongo_voo_camera_lenta.gif`), rasante: `pernilongo_rasante.gif`, asas vistas de cima: `asas_de_cima.png`.
+`tools/blender/mosquito_ia_build.py` → `assets/models/mosquito_ia.glb` (8 mil faces + duas asas). Tipo
+`pernilongo_brejo` com os números do Slime Veloz nos 14 lugares dele no `bosque.tscn`; `height` 1,4 (voa: com 0,6 os
+golpes passariam por baixo). Pivôs da Asa-couro (`Body` pairando a 1,5, `Head`, `WingL`, `WingR`) mais um `Tail` no
+abdômen; animação `_animate_bat` (modelo `mosquito`) com o abdômen balançando e encolhendo no rasante.
+
+- **Asas da IA reprovadas.** Vieram em V (como a imagem, apesar de "spread flat out to the sides" no prompt), com
+  borda rasgada (lâmina fina) e dobra na raiz. O usuário quer asas na horizontal e bonitas: o builder corta a asa da
+  IA (fora do tórax em x e acima do ombro, e a raiz que sobe acima do tórax — sem isso sobram dois tocos em pé nos
+  ombros), fecha o buraco (`holes_fill`, com UV copiado dos vizinhos; sem isso a tampa lê o canto cinza da
+  textura) e faz asas novas: lâmina de 1 cm em forma de folha (`sqrt(sin(πu))` arredonda as pontas), veios e borda
+  pintados numa textura gerada no builder, raiz 4 cm dentro do tórax e na cor do corpo. Asa fina é parte que a IA não
+  faz bem: para insetos, já planejar asa por código.
+- **Batida de inseto não segue o passo.** A da Asa-couro cresce com a velocidade (`anim_t`); o mosquito bate a
+  ~18 Hz sempre (`_life_t`, fase por indivíduo), amplitude 0,5. Em GIF não aparece (aliasing): mostrar também em
+  câmera lenta (`--span=0.111 --frames=16`, ~2 batidas).
+- **Patas finas por fatia, na malha cheia.** Grupo pequeno de vértices ligados numa fatia de 4 cm é pata. Na malha
+  reduzida (arestas ~4 cm) a fatia do abdômen quebrava em pedaços e virava "pata" (faixa cinza no abdômen): achar na
+  malha de 40 mil faces e passar para a reduzida pelo vértice mais perto (`KDTree`). O ferrão também é fino e baixo:
+  a busca só vale atrás dele (y > -0,45), senão a ponta ficava no `Body` e dobrava na pose de teste.
+- **Asa e abdômen pela altura, não por y.** Perto da raiz a asa da IA se estendia para trás por cima do abdômen;
+  limite da asa em z (o alto do abdômen fica abaixo de 0,18) e o abdômen nunca no mesmo vértice da asa.
+
+### Sanguessuga do Lodo (Pântano Sussurrante; rodada 1 aprovada em 2026-11-23)
+
+![Conceito x jogo](renders/sanguessuga_ia/conceito_x_jogo.png) — rastejando: `renders/sanguessuga_ia/sanguessuga_rastejar.gif`,
+bote: `sanguessuga_bote.gif`, pesos: `pesos.png`. `tools/blender/leech_ia_build.py` → `assets/models/leech_ia.glb`
+(8 mil faces). Tipo `sanguessuga_lodo` com os números do Slime nos 10 lugares dele no `bosque.tscn` (dois não tinham
+`kind` e usavam o padrão "slime": receberam o tipo escrito). Primeiro monstro por IA sem esqueleto de outro: cadeia
+nova (`Head` < `Body` > `Tail` > `Tail2` > `Tail3`) e um `_animate_leech` (onda de lado a lado que corre da cabeça à
+cauda, cada gomo com atraso; bote que ergue a frente e dispara a cabeça, com o pulo do slime).
+
+- **Vista de frente girada não estragou.** A folha veio com a frente em quase 3/4 (a cauda saindo de lado); a malha
+  saiu reta e simétrica assim mesmo.
+- **Cadeia: só vizinhos dividem vértice.** Pesos pela posição ao longo do eixo com mistura de ±6 cm em cada pivô; a
+  conferência marca como erro qualquer par que não seja vizinho na cadeia.
+- **Osso a cada gomo e meio.** Com 4 ossos o meio do corpo (0,5 de comprimento) ficava rígido e a onda saía dura;
+  com o corpo dividido em Body, Tail, Tail2 e Tail3 (~0,22 cada) a curva em S fica lisa.
+- **Onda pela direção absoluta.** Cada gomo tem a sua direção `A·sin(fase - i·atraso)`; o giro de cada pivô é a
+  diferença para o pai. Assim a onda anda pelo corpo sem acumular giro na ponta.
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).

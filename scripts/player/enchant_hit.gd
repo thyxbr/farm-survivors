@@ -4,12 +4,9 @@ extends RefCounted
 ## magias e armas automáticas da Horda não passam por aqui). Números em data/balance/enchant.json
 ## ("effects"), lidos por EnchantRules.effect via Game.weapon_effect().
 ##   scale(): antes do dano  -> Sagrado aumenta o golpe em chefes e elites.
-##   on_hit(): depois do dano -> queimadura, lentidão, corrente, marca tóxica ou cura.
+##   on_hit(): depois do dano -> queimadura, lentidão, corrente, veneno ou cura.
 ## Um efeito nunca dispara outro: o dano da queimadura e da corrente vai direto por take_damage.
-## O combate é do cliente; só a marca tóxica vira estado do inimigo (o servidor a limita).
-
-const BURN_TICKS := 3
-
+## O combate é do cliente; queimadura, lentidão e veneno viram estado do inimigo no servidor (StatusEffects).
 
 ## Elemento do golpe da arma equipada (Enemy.take_damage): `base` (físico; faísca do cajado e esfera do cetro
 ## têm o deles) com a fatia que o encantamento soma ao dano no elemento do encanto (ElementRules.weapon_mix).
@@ -42,40 +39,39 @@ static func on_hit(target: Node, dmg: float) -> void:
 		return
 	var e: Enemy = target
 	var v: float = fx.value
+	if fx.el in StatusRules.STATUS_ELEMENTS:
+		try_status(e, dmg, fx, randf())
+		return
 	match fx.el:
-		"fogo":
-			_burn(e, dmg * v, float(fx.get("secs", 3.0)))
-		"gelo":
-			if not e.dead:
-				e.apply_slow(v)
 		"raio":
 			if randf() < v:
 				chain(e, dmg, fx)
-		"veneno":
-			if not e.dead:
-				e.apply_venom(v, float(fx.get("secs", 4.0)))
-				FX.burst(e.global_position + Vector3.UP * 0.8, EnchantFX.ELEMENTS["veneno"].color, 6, 2.0, 0.07, 0.5, 2.0)
 		"sombra":
 			if Game.hp > 0.0:
 				Game.hp = minf(Game.max_hp(), Game.hp + dmg * v)
 
 
-## Queimadura: `total` de dano em BURN_TICKS pulsos ao longo de `secs`. Uma por inimigo de cada vez
-## (um golpe novo não empilha nem reinicia), para não inundar o servidor de acertos.
-static func _burn(e: Enemy, total: float, secs: float) -> void:
-	if e.dead or total <= 0.0 or e.has_meta("enchant_burn"):
-		return
-	e.set_meta("enchant_burn", true)
-	var tree := e.get_tree()
-	var per := total / BURN_TICKS
-	for i in BURN_TICKS:
-		await tree.create_timer(secs / BURN_TICKS).timeout
-		if not is_instance_valid(e) or e.dead or not e.is_inside_tree():
-			return
-		e.take_damage(per, e.global_position, false, 0.0, 0.0, 0.0, "fogo")
-		FX.burst(e.global_position + Vector3.UP * 0.6, EnchantFX.ELEMENTS["fogo"].spark, 5, 2.0, 0.07, 0.4, 3.0)
-	if is_instance_valid(e):
-		e.remove_meta("enchant_burn")
+## Status da arma (fogo, gelo ou veneno; StatusRules) num alvo que levou `dmg`, com a rolagem `r` (0..1):
+## a chance do nível (fx.chance) cortada pela resistência do Bestiário. Pegou: pede o status (fogo e veneno
+## levam fx.value do dano em pulsos ao longo de fx.secs; gelo, fx.value segundos de lentidão). Imune e a base
+## teria pego: "Resistiu" sobre o alvo. Devolve o resultado da rolagem ("applied", "resisted" ou "none").
+static func try_status(e: Enemy, dmg: float, fx: Dictionary, r: float) -> String:
+	if not is_instance_valid(e) or e.dead:
+		return "none"
+	var el := str(fx.get("el", ""))
+	var resist := StatusRules.enemy_resist(Balance.tables, e.kind, el)
+	var res := StatusRules.roll(float(fx.get("chance", 0.0)), resist, r)
+	match res:
+		"applied":
+			if el == "gelo":
+				e.apply_status(el, 0.0, float(fx.value))
+			else:
+				e.apply_status(el, dmg * float(fx.value), float(fx.get("secs", 3.0)))
+			if el == "veneno":
+				FX.burst(e.global_position + Vector3.UP * 0.8, EnchantFX.ELEMENTS["veneno"].color, 6, 2.0, 0.07, 0.5, 2.0)
+		"resisted":
+			e.show_resisted(el)
+	return res
 
 
 ## Corrente: o inimigo vivo mais próximo de `target`, a até fx.radius, leva dmg * fx.mult.

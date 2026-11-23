@@ -134,6 +134,90 @@
 		],
 		"ref_level": 2
 	},
+	"pernilongo_brejo": {
+		"name": "Pernilongo do Brejo",
+		"elements": {"fogo": 125, "raio": 125, "veneno": 75},
+		"model": "mosquito",
+		"hp": 24,
+		"damage": 7,
+		"speed": 5.2,
+		"xp": 12,
+		"gold": [
+			1,
+			3
+		],
+		"aggro": 14.0,
+		"reach": 1.3,
+		"cooldown": 1.2,
+		"radius": 0.36,
+		"height": 1.4,
+		"scale": 0.7,
+		"color": {
+			"$c": [
+				0.5,
+				0.55,
+				0.25,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"slime_gel",
+				0.25
+			],
+			[
+				"frost_drop",
+				0.35
+			]
+		],
+		"ref_level": 2
+	},
+	"sanguessuga_lodo": {
+		"name": "Sanguessuga do Lodo",
+		"elements": {"fisico": 90, "fogo": 125, "raio": 125, "veneno": 75},
+		"model": "leech",
+		"hp": 40,
+		"damage": 9,
+		"speed": 2.8,
+		"xp": 18,
+		"gold": [
+			1,
+			5
+		],
+		"aggro": 11.0,
+		"reach": 1.5,
+		"cooldown": 1.5,
+		"radius": 0.5,
+		"height": 0.8,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.35,
+				0.42,
+				0.18,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"slime_gel",
+				0.25
+			],
+			[
+				"health_potion",
+				0.04
+			],
+			[
+				"mana_potion",
+				0.03
+			],
+			[
+				"seed_tomato",
+				0.05
+			]
+		],
+		"ref_level": 2
+	},
 	"goblin": {
 		"name": "Goblin Batedor",
 		"elements": {"fogo": 110, "veneno": 110},
@@ -918,6 +1002,45 @@
 				0.82,
 				1.0,
 				0.8
+			]
+		},
+		"chill": 2.5,
+		"loot": [
+			[
+				"frost_drop",
+				0.35
+			],
+			[
+				"slime_gel",
+				0.25
+			]
+		],
+		"ref_level": 2
+	},
+	"tartaruga_musgo": {
+		"name": "Tartaruga-Musgo",
+		"elements": {"gelo": 0, "fogo": 150, "raio": 125},
+		"model": "turtle",
+		"hp": 70,
+		"damage": 10,
+		"speed": 2.6,
+		"xp": 24,
+		"gold": [
+			2,
+			5
+		],
+		"aggro": 12.0,
+		"reach": 1.6,
+		"cooldown": 1.6,
+		"radius": 0.55,
+		"height": 0.85,
+		"scale": 1.1,
+		"color": {
+			"$c": [
+				0.45,
+				0.62,
+				0.3,
+				1.0
 			]
 		},
 		"chill": 2.5,

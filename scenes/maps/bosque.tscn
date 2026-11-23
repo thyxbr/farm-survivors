@@ -1466,74 +1466,74 @@ kind = "wagon"
 
 [node name="Monstros" type="Node3D" parent="." unique_id=1626835288]
 
-[node name="slime_veloz" type="Node3D" parent="Monstros" unique_id=36450100]
+[node name="pernilongo_brejo" type="Node3D" parent="Monstros" unique_id=36450100]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -2)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 respawn = 40.0
 level = 12
 level_max = 20
 
-[node name="slime_veloz 2" type="Node3D" parent="Monstros" unique_id=647208278]
+[node name="pernilongo_brejo 2" type="Node3D" parent="Monstros" unique_id=647208278]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 4)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 respawn = 40.0
 level = 12
 level_max = 20
 
-[node name="slime_veloz 3" type="Node3D" parent="Monstros" unique_id=893685462]
+[node name="pernilongo_brejo 3" type="Node3D" parent="Monstros" unique_id=893685462]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -6)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 respawn = 40.0
 level = 12
 level_max = 20
 
-[node name="slime_veloz 4" type="Node3D" parent="Monstros" unique_id=2129578837]
+[node name="pernilongo_brejo 4" type="Node3D" parent="Monstros" unique_id=2129578837]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -14)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 respawn = 40.0
 level = 12
 level_max = 20
 
-[node name="slime_veloz 5" type="Node3D" parent="Monstros" unique_id=815494497]
+[node name="pernilongo_brejo 5" type="Node3D" parent="Monstros" unique_id=815494497]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 0)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 respawn = 40.0
 level = 12
 level_max = 20
 
-[node name="slime_veloz 6" type="Node3D" parent="Monstros" unique_id=12378700]
+[node name="pernilongo_brejo 6" type="Node3D" parent="Monstros" unique_id=12378700]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 12)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 respawn = 40.0
 level = 12
 level_max = 20
 
-[node name="slime_gelo" type="Node3D" parent="Monstros" unique_id=73142]
+[node name="tartaruga_musgo" type="Node3D" parent="Monstros" unique_id=73142]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -18)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 respawn = 60.0
 level = 12
 level_max = 20
 
-[node name="slime_gelo 2" type="Node3D" parent="Monstros" unique_id=886483843]
+[node name="tartaruga_musgo 2" type="Node3D" parent="Monstros" unique_id=886483843]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -20)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 respawn = 60.0
 level = 12
 level_max = 20
 
-[node name="slime_gelo 3" type="Node3D" parent="Monstros" unique_id=25638217]
+[node name="tartaruga_musgo 3" type="Node3D" parent="Monstros" unique_id=25638217]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 6)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 respawn = 60.0
 level = 12
 level_max = 20
@@ -1585,15 +1585,17 @@ kind = "slime_rainha"
 respawn = 240.0
 level = 20
 
-[node name="slime" type="Node3D" parent="Monstros" unique_id=23798379]
+[node name="sanguessuga_lodo" type="Node3D" parent="Monstros" unique_id=23798379]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 12)
 script = ExtResource("7_pea20")
+kind = "sanguessuga_lodo"
 level = 12
 level_max = 20
 
-[node name="slime 2" type="Node3D" parent="Monstros" unique_id=2074614877]
+[node name="sanguessuga_lodo 2" type="Node3D" parent="Monstros" unique_id=2074614877]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 4)
 script = ExtResource("7_pea20")
+kind = "sanguessuga_lodo"
 level = 12
 level_max = 20
 
@@ -1641,50 +1643,50 @@ region_id = "ninho_rainha"
 shape = 1
 radius = 16.0
 
-[node name="bando slime 1" type="Node3D" parent="Monstros"]
+[node name="bando sanguessuga_lodo 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 25)
 script = ExtResource("7_pea20")
-kind = "slime"
+kind = "sanguessuga_lodo"
 count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime_veloz 1" type="Node3D" parent="Monstros"]
+[node name="bando pernilongo_brejo 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 26)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime 2" type="Node3D" parent="Monstros"]
+[node name="bando sanguessuga_lodo 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 8)
 script = ExtResource("7_pea20")
-kind = "slime"
+kind = "sanguessuga_lodo"
 count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime_gelo 1" type="Node3D" parent="Monstros"]
+[node name="bando tartaruga_musgo 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -15)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 count = 4
 radius = 5.0
 respawn = 25.0
 
-[node name="bando slime_gelo 2" type="Node3D" parent="Monstros"]
+[node name="bando tartaruga_musgo 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, -2)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime_gelo 3" type="Node3D" parent="Monstros"]
+[node name="bando tartaruga_musgo 3" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -48, 0, 0)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 count = 3
 radius = 4.0
 respawn = 25.0
@@ -1721,18 +1723,18 @@ count = 4
 radius = 3.0
 respawn = 25.0
 
-[node name="bando slime_veloz 2" type="Node3D" parent="Monstros"]
+[node name="bando pernilongo_brejo 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, -50)
 script = ExtResource("7_pea20")
-kind = "slime_veloz"
+kind = "pernilongo_brejo"
 count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime_gelo 4" type="Node3D" parent="Monstros"]
+[node name="bando tartaruga_musgo 4" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -32)
 script = ExtResource("7_pea20")
-kind = "slime_gelo"
+kind = "tartaruga_musgo"
 count = 3
 radius = 3.0
 respawn = 25.0

@@ -89,10 +89,13 @@ var throw_point := Vector3.ZERO
 var _dyn: MeshInstance3D = null
 var hit_done := false
 var slow_timer := 0.0
-## Marca tóxica (arma encantada com Veneno): enquanto venom_timer > 0, todo dano recebido vale
-## (1 + venom_amp). Estado do dono do inimigo (servidor ou solo); as réplicas pedem por apply_venom.
-var venom_amp := 0.0
-var venom_timer := 0.0
+## Status elementais (queimadura, veneno, lentidão de gelo, congelamento): StatusEffects, filho do inimigo.
+## O dono roda os pulsos; a réplica só recebe o bitmask pelo snapshot.
+var status: StatusEffects
+## Efeito do status no corpo (contorno + partículas). Só onde há tela: o servidor não monta.
+var status_aura: StatusAura = null
+## Dano sem impacto (pulso de status): não faz recuar nem cancela o ataque (take_damage).
+var no_flinch := false
 var stagger := 0.0
 ## Segundos em que o inimigo segue perseguindo depois de levar dano, mesmo com o jogador longe.
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
@@ -157,6 +160,7 @@ const WOLF_SIDES := ["FL", "FR", "BL", "BR"]
 ## Lobo: o repouso de cada pata no espaço do modelo (quadril, joelho, tornozelo e apoio, no plano y/z) e o ciclo
 ## do trote; Gralha: o ciclo da batida de asa. Ver _animate_wolf e _animate_crow.
 var _wolf_rest := {}
+var _leech_rest := {}   # Sanguessuga: posições de repouso do corpo e da cabeça (lidas no primeiro quadro)
 var _gait_ph := 0.0
 var _gait_amp := 0.0
 var _crow_ph := 0.0
@@ -254,6 +258,8 @@ static var _nock_mesh: Mesh
 
 func _ready() -> void:
 	data = TYPES[kind]
+	status = StatusEffects.new(self)
+	add_child(status)
 	if not horde and not puppet:
 		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
 		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
@@ -307,7 +313,10 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor e lobo; Drill: toupeira
 		parts[n] = model.find_child(n, true, false)
-	if data.model == "wolf":   # Lobo da Geada: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
+	if data.model == "leech":   # Sanguessuga do Lodo: cadeia Head < Body > Tail > Tail2 > Tail3
+		for n in ["Tail2", "Tail3"]:
+			parts[n] = model.find_child(n, true, false)
+	if data.model in ["wolf", "turtle"]:   # Lobo e Tartaruga-Musgo: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
 		for sd in WOLF_SIDES:
 			for b in ["Leg", "Knee", "Paw", "Foot"]:
 				parts[b + sd] = model.find_child(b + sd, true, false)
@@ -368,6 +377,12 @@ func _ready() -> void:
 		glow.omni_range = 2.5
 		glow.position.y = 0.6
 		add_child(glow)
+
+	if not Network.is_server():
+		status_aura = StatusAura.new()
+		status_aura.height = float(data.height)
+		model.add_child(status_aura)
+		status.mask_changed.connect(status_aura.set_mask)
 
 	if _overlay_hit == null:
 		_overlay_hit = _flat_mat(Color(1, 1, 1, 0.7))
@@ -673,10 +688,13 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		velocity.x = 0
 		velocity.z = 0
-		move_and_slide()
+		_slide()
 		return
 	if _horde_frozen():
 		velocity = Vector3.ZERO
+		return
+	status.tick(delta)
+	if dead:
 		return
 	if sleep_radius > 0.0:
 		_sleep_t -= delta
@@ -689,7 +707,6 @@ func _physics_process(delta: float) -> void:
 	attack_cd = max(0.0, attack_cd - delta)
 	web_cd = maxf(0.0, web_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
-	venom_timer = maxf(0.0, venom_timer - delta)
 	if ai() == "burrow" and state != "burrow":
 		surface_t += delta
 	if ai() == "worm":
@@ -871,11 +888,11 @@ func _physics_process(delta: float) -> void:
 	if ai() == "worm" and state != "burrow":   # Mãe-Verme fincada no chão: não escorrega nem é empurrada
 		velocity.x = 0.0
 		velocity.z = 0.0
-	move_and_slide()
+	_slide()
 	if ai() != "worm":
 		AegisWalls.keep_out(self, radius)   # Égide erguida por perto: não entra (e é empurrado enquanto ela se forma)
 	_check_stuck(move, delta)
-	_animate(delta, Vector2(velocity.x, velocity.z).length())
+	_animate_lod(delta, Vector2(velocity.x, velocity.z).length())
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
@@ -1341,9 +1358,11 @@ func _begin_attack(dist := 0.0) -> void:
 			model.rotation.y = atan2(to.x, to.z)
 		FX.telegraph(throw_point, data.blast, _hit_time())
 		return
-	if data.model == "slime":
+	if data.model in ["slime", "leech"]:   # Sanguessuga: o mesmo bote com pulo do Slime que ela substitui
 		attack_kind = "lunge"
 		velocity.y = 4.5
+	elif data.model in ["turtle", "mosquito"]:   # Pernilongo: o rasante da Asa-couro com os números do Slime Veloz
+		attack_kind = "lunge"   # mesmo bote do Slime de Gelo que ela substitui, sem o pulo: estica o pescoço e morde
 	elif (is_boss and attack_count % 3 == 0) or (data.has("slam_every") and attack_count % int(data.slam_every) == 0):
 		attack_kind = "slam"
 		FX.telegraph(global_position, _slam_radius(), 0.9)
@@ -1537,7 +1556,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill), data.get("chill_venom", false))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf"]):
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf", "turtle", "mosquito", "leech"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -2116,7 +2135,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 			kb = kb.normalized() * ((-pull) if pull != 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
-		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
+		if not no_flinch and ((state != "attack" and not heavy) or (crit and attack_kind != "fuse")):
 			stagger = 0.3
 			if state == "attack":
 				_set_state("chase")
@@ -2231,10 +2250,10 @@ func head_top() -> float:
 	return float(data.height) * float(data.scale) * (size_mult if level > 0 else 1.0)
 
 
-## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica, menor se estiver
-## bem acima do nível de quem bateu: placa vermelha).
+## Dano que este inimigo leva de um acerto de `amount` (menor se estiver bem acima do nível de quem bateu:
+## placa vermelha).
 func incoming(amount: float) -> float:
-	var a := amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+	var a := amount
 	if level > 0:
 		var foe := Game.level
 		if Network.is_server():
@@ -2273,6 +2292,16 @@ func _element_immune() -> void:
 	FX.damage_number(top, "Imune", ElementRules.C_IMMUNE, 44)
 
 
+## "Resistiu" na cor do elemento: a resistência total barrou um status que teria pego (EnchantHit.try_status).
+## Mesmo intervalo do "Imune" para não empilhar textos.
+func show_resisted(el: String) -> void:
+	if _hint_t > 0.0 or not EnchantFX.ELEMENTS.has(el):
+		return
+	_hint_t = HINT_GAP
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	FX.damage_number(top, "Resistiu", EnchantFX.ELEMENTS[el].color, 40)
+
+
 ## Nível de quem leva o golpe: o personagem do peer no servidor, o jogador local no solo. 0 = desconhecido.
 static func foe_level(p) -> int:
 	if not (p is Player):
@@ -2290,16 +2319,12 @@ static func vs(enemy_level: int, p, amount: float) -> float:
 	return amount * float(ProgressionRules.danger_mults(Balance.tables, enemy_level, foe_level(p)).dmg)
 
 
-## Marca tóxica: por `secs` segundos, todo dano recebido vale (1 + amp). Não empilha: fica a mais forte.
-func apply_venom(amp: float, secs: float) -> void:
+## Status elemental (StatusEffects): a réplica pede ao servidor; o dono aplica com quem bateu por último.
+func apply_status(el: String, power: float, secs: float) -> void:
 	if puppet:
-		Network.client_mark_enemy(net_id, amp, secs)
+		Network.client_apply_status(net_id, el, power, secs)
 		return
-	if amp <= 0.0 or secs <= 0.0:
-		return
-	if venom_timer <= 0.0 or amp >= venom_amp:
-		venom_amp = amp
-	venom_timer = maxf(venom_timer, secs)
+	status.apply(el, power, secs, last_hitter)
 
 
 func apply_slow(t: float) -> void:
@@ -2324,6 +2349,8 @@ func _update_flash(delta: float) -> void:
 		_flash_mat = null
 	if _flash_t > 0:
 		over = _flash_mat if _flash_mat != null else _overlay_hit
+	elif status_aura != null and status_aura.rim != null:
+		over = status_aura.rim   # status elemental: contorno na cor do efeito (o de gelo cobre a lentidão)
 	elif slow_timer > 0:
 		over = _overlay_slow
 	_set_overlay(over)
@@ -2359,6 +2386,7 @@ func xp_reward() -> int:
 func die_visual() -> void:
 	dead = true
 	state = "dead"
+	status.set_mask(0)   # morto não queima: a aura some junto
 	remove_from_group("enemies")
 	collision_layer = 0
 	collision_mask = 1
@@ -2438,7 +2466,9 @@ func set_net_target(pos: Vector3, yaw: float) -> void:
 	_net_yaw = yaw
 
 
-func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, atk_t: float, atk_kind: String, flags: int) -> void:
+func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, atk_t: float, atk_kind: String, flags: int,
+		status_mask := 0) -> void:
+	status.set_mask(status_mask)
 	_net_pos = pos
 	_net_yaw = yaw
 	if new_hp != hp:
@@ -2592,12 +2622,74 @@ func _puppet_process(delta: float) -> void:
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
-	_animate(delta, hspeed)
+	_animate_lod(delta, hspeed)
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 
 
 # ------------------------------------------------------------ animação procedural
+## Animação por distância (só onde há câmera; o servidor dedicado anima tudo): perto e na tela anima a cada
+## passo de física; mais longe, a cada 2 ou 3 passos, e fora da tela a cada 2 (perto) ou 4. O tempo pulado
+## vai junto (`delta` somado), então o movimento chega ao mesmo lugar, só com menos quadros. Ataque e chefe
+## sempre a cada passo. Animar era ~40% do custo dos monstros acordados (perfil do pântano, 2026-11-22).
+const ANIM_LOD_CHECK := 0.25   # s entre reavaliações da faixa
+const ANIM_NEAR := 25.0        # m: até aqui, na tela, a cada passo
+const ANIM_MID := 60.0         # m: até aqui, na tela, a cada 2 passos (além: 3)
+const ANIM_CLOSE := 8.0        # m: tão perto que conta como na tela (borda da tela, câmera girando)
+var _anim_every := 1
+var _anim_n := 0
+var _anim_acc := 0.0
+var _anim_lod_t := 0.0
+
+
+func _animate_lod(delta: float, hspeed: float) -> void:
+	_anim_lod_t -= delta
+	if _anim_lod_t <= 0.0:
+		_anim_lod_t = ANIM_LOD_CHECK
+		_anim_every = _anim_rate()
+	_anim_acc += delta
+	_anim_n += 1
+	if _anim_n < _anim_every and state != "attack":
+		return
+	_animate(_anim_acc, hspeed)
+	_anim_acc = 0.0
+	_anim_n = 0
+
+
+## De quantos em quantos passos de física este monstro anima agora (1 = todo passo).
+func _anim_rate() -> int:
+	if is_boss:
+		return 1
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return 1
+	var p := global_position + Vector3.UP
+	var d2 := p.distance_squared_to(cam.global_position)
+	if d2 < ANIM_CLOSE * ANIM_CLOSE:
+		return 1
+	if not cam.is_position_in_frustum(p):
+		return 2 if d2 < ANIM_NEAR * ANIM_NEAR else 4
+	if d2 < ANIM_NEAR * ANIM_NEAR:
+		return 1
+	return 2 if d2 < ANIM_MID * ANIM_MID else 3
+
+
+## move_and_slide, menos para quem está parado no chão: sem velocidade não há o que mover nem colidir, e a
+## colisão era a outra metade do custo dos monstros acordados. A cada REST_RECHECK passos parado desliza mesmo
+## assim, para o "no chão" não ficar velho (chão que some, empurrão por posição).
+const REST_RECHECK := 30
+var _rest_n := 0
+
+
+func _slide() -> void:
+	if is_on_floor() and velocity.y <= 0.0 and absf(velocity.x) < 0.001 and absf(velocity.z) < 0.001 			and _rest_n < REST_RECHECK:
+		_rest_n += 1
+		velocity.y = 0.0
+		return
+	_rest_n = 0
+	move_and_slide()
+
+
 func _animate(delta: float, hspeed: float) -> void:
 	_life_t += delta
 	anim_t += delta * (3.0 + hspeed * 2.0)
@@ -2627,13 +2719,16 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "frog":
 		_animate_frog(hspeed, k)
 		return
-	if data.model == "bat":
+	if data.model in ["bat", "mosquito"]:
 		_animate_bat(hspeed, k)
+		return
+	if data.model == "leech":
+		_animate_leech(delta, hspeed)
 		return
 	if data.model == "crow":
 		_animate_crow(delta, hspeed, k)
 		return
-	if data.model == "wolf":
+	if data.model in ["wolf", "turtle"]:
 		_animate_wolf(delta, hspeed)
 		return
 	if data.model == "yeti":
@@ -3014,8 +3109,12 @@ func _animate_frog(hspeed: float, k: float) -> void:
 ## Asa-couro: bate as asas sem parar (mais rápido voando), o corpo sobe e desce no ritmo; no rasante desce até
 ## a altura do jogador com as asas abertas para trás e sobe de volta.
 func _animate_bat(hspeed: float, k: float) -> void:
+	# Pernilongo do Brejo: o mesmo voo com zumbido (batida rápida e curta) e o abdômen balançando (Tail)
+	var buzz: bool = data.model == "mosquito"
 	var beat := anim_t * 2.2
 	var flap := sin(beat) * (0.55 + clampf(hspeed / 5.0, 0.0, 1.0) * 0.2)
+	if buzz:   # ~18 batidas por segundo, parado ou voando (a 60 quadros a asa vira um borrão tremendo, como de verdade)
+		flap = sin((_life_t + float(_uid() % 7)) * TAU * 18.0) * 0.5
 	var y := sin(beat - 0.6) * 0.08
 	var body_x := 0.0
 	if state == "attack" and attack_kind == "lunge":
@@ -3048,6 +3147,70 @@ func _animate_bat(hspeed: float, k: float) -> void:
 		parts.WingR.rotation.z = -flap
 	if parts.Head:
 		parts.Head.rotation.x = lerp(parts.Head.rotation.x, -body_x * 0.5, k)
+	if parts.Tail:   # abdômen: balança devagar atrás do voo e encolhe para a frente no rasante
+		parts.Tail.rotation.x = lerp(parts.Tail.rotation.x, sin(anim_t * 0.9) * 0.12 + body_x * 0.6, k)
+
+
+## Sanguessuga do Lodo: rasteja com uma onda de lado a lado que corre da cabeça à cauda (cada gomo segue o da frente
+## com atraso) e o corpo quica de leve; parada, a cabeça sobe e desce farejando. Bote: ergue a frente encolhendo o
+## pescoço, dispara a cabeça para a frente e para baixo e gruda; a cauda fica no chão.
+func _animate_leech(delta: float, hspeed: float) -> void:
+	var body: Node3D = parts.Body
+	var head: Node3D = parts.Head
+	if body == null or head == null:
+		return
+	if _leech_rest.is_empty():
+		_leech_rest = {"body_y": body.position.y, "head_z": head.position.z}
+	var k := 1.0 - exp(-12.0 * delta)
+	var kf := 1.0 - exp(-28.0 * delta)
+	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 2.8, 0.0, 1.0), 1.0 - exp(-6.0 * delta))
+	var amp := _gait_amp
+	_gait_ph = fmod(_gait_ph + delta * (0.5 + hspeed * 0.35), 1.0)
+	var ph := _gait_ph * TAU
+	var tt := _life_t + float(_uid() % 11)
+	var wave := 0.42 * amp + 0.08 * (1.0 - amp)     # direção de cada gomo: a onda anda da frente para trás
+	var lag := 1.1
+	var dir := [wave * sin(ph + lag), wave * 0.5 * sin(ph), wave * sin(ph - lag), wave * sin(ph - 2.0 * lag),
+		wave * sin(ph - 3.0 * lag)]                  # Head, Body, Tail, Tail2, Tail3
+	var dy := 0.02 * amp * sin(ph * 2.0)
+	var head_x := -0.06 * amp * sin(ph * 2.0 + 0.5) - 0.1 * (0.5 + 0.5 * sin(tt * 0.9)) * (1.0 - amp)
+	var body_x := 0.0
+	var tail_x := 0.0
+	var reach := 0.0
+	if state == "attack" and attack_kind == "lunge":
+		var t := attack_timer
+		var ht := _hit_time()
+		var coil := smoothstep(0.0, 0.3, t)
+		var strike := smoothstep(0.3, ht, t)
+		var back := smoothstep(0.6, 1.0, t)
+		for i in dir.size():
+			dir[i] = float(dir[i]) * (1.0 - coil) * (1.0 - strike) + float(dir[i]) * back
+		if t < 0.3:
+			head_x = -0.7 * coil
+			body_x = -0.15 * coil
+			tail_x = 0.15 * coil
+			reach = -0.05 * coil
+		else:
+			head_x = lerpf(lerpf(-0.7, 0.35, strike), 0.0, back)
+			body_x = lerpf(lerpf(-0.15, 0.05, strike), 0.0, back)
+			tail_x = lerpf(lerpf(0.15, -0.05, strike), 0.0, back)
+			reach = lerpf(lerpf(-0.05, 0.12, strike), 0.0, back)
+	body.position.y = lerpf(body.position.y, float(_leech_rest.body_y) + dy, k)
+	body.rotation.x = lerpf(body.rotation.x, body_x, kf)
+	body.rotation.y = lerp_angle(body.rotation.y, float(dir[1]), k)
+	head.rotation.x = lerpf(head.rotation.x, head_x, kf if state == "attack" else k)
+	head.rotation.y = lerp_angle(head.rotation.y, float(dir[0]) - float(dir[1]), k)
+	head.position.z = lerpf(head.position.z, float(_leech_rest.head_z) + reach, kf)
+	var prev := float(dir[1])
+	var i := 2
+	for n in ["Tail", "Tail2", "Tail3"]:
+		var seg: Node3D = parts.get(n)
+		if seg:
+			seg.rotation.y = lerp_angle(seg.rotation.y, float(dir[i]) - prev, k)
+			if n == "Tail":
+				seg.rotation.x = lerpf(seg.rotation.x, tail_x, kf)
+		prev = float(dir[i])
+		i += 1
 
 
 ## Alfa da Matilha: uivo que acelera os lobos por perto (servidor/solo); a réplica só mostra o anel e o som.
@@ -3138,12 +3301,19 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 		return
 	var k := 1.0 - exp(-14.0 * delta)
 	var kf := 1.0 - exp(-30.0 * delta)
-	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 5.0, 0.0, 1.0), 1.0 - exp(-6.0 * delta))
+	# Tartaruga-Musgo: o mesmo esqueleto com patas curtas; passos curtos e rápidos, corpo e cauda quase parados
+	var turtle: bool = data.model == "turtle"
+	_gait_amp = lerpf(_gait_amp, clampf(hspeed / (2.6 if turtle else 5.0), 0.0, 1.0), 1.0 - exp(-6.0 * delta))
 	var amp := _gait_amp
 	var freq := 0.45 + hspeed * 0.2                       # passadas por segundo (1,6 no trote de caça)
+	if turtle:
+		freq = 0.5 + hspeed * 0.42
 	_gait_ph = fmod(_gait_ph + delta * freq, 1.0)
 	var stride := clampf(hspeed / maxf(freq, 0.1) * 0.55, 0.0, 1.0)
 	var lift := 0.06 + 0.1 * amp
+	if turtle:
+		stride = clampf(hspeed / maxf(freq, 0.1) * 0.5 / float(data.scale), 0.0, 0.34)
+		lift = 0.03 + 0.05 * amp
 	var ph := _gait_ph * TAU
 	var tt := _life_t + float(_uid() % 13)
 	# corpo: quica duas vezes por passada, balança um pouco o nariz; parado respira
@@ -3158,6 +3328,12 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 	var tail2_y := sin(ph - 1.9) * 0.5 * amp + sin(tt * wag - 1.0) * 0.45 * (1.0 - amp)
 	var tail_x := -0.05 - 0.2 * amp + 0.08 * sin(ph * 2.0 - 1.0) * amp
 	var tail2_x := 0.1 * sin(ph * 2.0 - 2.0) * amp + 0.05 * sin(tt * 0.7) * (1.0 - amp)
+	if turtle:
+		dy *= 0.5
+		pitch *= 0.5
+		head_x *= 0.6
+		tail_y *= 0.5
+		tail2_y *= 0.5
 	# apoios: deslocamento (dz para a frente, dyf para cima) e inclinação do último osso por pata
 	var feet := {}
 	for sd in WOLF_SIDES:
@@ -3173,12 +3349,44 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 			var e := v * v * (3.0 - 2.0 * v)
 			dz = stride * (-0.5 + e)
 			up = lift * sin(PI * v)
-			tilt = (1.1 if sd.begins_with("F") else -0.6) * sin(PI * v) * amp
+			tilt = (1.1 if sd.begins_with("F") else -0.6) * sin(PI * v) * amp * (0.35 if turtle else 1.0)
 		feet[sd] = [dz, up, tilt]
 
 	var bz := 0.0         # corpo para a frente (+) ou para trás (-), em metros
 	var reach := 0.0      # pescoço esticando a cabeça para a frente
-	if state == "attack" and attack_kind == "lunge":
+	if state == "attack" and attack_kind == "lunge" and turtle:
+		# bote da tartaruga: recolhe o pescoço com o bico aberto e a frente erguida, dispara o pescoço para a frente
+		# (o corpo dá um passo curto com as patas da frente) e fecha o bico no acerto; depois volta devagar
+		var t := attack_timer
+		var ht := _hit_time()
+		var coil := smoothstep(0.0, 0.3, t)
+		var shot := smoothstep(0.3, ht, t)
+		var air := clampf((t - 0.3) / 0.3, 0.0, 1.0)
+		var back := smoothstep(0.6, 1.0, t)
+		head_y = 0.0
+		tail_y = 0.0
+		tail2_y = 0.0
+		if t < 0.3:
+			reach = -0.06 * coil
+			head_x = -0.18 * coil
+			jaw = 0.8 * coil
+			bz = -0.04 * coil
+			dy = -0.02 * coil
+			pitch = -0.05 * coil
+		else:
+			reach = lerpf(lerpf(-0.06, 0.13, shot), 0.0, back)
+			head_x = lerpf(lerpf(-0.18, 0.14, shot), 0.0, back)
+			jaw = 0.8 if t < ht else lerpf(0.0, 0.05, back)
+			bz = lerpf(lerpf(-0.04, 0.05, shot), 0.0, back)
+			dy = lerpf(-0.02, 0.0, shot)
+			pitch = lerpf(lerpf(-0.05, 0.06, shot), 0.0, back)
+		tail_x = 0.15 * coil * (1.0 - back)
+		for sd in WOLF_SIDES:
+			if sd.begins_with("F") and t >= 0.3:
+				feet[sd] = [0.14 * air * (1.0 - back), 0.05 * sin(PI * air), 0.0]
+			else:
+				feet[sd] = [0.0, 0.0, 0.0]
+	elif state == "attack" and attack_kind == "lunge":
 		# bote com impulso: recolhe o corpo para trás e para baixo sobre as traseiras (as patas ficam no chão, as da
 		# frente inclinam), mira de cabeça baixa rosnando; dispara para a frente esticando o pescoço, abre a boca no ar
 		# e fecha no acerto; aterrissa com o peso ainda indo para a frente e volta ao lugar.

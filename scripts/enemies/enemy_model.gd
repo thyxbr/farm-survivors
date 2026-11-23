@@ -28,6 +28,9 @@ const MODELS := {
 	"forge_rune": preload("res://assets/models/forge_rune.glb"),
 	"frog": preload("res://assets/models/frog.glb"),
 	"bat": preload("res://assets/models/bat.glb"),
+	"leech": preload("res://assets/models/leech_ia.glb"),   # Sanguessuga do Lodo, gerada por IA (tools/blender/leech_ia_build.py)
+	"mosquito": preload("res://assets/models/mosquito_ia.glb"),   # Pernilongo do Brejo, gerado por IA (tools/blender/mosquito_ia_build.py)
+	"turtle": preload("res://assets/models/turtle_ia.glb"),   # Tartaruga-Musgo, gerada por IA (tools/blender/turtle_ia_build.py)
 	"wolf": preload("res://assets/models/wolf_ia.glb"),   # gerado por IA (tools/blender/wolf_ia_build.py); o de código: wolf.glb
 	"crow": preload("res://assets/models/crow.glb"),
 	"yeti": preload("res://assets/models/yeti.glb"),
