@@ -6,7 +6,7 @@ extends Control
 ## Bento sementes e ferramentas, a Dona Cida provisões e a Pip poções. Todos compram qualquer item da mochila.
 ## O estoque é um só (shop.json); a barraca só escolhe o que mostra. "" = tudo, com os filtros.
 ## Quantidade (embaixo da grade): itens que empilham (poções, comida, sementes...) saem no lote escolhido, limitado
-## ao ouro que o herói tem; equipamento sai sempre um por vez.
+## ao ouro que o herói tem; equipamento sai sempre um por vez. Toda compra pede confirmação com o total.
 
 signal closed
 
@@ -103,7 +103,7 @@ func _ready() -> void:
 	buy_grid = _grid(lv)
 	lv.add_child(_qty_row())
 
-	info = UITheme.label("Clique direito: comprar (poções e outros empilháveis na quantidade escolhida) · na mochila: vender · Shift: comparar", 14, UITheme.DIM)
+	info = UITheme.label("Clique direito: comprar, com confirmação (poções e outros empilháveis na quantidade escolhida) · na mochila: vender · Shift: comparar", 14, UITheme.DIM)
 	v.add_child(UITheme.footer(info, [UITheme.button("Sair", _close)]))
 
 	tooltip = ItemTooltip.new()
@@ -241,17 +241,32 @@ func _slot(ctx: String, id: String, q: int) -> ItemSlot:
 	return s
 
 
+## Clique de compra: calcula o lote e pede confirmação (ActionModal) com o total e o ouro que sobra.
 func _buy(s: ItemSlot) -> void:
 	var id := s.item_id
-	var qty := 1
+	var price: int = int(ItemDB.get_item(id).get("price", 0))
+	var asked := 1
 	if ItemDB.is_stackable(id) and qty_spin != null:
-		var price: int = int(ItemDB.get_item(id).get("price", 0))
-		qty = int(qty_spin.value)
-		if price > 0:
-			qty = mini(qty, floori(float(Game.gold) / price))   # lote maior que o ouro: compra o que der
-		if qty < 1:
-			qty = 1   # deixa o servidor responder "Ouro insuficiente"
-	# o servidor aceita até CharRules.MAX_COUNT por pedido: lote grande vai em partes
+		asked = int(qty_spin.value)
+	var qty := asked
+	if price > 0:
+		qty = mini(qty, floori(float(Game.gold) / price))   # lote maior que o ouro: compra o que der
+	if qty < 1:
+		Game.buy(id)   # nem um dá: o servidor responde "Ouro insuficiente"
+		return
+	var total := qty * price
+	var lines := [[str(ItemDB.get_item(id).get("name", id)), UITheme.TEXT]]
+	if qty < asked:
+		lines.append(["O ouro dá só para %d (de %d)" % [qty, asked], UITheme.BAD])
+	lines.append(["%d × %d◆ = %d de ouro" % [qty, price, total], UITheme.GOLD])
+	var left := Game.gold - total
+	lines.append(["Fica com %d de ouro" % left, UITheme.BAD if left < price else UITheme.DIM])
+	ActionModal.open(self, "Comprar", id, lines, "Comprar %d" % qty if qty > 1 else "Comprar",
+		buy_now.bind(id, qty), qty if qty > 1 else 0)
+
+
+## Compra sem perguntar. O servidor aceita até CharRules.MAX_COUNT por pedido: lote grande vai em partes.
+func buy_now(id: String, qty: int) -> void:
 	while qty > 0:
 		var part := mini(qty, CharRules.MAX_COUNT)
 		Game.buy(id, part)
