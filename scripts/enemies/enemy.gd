@@ -306,7 +306,7 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor e lobo; Drill: toupeira
 		parts[n] = model.find_child(n, true, false)
-	if data.model == "wolf":   # Lobo da Geada: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
+	if data.model in ["wolf", "turtle"]:   # Lobo e Tartaruga-Musgo: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
 		for sd in WOLF_SIDES:
 			for b in ["Leg", "Knee", "Paw", "Foot"]:
 				parts[b + sd] = model.find_child(b + sd, true, false)
@@ -1343,6 +1343,8 @@ func _begin_attack(dist := 0.0) -> void:
 	if data.model == "slime":
 		attack_kind = "lunge"
 		velocity.y = 4.5
+	elif data.model == "turtle":
+		attack_kind = "lunge"   # mesmo bote do Slime de Gelo que ela substitui, sem o pulo: estica o pescoço e morde
 	elif (is_boss and attack_count % 3 == 0) or (data.has("slam_every") and attack_count % int(data.slam_every) == 0):
 		attack_kind = "slam"
 		FX.telegraph(global_position, _slam_radius(), 0.9)
@@ -1536,7 +1538,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill), data.get("chill_venom", false))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf"]):
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf", "turtle"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -2623,7 +2625,7 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "crow":
 		_animate_crow(delta, hspeed, k)
 		return
-	if data.model == "wolf":
+	if data.model in ["wolf", "turtle"]:
 		_animate_wolf(delta, hspeed)
 		return
 	if data.model == "yeti":
@@ -3128,12 +3130,19 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 		return
 	var k := 1.0 - exp(-14.0 * delta)
 	var kf := 1.0 - exp(-30.0 * delta)
-	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 5.0, 0.0, 1.0), 1.0 - exp(-6.0 * delta))
+	# Tartaruga-Musgo: o mesmo esqueleto com patas curtas; passos curtos e rápidos, corpo e cauda quase parados
+	var turtle: bool = data.model == "turtle"
+	_gait_amp = lerpf(_gait_amp, clampf(hspeed / (2.6 if turtle else 5.0), 0.0, 1.0), 1.0 - exp(-6.0 * delta))
 	var amp := _gait_amp
 	var freq := 0.45 + hspeed * 0.2                       # passadas por segundo (1,6 no trote de caça)
+	if turtle:
+		freq = 0.5 + hspeed * 0.42
 	_gait_ph = fmod(_gait_ph + delta * freq, 1.0)
 	var stride := clampf(hspeed / maxf(freq, 0.1) * 0.55, 0.0, 1.0)
 	var lift := 0.06 + 0.1 * amp
+	if turtle:
+		stride = clampf(hspeed / maxf(freq, 0.1) * 0.5 / float(data.scale), 0.0, 0.34)
+		lift = 0.03 + 0.05 * amp
 	var ph := _gait_ph * TAU
 	var tt := _life_t + float(_uid() % 13)
 	# corpo: quica duas vezes por passada, balança um pouco o nariz; parado respira
@@ -3148,6 +3157,12 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 	var tail2_y := sin(ph - 1.9) * 0.5 * amp + sin(tt * wag - 1.0) * 0.45 * (1.0 - amp)
 	var tail_x := -0.05 - 0.2 * amp + 0.08 * sin(ph * 2.0 - 1.0) * amp
 	var tail2_x := 0.1 * sin(ph * 2.0 - 2.0) * amp + 0.05 * sin(tt * 0.7) * (1.0 - amp)
+	if turtle:
+		dy *= 0.5
+		pitch *= 0.5
+		head_x *= 0.6
+		tail_y *= 0.5
+		tail2_y *= 0.5
 	# apoios: deslocamento (dz para a frente, dyf para cima) e inclinação do último osso por pata
 	var feet := {}
 	for sd in WOLF_SIDES:
@@ -3163,12 +3178,44 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 			var e := v * v * (3.0 - 2.0 * v)
 			dz = stride * (-0.5 + e)
 			up = lift * sin(PI * v)
-			tilt = (1.1 if sd.begins_with("F") else -0.6) * sin(PI * v) * amp
+			tilt = (1.1 if sd.begins_with("F") else -0.6) * sin(PI * v) * amp * (0.35 if turtle else 1.0)
 		feet[sd] = [dz, up, tilt]
 
 	var bz := 0.0         # corpo para a frente (+) ou para trás (-), em metros
 	var reach := 0.0      # pescoço esticando a cabeça para a frente
-	if state == "attack" and attack_kind == "lunge":
+	if state == "attack" and attack_kind == "lunge" and turtle:
+		# bote da tartaruga: recolhe o pescoço com o bico aberto e a frente erguida, dispara o pescoço para a frente
+		# (o corpo dá um passo curto com as patas da frente) e fecha o bico no acerto; depois volta devagar
+		var t := attack_timer
+		var ht := _hit_time()
+		var coil := smoothstep(0.0, 0.3, t)
+		var shot := smoothstep(0.3, ht, t)
+		var air := clampf((t - 0.3) / 0.3, 0.0, 1.0)
+		var back := smoothstep(0.6, 1.0, t)
+		head_y = 0.0
+		tail_y = 0.0
+		tail2_y = 0.0
+		if t < 0.3:
+			reach = -0.06 * coil
+			head_x = -0.18 * coil
+			jaw = 0.8 * coil
+			bz = -0.04 * coil
+			dy = -0.02 * coil
+			pitch = -0.05 * coil
+		else:
+			reach = lerpf(lerpf(-0.06, 0.13, shot), 0.0, back)
+			head_x = lerpf(lerpf(-0.18, 0.14, shot), 0.0, back)
+			jaw = 0.8 if t < ht else lerpf(0.0, 0.05, back)
+			bz = lerpf(lerpf(-0.04, 0.05, shot), 0.0, back)
+			dy = lerpf(-0.02, 0.0, shot)
+			pitch = lerpf(lerpf(-0.05, 0.06, shot), 0.0, back)
+		tail_x = 0.15 * coil * (1.0 - back)
+		for sd in WOLF_SIDES:
+			if sd.begins_with("F") and t >= 0.3:
+				feet[sd] = [0.14 * air * (1.0 - back), 0.05 * sin(PI * air), 0.0]
+			else:
+				feet[sd] = [0.0, 0.0, 0.0]
+	elif state == "attack" and attack_kind == "lunge":
 		# bote com impulso: recolhe o corpo para trás e para baixo sobre as traseiras (as patas ficam no chão, as da
 		# frente inclinam), mira de cabeça baixa rosnando; dispara para a frente esticando o pescoço, abre a boca no ar
 		# e fecha no acerto; aterrissa com o peso ainda indo para a frente e volta ao lugar.
