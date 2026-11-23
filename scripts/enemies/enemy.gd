@@ -156,6 +156,7 @@ const WOLF_SIDES := ["FL", "FR", "BL", "BR"]
 ## Lobo: o repouso de cada pata no espaço do modelo (quadril, joelho, tornozelo e apoio, no plano y/z) e o ciclo
 ## do trote; Gralha: o ciclo da batida de asa. Ver _animate_wolf e _animate_crow.
 var _wolf_rest := {}
+var _leech_rest := {}   # Sanguessuga: posições de repouso do corpo e da cabeça (lidas no primeiro quadro)
 var _gait_ph := 0.0
 var _gait_amp := 0.0
 var _crow_ph := 0.0
@@ -306,6 +307,9 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor e lobo; Drill: toupeira
 		parts[n] = model.find_child(n, true, false)
+	if data.model == "leech":   # Sanguessuga do Lodo: cadeia Head < Body > Tail > Tail2 > Tail3
+		for n in ["Tail2", "Tail3"]:
+			parts[n] = model.find_child(n, true, false)
 	if data.model in ["wolf", "turtle"]:   # Lobo e Tartaruga-Musgo: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
 		for sd in WOLF_SIDES:
 			for b in ["Leg", "Knee", "Paw", "Foot"]:
@@ -1340,7 +1344,7 @@ func _begin_attack(dist := 0.0) -> void:
 			model.rotation.y = atan2(to.x, to.z)
 		FX.telegraph(throw_point, data.blast, _hit_time())
 		return
-	if data.model == "slime":
+	if data.model in ["slime", "leech"]:   # Sanguessuga: o mesmo bote com pulo do Slime que ela substitui
 		attack_kind = "lunge"
 		velocity.y = 4.5
 	elif data.model in ["turtle", "mosquito"]:   # Pernilongo: o rasante da Asa-couro com os números do Slime Veloz
@@ -1538,7 +1542,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill), data.get("chill_venom", false))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf", "turtle", "mosquito"]):
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf", "turtle", "mosquito", "leech"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -2622,6 +2626,9 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model in ["bat", "mosquito"]:
 		_animate_bat(hspeed, k)
 		return
+	if data.model == "leech":
+		_animate_leech(delta, hspeed)
+		return
 	if data.model == "crow":
 		_animate_crow(delta, hspeed, k)
 		return
@@ -3046,6 +3053,68 @@ func _animate_bat(hspeed: float, k: float) -> void:
 		parts.Head.rotation.x = lerp(parts.Head.rotation.x, -body_x * 0.5, k)
 	if parts.Tail:   # abdômen: balança devagar atrás do voo e encolhe para a frente no rasante
 		parts.Tail.rotation.x = lerp(parts.Tail.rotation.x, sin(anim_t * 0.9) * 0.12 + body_x * 0.6, k)
+
+
+## Sanguessuga do Lodo: rasteja com uma onda de lado a lado que corre da cabeça à cauda (cada gomo segue o da frente
+## com atraso) e o corpo quica de leve; parada, a cabeça sobe e desce farejando. Bote: ergue a frente encolhendo o
+## pescoço, dispara a cabeça para a frente e para baixo e gruda; a cauda fica no chão.
+func _animate_leech(delta: float, hspeed: float) -> void:
+	var body: Node3D = parts.Body
+	var head: Node3D = parts.Head
+	if body == null or head == null:
+		return
+	if _leech_rest.is_empty():
+		_leech_rest = {"body_y": body.position.y, "head_z": head.position.z}
+	var k := 1.0 - exp(-12.0 * delta)
+	var kf := 1.0 - exp(-28.0 * delta)
+	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 2.8, 0.0, 1.0), 1.0 - exp(-6.0 * delta))
+	var amp := _gait_amp
+	_gait_ph = fmod(_gait_ph + delta * (0.5 + hspeed * 0.35), 1.0)
+	var ph := _gait_ph * TAU
+	var tt := _life_t + float(_uid() % 11)
+	var wave := 0.42 * amp + 0.08 * (1.0 - amp)     # direção de cada gomo: a onda anda da frente para trás
+	var lag := 1.1
+	var dir := [wave * sin(ph + lag), wave * 0.5 * sin(ph), wave * sin(ph - lag), wave * sin(ph - 2.0 * lag),
+		wave * sin(ph - 3.0 * lag)]                  # Head, Body, Tail, Tail2, Tail3
+	var dy := 0.02 * amp * sin(ph * 2.0)
+	var head_x := -0.06 * amp * sin(ph * 2.0 + 0.5) - 0.1 * (0.5 + 0.5 * sin(tt * 0.9)) * (1.0 - amp)
+	var body_x := 0.0
+	var tail_x := 0.0
+	var reach := 0.0
+	if state == "attack" and attack_kind == "lunge":
+		var t := attack_timer
+		var ht := _hit_time()
+		var coil := smoothstep(0.0, 0.3, t)
+		var strike := smoothstep(0.3, ht, t)
+		var back := smoothstep(0.6, 1.0, t)
+		for i in dir.size():
+			dir[i] = float(dir[i]) * (1.0 - coil) * (1.0 - strike) + float(dir[i]) * back
+		if t < 0.3:
+			head_x = -0.7 * coil
+			body_x = -0.15 * coil
+			tail_x = 0.15 * coil
+			reach = -0.05 * coil
+		else:
+			head_x = lerpf(lerpf(-0.7, 0.35, strike), 0.0, back)
+			body_x = lerpf(lerpf(-0.15, 0.05, strike), 0.0, back)
+			tail_x = lerpf(lerpf(0.15, -0.05, strike), 0.0, back)
+			reach = lerpf(lerpf(-0.05, 0.12, strike), 0.0, back)
+	body.position.y = lerpf(body.position.y, float(_leech_rest.body_y) + dy, k)
+	body.rotation.x = lerpf(body.rotation.x, body_x, kf)
+	body.rotation.y = lerp_angle(body.rotation.y, float(dir[1]), k)
+	head.rotation.x = lerpf(head.rotation.x, head_x, kf if state == "attack" else k)
+	head.rotation.y = lerp_angle(head.rotation.y, float(dir[0]) - float(dir[1]), k)
+	head.position.z = lerpf(head.position.z, float(_leech_rest.head_z) + reach, kf)
+	var prev := float(dir[1])
+	var i := 2
+	for n in ["Tail", "Tail2", "Tail3"]:
+		var seg: Node3D = parts.get(n)
+		if seg:
+			seg.rotation.y = lerp_angle(seg.rotation.y, float(dir[i]) - prev, k)
+			if n == "Tail":
+				seg.rotation.x = lerpf(seg.rotation.x, tail_x, kf)
+		prev = float(dir[i])
+		i += 1
 
 
 ## Alfa da Matilha: uivo que acelera os lobos por perto (servidor/solo); a réplica só mostra o anel e o som.

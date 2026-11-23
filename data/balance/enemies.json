@@ -172,6 +172,52 @@
 		],
 		"ref_level": 2
 	},
+	"sanguessuga_lodo": {
+		"name": "Sanguessuga do Lodo",
+		"elements": {"fisico": 90, "fogo": 125, "raio": 125, "veneno": 75},
+		"model": "leech",
+		"hp": 40,
+		"damage": 9,
+		"speed": 2.8,
+		"xp": 18,
+		"gold": [
+			1,
+			5
+		],
+		"aggro": 11.0,
+		"reach": 1.5,
+		"cooldown": 1.5,
+		"radius": 0.5,
+		"height": 0.8,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.35,
+				0.42,
+				0.18,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"slime_gel",
+				0.25
+			],
+			[
+				"health_potion",
+				0.04
+			],
+			[
+				"mana_potion",
+				0.03
+			],
+			[
+				"seed_tomato",
+				0.05
+			]
+		],
+		"ref_level": 2
+	},
 	"goblin": {
 		"name": "Goblin Batedor",
 		"elements": {"fogo": 110, "veneno": 110},
