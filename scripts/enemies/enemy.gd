@@ -683,7 +683,7 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		velocity.x = 0
 		velocity.z = 0
-		move_and_slide()
+		_slide()
 		return
 	if _horde_frozen():
 		velocity = Vector3.ZERO
@@ -883,11 +883,11 @@ func _physics_process(delta: float) -> void:
 	if ai() == "worm" and state != "burrow":   # Mãe-Verme fincada no chão: não escorrega nem é empurrada
 		velocity.x = 0.0
 		velocity.z = 0.0
-	move_and_slide()
+	_slide()
 	if ai() != "worm":
 		AegisWalls.keep_out(self, radius)   # Égide erguida por perto: não entra (e é empurrado enquanto ela se forma)
 	_check_stuck(move, delta)
-	_animate(delta, Vector2(velocity.x, velocity.z).length())
+	_animate_lod(delta, Vector2(velocity.x, velocity.z).length())
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
@@ -2608,12 +2608,74 @@ func _puppet_process(delta: float) -> void:
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
-	_animate(delta, hspeed)
+	_animate_lod(delta, hspeed)
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 
 
 # ------------------------------------------------------------ animação procedural
+## Animação por distância (só onde há câmera; o servidor dedicado anima tudo): perto e na tela anima a cada
+## passo de física; mais longe, a cada 2 ou 3 passos, e fora da tela a cada 2 (perto) ou 4. O tempo pulado
+## vai junto (`delta` somado), então o movimento chega ao mesmo lugar, só com menos quadros. Ataque e chefe
+## sempre a cada passo. Animar era ~40% do custo dos monstros acordados (perfil do pântano, 2026-11-22).
+const ANIM_LOD_CHECK := 0.25   # s entre reavaliações da faixa
+const ANIM_NEAR := 25.0        # m: até aqui, na tela, a cada passo
+const ANIM_MID := 60.0         # m: até aqui, na tela, a cada 2 passos (além: 3)
+const ANIM_CLOSE := 8.0        # m: tão perto que conta como na tela (borda da tela, câmera girando)
+var _anim_every := 1
+var _anim_n := 0
+var _anim_acc := 0.0
+var _anim_lod_t := 0.0
+
+
+func _animate_lod(delta: float, hspeed: float) -> void:
+	_anim_lod_t -= delta
+	if _anim_lod_t <= 0.0:
+		_anim_lod_t = ANIM_LOD_CHECK
+		_anim_every = _anim_rate()
+	_anim_acc += delta
+	_anim_n += 1
+	if _anim_n < _anim_every and state != "attack":
+		return
+	_animate(_anim_acc, hspeed)
+	_anim_acc = 0.0
+	_anim_n = 0
+
+
+## De quantos em quantos passos de física este monstro anima agora (1 = todo passo).
+func _anim_rate() -> int:
+	if is_boss:
+		return 1
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return 1
+	var p := global_position + Vector3.UP
+	var d2 := p.distance_squared_to(cam.global_position)
+	if d2 < ANIM_CLOSE * ANIM_CLOSE:
+		return 1
+	if not cam.is_position_in_frustum(p):
+		return 2 if d2 < ANIM_NEAR * ANIM_NEAR else 4
+	if d2 < ANIM_NEAR * ANIM_NEAR:
+		return 1
+	return 2 if d2 < ANIM_MID * ANIM_MID else 3
+
+
+## move_and_slide, menos para quem está parado no chão: sem velocidade não há o que mover nem colidir, e a
+## colisão era a outra metade do custo dos monstros acordados. A cada REST_RECHECK passos parado desliza mesmo
+## assim, para o "no chão" não ficar velho (chão que some, empurrão por posição).
+const REST_RECHECK := 30
+var _rest_n := 0
+
+
+func _slide() -> void:
+	if is_on_floor() and velocity.y <= 0.0 and absf(velocity.x) < 0.001 and absf(velocity.z) < 0.001 			and _rest_n < REST_RECHECK:
+		_rest_n += 1
+		velocity.y = 0.0
+		return
+	_rest_n = 0
+	move_and_slide()
+
+
 func _animate(delta: float, hspeed: float) -> void:
 	_life_t += delta
 	anim_t += delta * (3.0 + hspeed * 2.0)
