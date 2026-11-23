@@ -1928,7 +1928,7 @@ func _acid_warn(elapsed: float) -> void:
 func _acid_hit(visual: bool) -> void:
 	var tick: float = data.damage * dmg_mult * 0.25
 	for pt in _acid_pts:
-		FX.burst(pt + Vector3.UP * 0.3, BossFX.ACID, 12, 3.0, 0.14, 0.6)
+		WormFX.acid_splash(BossFX._root(), pt, 2.9)
 		var pool := AcidPool.new()
 		pool.dmg = tick
 		pool.level = level
@@ -1957,8 +1957,7 @@ func _boss_tick(visual: bool, t0: float, t1: float) -> void:
 		for i in BossRules.QUAKE_RINGS:
 			var q := BossRules.quake_ring(i)
 			if t0 < float(q.t) and float(q.t) <= t1:
-				BossFX.crystal_ring(c, float(q.r), clampi(int(float(q.r) * 2.4), 8, 40),
-					BossFX.RED if enraged else BossFX.CYAN)
+				BossFX.crystal_ring(c, float(q.r), clampi(int(float(q.r) * 2.4), 8, 40), enraged)
 				Sfx.play_at("slam", c, 0.1, -3.0)
 				if not visual:
 					for p in _boss_pool():

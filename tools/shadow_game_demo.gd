@@ -4,13 +4,14 @@ extends Node
 ##   --shadowdemo=mago     Esqueleto Mago: o projétil é a Esfera Sombria (ShadowOrbFX)
 ##   --shadowdemo=bomba    Slime Explosivo: a explosão nova (ExplosionFX, por FXToon.blast)
 ##   --shadowdemo=sentinela Sentinela da Nevasca: Estacas, Sopro e o urro com o gelo pintado (IceFX)
+##   --shadowdemo=verme    Mãe-Verme: cuspe de ácido, Onda de Cristais, Poças de Ácido e Desmoronamento (WormFX)
 ##   --shadowdemo=arauto   Arauto do Abismo: Rajada de Sombras = Lâminas Rúnicas (RuneBladesFX) e Zonas de Vazio =
 ##                         Buraco Negro (BlackHoleFX); de longe ele dá três rajadas e depois abre as zonas
 ##   godot --path . res://scenes/world.tscn -- --level=60 --weapon=iron_sword --nointro --hora=12 --weather=sol --shadowdemo=arauto
 ## A vida do herói enche sozinha.   T  põe o monstro de novo   L  câmera lenta
 ## Com --shadowshot=<pasta> grava os quadros pela câmera do jogo (use com --fixed-fps 30) e fecha:
 ##   mago: 50 quadros a partir do disparo; arauto: 70 da primeira rajada (pasta/volley) e 120, um a cada dois, das
-##   zonas (pasta/voids).
+##   zonas (pasta/voids); verme: pasta/spit, pasta/quake, pasta/acid e pasta/rockfall.
 
 const SPOT := Vector3(-105, 0.3, 40)
 
@@ -20,6 +21,7 @@ var _which := "mago"
 var _ready_done := false
 var _slow := false
 var _recording := false
+var _was_burrow := false
 
 
 func _ready() -> void:
@@ -57,10 +59,11 @@ func _spawn() -> void:
 	if is_instance_valid(_mob):
 		_mob.queue_free()
 	_mob = Enemy.new()
-	_mob.kind = {"arauto": "arauto_abismo", "bomba": "slime_explosivo", "sentinela": "sentinela_nevasca"}.get(_which, "esqueleto_mago")
+	_mob.kind = {"arauto": "arauto_abismo", "bomba": "slime_explosivo", "sentinela": "sentinela_nevasca",
+		"verme": "mae_verme"}.get(_which, "esqueleto_mago")
 	get_tree().current_scene.add_child(_mob)
 	var f: Vector3 = _player.facing()
-	_mob.global_position = _player.global_position + f * (11.0 if _which in ["arauto", "sentinela"] else 8.0)
+	_mob.global_position = _player.global_position + f * (11.0 if _which in ["arauto", "sentinela"] else 13.0 if _which == "verme" else 8.0)
 	_mob.home = _mob.global_position
 
 
@@ -109,6 +112,21 @@ func _shot(dir: String) -> void:
 		_mob.hp = _mob.max_hp * 0.2
 		if await _wait_attack("blizzard", 40.0):
 			await _frames(dir + "/roar", 60, 1)
+	elif _which == "verme":
+		# de longe: cuspe, Onda de Cristais e Poças; mergulha e, na subida seguinte, o Desmoronamento
+		# os golpes vêm na ordem da luta: grava cada um na primeira vez que aparece
+		var todo := {"shoot": ["spit", 45, 1], "quake": ["quake", 115, 1], "acid_rain": ["acid", 110, 2],
+			"rockfall": ["rockfall", 110, 1]}
+		var waited := 0.0
+		while not todo.is_empty() and waited < 180.0:
+			await get_tree().process_frame
+			waited += get_process_delta_time()
+			if is_instance_valid(_mob) and _mob.state == "attack" and todo.has(_mob.attack_kind):
+				var step: Array = todo[_mob.attack_kind]
+				todo.erase(_mob.attack_kind)
+				await _frames(dir + "/" + step[0], step[1], step[2])
+		if not todo.is_empty():
+			print("SHADOWSHOT faltou ", todo.keys())
 	elif _which == "bomba":
 		if not await _wait_attack("fuse", 40.0):
 			get_tree().quit(1)
@@ -130,6 +148,15 @@ func _process(_delta: float) -> void:
 		Game.hp = Game.max_hp()
 	if _slow:
 		Engine.time_scale = 0.3
+	# a Mãe-Verme sai do chão debaixo do herói e só morderia: ao sair, o herói recua para ela usar os golpes de longe
+	if _which == "verme" and is_instance_valid(_mob):
+		if _was_burrow and _mob.state != "burrow":
+			var back: Vector3 = _mob.home - _mob.global_position
+			back.y = 0.0
+			back = back.normalized() if back.length() > 3.0 else -(_player.facing() as Vector3)
+			_player.global_position = _mob.global_position + back * 11.0 + Vector3.UP * 0.5
+			_player.velocity = Vector3.ZERO
+		_was_burrow = _mob.state == "burrow"
 
 
 func _unhandled_input(ev: InputEvent) -> void:

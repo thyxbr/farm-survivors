@@ -8,11 +8,15 @@ extends Node3D
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=ice      Estaca de gelo cravando (BlizzardFX.spike_impact)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=breath   Sopro Congelante girando (BlizzardFX.breath_gust)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=roar     Urro da nevasca (IceFX.roar)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=quake    Onda de Cristais da Mãe-Verme (BossFX.crystal_ring)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=rock     Desmoronamento: a pedra cai e quebra o chão (BossFX.falling_rock)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=acid     Poças de Ácido: bolha em arco, respingo e poça (BossFX.lob, AcidPool)
 ##   Espaço  repete (lâminas, explosão)   N  dia / noite   L  câmera lenta
 ## Com `--seq=<pasta>` grava os quadros e fecha (rode com `--fixed-fps 30`); `--noon` grava de dia.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
-const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44, "ice": 75, "breath": 80, "roar": 50}
+const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44, "ice": 75, "breath": 80, "roar": 50, "quake": 75,
+	"rock": 90, "acid": 120}
 const BLADE_SPEED := 17.0
 const TARGET := Vector3(0.0, 0.0, -15.0)
 
@@ -80,6 +84,15 @@ func _ready() -> void:
 		"boom", "boomdark", "ice":
 			cam.position = Vector3(0.0, 2.6, 8.0)
 			cam.look_at(Vector3(0.0, 1.3, 0.0))
+		"quake":
+			cam.position = Vector3(0.0, 9.0, 17.0)
+			cam.look_at(Vector3(0.0, 0.5, 2.0))
+		"rock":
+			cam.position = Vector3(0.0, 6.0, 9.0)
+			cam.look_at(Vector3(0.0, 0.8, 0.0))
+		"acid":
+			cam.position = Vector3(0.0, 5.0, 8.0)
+			cam.look_at(Vector3(0.0, 0.6, 0.0))
 		"roar":
 			cam.position = Vector3(0.0, 5.0, 13.0)
 			cam.look_at(Vector3(0.0, 1.5, 0.0))
@@ -177,6 +190,18 @@ func _record(dir: String) -> void:
 		if i == 19 and _fx == "ice":
 			BlizzardFX.spike_impact(Vector3.ZERO, 1.8)
 			add_child(IceSpike.new())
+		if _fx == "quake" and i in [4, 19]:   # dois anéis da Onda, 0,5 s um do outro
+			var r := 3.5 if i == 4 else 7.5
+			BossFX.crystal_ring(Vector3.ZERO, r, clampi(int(r * 2.4), 8, 40), false)
+		if i == 4 and _fx == "rock":
+			BossFX.falling_rock(Vector3.ZERO, 0.55)
+		if i == 4 and _fx == "acid":
+			BossFX.lob(Vector3(-7.0, 4.2, -3.0), Vector3(0.0, 0.2, 0.0), 0.8, 3.0)
+		if i == 28 and _fx == "acid":
+			WormFX.acid_splash(self, Vector3.ZERO, 2.9)
+			var pool := AcidPool.new()
+			pool.life = 2.6
+			add_child(pool)
 		if i == 4 and _fx == "roar":
 			IceFX.roar(self, Vector3.ZERO, 5.5)
 		if _fx == "breath" and i >= 4 and i % 2 == 0:   # o sopro girando, uma rajada a cada 0,07 s como no jogo
