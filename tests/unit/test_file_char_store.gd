@@ -57,6 +57,39 @@ func test_round_trip() -> void:
 	st.delete_char(2)
 
 
+## Gravação adiada (abate e loot do solo): fica na memória até o flush ou a próxima gravação comum,
+## e quem lê o personagem já vê o valor novo.
+func test_deferred_writes() -> void:
+	var st := _fresh()
+	var s := CharState.new_character(_tables())
+	s.gold = 10
+	T.ok(st.save_char(1, s.to_dict(), [], 1), "gravação comum")
+	st.defer_writes = true
+	s.gold = 20
+	var row := CharStore.row(2, 1, "grant", 10, null, "loot")
+	T.ok(st.save_char(1, s.to_dict(), [row], 2), "adiada aceita")
+	st.defer_writes = false
+	T.ok(st.has_pending(), "ficou pendente")
+	T.eq(CharState.from_dict(st.load_char(1), _tables()).gold, 20, "leitura vê o pendente")
+	T.eq(CharState.from_dict(FileCharStore.new(PATH).load_char(1), _tables()).gold, 10, "disco ainda com o antigo")
+	T.ok(st.flush() and not st.has_pending(), "flush escreve")
+	T.eq(CharState.from_dict(FileCharStore.new(PATH).load_char(1), _tables()).gold, 20, "disco com o novo")
+	T.eq(st.economy_rows().size(), 1, "linha da economia escrita no flush")
+	# pendente + gravação comum: a comum leva tudo, economia na ordem
+	st.defer_writes = true
+	s.gold = 30
+	st.save_char(1, s.to_dict(), [CharStore.row(3, 1, "grant", 10, null, "loot")], 3)
+	st.defer_writes = false
+	s.gold = 35
+	T.ok(st.save_char(1, s.to_dict(), [CharStore.row(4, 1, "grant", 5, null, "shop")], 4), "comum depois do pendente")
+	T.ok(not st.has_pending(), "nada pendente")
+	T.eq(CharState.from_dict(FileCharStore.new(PATH).load_char(1), _tables()).gold, 35, "disco com o último")
+	var rows := st.economy_rows()
+	T.eq(rows.size(), 3, "três linhas")
+	T.eq(str(rows[2]["source"]), "shop", "ordem mantida")
+	st.delete_char(1)
+
+
 func test_atomic_write_keeps_old_file() -> void:
 	var st := _fresh()
 	var s := CharState.new_character(_tables())

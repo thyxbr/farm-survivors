@@ -128,13 +128,15 @@ func _ready() -> void:
 	Game.notify.connect(_on_notify)
 	Game.item_looted.connect(_on_loot)
 	Game.gold_looted.connect(_on_gold)
-	Game.stats_changed.connect(_refresh_static)
+	# Mochila e atributos mudam várias vezes no mesmo quadro (cada abate no solo aplica o estado duas vezes:
+	# loot e abate): o painel se refaz uma vez só, no fim do quadro.
+	Game.stats_changed.connect(_queue_static)
 	Game.stats_changed.connect(_check_prog_notice)
-	Game.inventory_changed.connect(_refresh_static)
+	Game.inventory_changed.connect(_queue_static)
 	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
 	Game.quests_changed.connect(_refresh_static)
-	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
+	Game.inventory_changed.connect(_queue_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
 	_check_prog_notice()
@@ -621,6 +623,32 @@ func _center_dock() -> void:
 		return
 	var ms := dock.get_combined_minimum_size()
 	_anchor(dock, 0.5, 1, -ms.x / 2.0, -ms.y - 8, ms.x, ms.y)
+
+
+var _static_queued := false
+var _quests_queued := false
+
+
+func _queue_static() -> void:
+	if not _static_queued:
+		_static_queued = true
+		_flush_static.call_deferred()
+
+
+func _flush_static() -> void:
+	_static_queued = false
+	_refresh_static()
+
+
+func _queue_quests() -> void:
+	if not _quests_queued:
+		_quests_queued = true
+		_flush_quests.call_deferred()
+
+
+func _flush_quests() -> void:
+	_quests_queued = false
+	_refresh_quests()
 
 
 func _refresh_static() -> void:

@@ -74,7 +74,7 @@ func _ready() -> void:
 	marker.position.y = 2.85
 	add_child(marker)
 	Game.quests_changed.connect(_update_marker)
-	Game.inventory_changed.connect(_update_marker)   # coleta: o "?" aparece quando os itens chegam
+	Game.inventory_changed.connect(_queue_marker)   # coleta: o "?" aparece quando os itens chegam (uma vez por quadro)
 	_update_marker()
 
 
@@ -153,6 +153,21 @@ func _process(delta: float) -> void:
 	model.rotation.y = lerp_angle(model.rotation.y, target_yaw, 4.0 * delta)
 	if head:
 		head.rotation.z = sin(_t * 0.8) * 0.05
+
+
+var _marker_queued := false
+
+
+## Mochila mudou: o marcador é refeito uma vez no fim do quadro (cada abate no solo muda a mochila duas vezes).
+func _queue_marker() -> void:
+	if not _marker_queued:
+		_marker_queued = true
+		_flush_marker.call_deferred()
+
+
+func _flush_marker() -> void:
+	_marker_queued = false
+	_update_marker()
 
 
 func _update_marker() -> void:

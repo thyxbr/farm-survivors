@@ -55,7 +55,7 @@ func _ready() -> void:
 	marker.position.y = marker_h
 	add_child(marker)
 	Game.quests_changed.connect(_update_marker)
-	Game.inventory_changed.connect(_update_marker)
+	Game.inventory_changed.connect(_queue_marker)
 	_update_marker()
 
 
@@ -67,6 +67,21 @@ func interact(_player: Node) -> void:
 	var world := get_tree().current_scene
 	if world.has_method("open_dialogue") and world.get("modal") == null:
 		world.open_dialogue(npc_name, StoryDialogue.build(self), null)
+
+
+var _marker_queued := false
+
+
+## Mochila mudou: o marcador é refeito uma vez no fim do quadro (cada abate no solo muda a mochila duas vezes).
+func _queue_marker() -> void:
+	if not _marker_queued:
+		_marker_queued = true
+		_flush_marker.call_deferred()
+
+
+func _flush_marker() -> void:
+	_marker_queued = false
+	_update_marker()
 
 
 func _update_marker() -> void:
