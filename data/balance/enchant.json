@@ -5,7 +5,7 @@
 		"fogo":    {"name": "Fogo",    "essence": "ember_core",    "effect": "Queimadura"},
 		"gelo":    {"name": "Gelo",    "essence": "frost_drop",    "effect": "Lentidão"},
 		"raio":    {"name": "Raio",    "essence": "thunder_totem", "effect": "Corrente"},
-		"veneno":  {"name": "Veneno",  "essence": "toxic_gland",   "effect": "Marca tóxica"},
+		"veneno":  {"name": "Veneno",  "essence": "toxic_gland",   "effect": "Veneno"},
 		"sagrado": {"name": "Sagrado", "essence": "golden_dust",   "effect": "Ruína de chefes"},
 		"sombra":  {"name": "Sombra",  "essence": "shadow_fang",   "effect": "Roubo de vida"}
 	},
