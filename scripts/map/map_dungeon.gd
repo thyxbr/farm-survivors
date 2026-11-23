@@ -43,7 +43,7 @@ const THEMES := {
 }
 
 ## Estátuas do salão do chefe por tema: [guardiões do portão, par do meio do salão] (modelos de assets/models).
-const STATUES := {"raizes": ["wolf", "knight_f"], "mina": ["golem", "forge_golem"], "cripta": ["sentinel", "knight_d"],
+const STATUES := {"raizes": ["wolf_ia", "knight_f"], "mina": ["golem", "forge_golem"], "cripta": ["sentinel", "knight_d"],
 	"abismo": ["void_herald", "raptor"]}
 
 @export_enum("raizes", "mina", "cripta", "abismo") var theme := "cripta":
