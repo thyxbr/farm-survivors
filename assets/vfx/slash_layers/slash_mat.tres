@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" load_steps=6 format=3]
+
+[ext_resource type="Shader" path="res://shaders/slash_layers/slash_under.gdshader" id="1"]
+[ext_resource type="Shader" path="res://shaders/slash_layers/slash_glow.gdshader" id="2"]
+[ext_resource type="NoiseTexture2D" path="res://assets/vfx/slash_layers/slash_noise.tres" id="3"]
+[ext_resource type="Texture2D" path="res://assets/vfx/slash_layers/corte_faixa.png" id="4"]
+
+[sub_resource type="ShaderMaterial" id="glow"]
+render_priority = 2
+shader = ExtResource("2")
+shader_parameter/noise_tex = ExtResource("3")
+shader_parameter/slash_tex = ExtResource("4")
+
+[resource]
+render_priority = 1
+next_pass = SubResource("glow")
+shader = ExtResource("1")
+shader_parameter/noise_tex = ExtResource("3")
+shader_parameter/slash_tex = ExtResource("4")

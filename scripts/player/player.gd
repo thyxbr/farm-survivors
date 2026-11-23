@@ -179,6 +179,13 @@ var chat_typing := false
 ## Emote em andamento (KnightEmotes.KINDS) ou "". Andar, pular ou abrir o chat cancela.
 var emote := ""
 var _autoswing := "--autoswing" in OS.get_cmdline_user_args()
+var _autocast := _arg_value("--autocast=")
+var _autocast_wait := 1.0
+## Depuração (`--nocooldown`): as habilidades voltam na hora, para testar efeitos sem esperar a recarga.
+var _no_cooldown := "--nocooldown" in OS.get_cmdline_user_args()
+## Protótipo: corte em camadas que segue a lâmina (LayeredSlashTrail) no lugar da pincelada dos golpes de espada.
+static var SLASH_FX2 := "--slashfx2" in OS.get_cmdline_user_args()
+var _slash2: LayeredSlashTrail
 var _emote_t := 0.0
 var name_tag: Label3D
 var title_tag: Label3D
@@ -456,6 +463,12 @@ func _local_process(delta: float) -> void:
 	if _autoswing:   # depuração (--autoswing, ver Game._debug_screenshot): golpeia sem parar
 		Game.stamina = Game.max_stamina()
 		_try_attack()
+	if _autocast != "" and ability == "":   # depuração (--autocast=<id>): usa a habilidade de novo a cada ~0,8 s parado
+		_autocast_wait -= delta
+		if _autocast_wait <= 0.0:
+			_autocast_wait = 0.8
+			cooldowns[_autocast] = 0.0
+			cast(_autocast)
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	if dead:
@@ -655,7 +668,7 @@ func _tick_timers(delta: float) -> void:
 	cast_timer = max(0.0, cast_timer - delta)
 	stamina_delay = max(0.0, stamina_delay - delta)
 	for k in cooldowns:
-		cooldowns[k] = max(0.0, cooldowns[k] - delta)
+		cooldowns[k] = 0.0 if _no_cooldown else max(0.0, cooldowns[k] - delta)
 	Game.tick_buffs(delta)
 
 
@@ -863,6 +876,7 @@ func _do_hit() -> void:
 	var hit_any := false
 	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
 	var hit_enemy := false
+	var hits_fx := 0   # protótipo --slashfx2: explosões de acerto (até 3 por golpe)
 	var f := facing()
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.dead:
@@ -889,6 +903,10 @@ func _do_hit() -> void:
 		hit_any = true
 		hit_enemy = true
 		flesh = flesh or str(e.data.get("model", "")) != "slime"
+		if SLASH_FX2 and _slash2 != null and is_instance_valid(_slash2) and hits_fx < 3:
+			hits_fx += 1
+			var at: Vector3 = e.global_position + Vector3.UP * 0.9 - to.normalized() * e.radius * 0.6
+			_slash2.impact(at, f, (1.0 if fin else 0.65) * (1.15 if great else 1.0))
 	if hit_enemy and fist:
 		Sfx.play("punch_hit", 0.12)
 	elif hit_enemy:
@@ -897,6 +915,8 @@ func _do_hit() -> void:
 		add_shake(0.3)   # golpe final da montante: a câmera dá um tranco, acertando alguém ou não
 	if hit_any:
 		add_shake(0.22 if fin else 0.12)
+		if SLASH_FX2:
+			FXEpic.hit_stop((0.09 if fin else 0.055) if great else (0.07 if fin else 0.04), 0.06)
 
 
 func _swing_time(c: int) -> float:
@@ -1545,6 +1565,8 @@ func _ab_module(id: String) -> Object:
 		return DragSlashAbilities
 	if id.begins_with(GreatswordSupremeAbilities.ID):   # a Lâmina Suprema da montante (e o cancelamento) também
 		return GreatswordSupremeAbilities
+	if id.begins_with(SwordVortexAbilities.ID):   # o Vórtice Sombrio da espada (e o cancelamento) também
+		return SwordVortexAbilities
 	if id.begins_with(GreatswordSpinAbilities.ID):   # o Ciclone de Aço da montante (e o cancelamento) também
 		return GreatswordSpinAbilities
 	if id.begins_with(GreatswordDarkComboAbilities.ID):   # a Dança do Abismo da montante (e o cancelamento) também
@@ -2293,6 +2315,8 @@ func _animate(delta: float) -> void:
 		_slash_fx()
 	elif _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
+	if SLASH_FX2:
+		_slash2_update(cls)
 	# escudo: sobe rápido (~0,12 s) e desce um pouco mais devagar; o golpe defendido dá um tranco no braço
 	var up := blocking and ability == "" and not attacking and dodge_timer <= 0 and not dead
 	_block_w = move_toward(_block_w, 1.0 if up else 0.0, delta * (8.0 if up else 5.0))
@@ -2455,6 +2479,8 @@ func _look_gear(l: Dictionary) -> Dictionary:
 ## Corte desenhado do golpe de espada em curso, uma vez por golpe. Chamado de _animate, por onde passam
 ## o jogador local e as réplicas (que recebem combo e attack_timer pelo estado de rede).
 func _slash_fx() -> void:
+	if SLASH_FX2 and _slash2 != null:
+		return   # protótipo: o corte em camadas segue a lâmina no lugar da pincelada
 	var c := clampi(combo, 1, _combo_len())
 	if c != _slash_combo or attack_timer < _slash_t - 0.1:   # outro golpe do combo, ou o relógio voltou
 		_slash_done = false
@@ -2472,6 +2498,84 @@ func _slash_fx() -> void:
 		FXToon.great_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
 	else:
 		FXToon.sword_slash(self, model.rotation.y, c, slash_color())
+
+
+## Valor de um argumento de linha de comando `prefixo=valor` (depuração), ou "".
+static func _arg_value(prefix: String) -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with(prefix):
+			return a.substr(prefix.length())
+	return ""
+
+
+## Protótipo do corte em camadas (`--slashfx2`): um LayeredSlashTrail preso à lâmina enquanto o herói tem espada na
+## mão; só acende nos golpes (a força vem da velocidade da ponta).
+func _slash2_update(cls: String) -> void:
+	var on: bool = cls == "sword" and not _unarmed() and not dead
+	if not on:
+		if _slash2 != null:
+			_slash2.emitting = false
+		return
+	if _slash2 == null or not is_instance_valid(_slash2):
+		var root := FX._scene()
+		if root == null:
+			return
+		_slash2 = LayeredSlashTrail.new()
+		# golpe básico: a versão simples do corte (mais fino, mais curto, poucas lascas, sem arcos, brilho baixo)
+		_slash2.show_arcs = false
+		_slash2.lifetime = 0.22
+		_slash2.head_w = 0.6
+		_slash2.tail_pow = 0.8
+		_slash2.bits_scale = 0.25
+		_slash2.reach = 0.25
+		root.add_child(_slash2)
+		_slash2.intensity = 0.7
+	if "--slashdummy" in OS.get_cmdline_user_args():
+		_slash_dummies()
+	_slash2.base_node = look.get("holder")
+	_slash2.tip_node = look.get("tip")
+	_slash2.emitting = attacking and _slash2_window()
+	_slash2.set_color(slash_color())
+
+
+## O golpe está na parte que corta? (a mesma janela das pinceladas: começa em `at` e dura `sweep_frac` do golpe). Fora
+## dela a lâmina também corre rápido (preparo por trás das costas, volta à guarda), mas não deve deixar rastro.
+func _slash2_window() -> bool:
+	var c := clampi(combo, 1, _combo_len())
+	var k := attack_timer / maxf(_swing_time(c), 0.001)
+	var from := 0.0
+	var span := 0.3
+	if _shield_combo():
+		from = float(KnightMovesShield.SLASH[c - 1].at)
+		span = float(KnightMovesShield.SLASH[c - 1].sweep_frac)
+	elif _great():
+		from = float(KnightMovesGreat.SLASH[c - 1].at)
+		span = float(KnightMovesGreat.SLASH[c - 1].sweep_frac)
+	else:
+		from = float(FXToon.SWORD_COMBO[c - 1].at) - 0.08
+		span = 0.28
+	return k >= from - 0.03 and k <= from + span
+
+
+## Depuração do protótipo (`--slashdummy`): mantém dois goblins parados à frente do herói (repõe quem morre), para
+## filmar o acerto com `--autoswing`.
+var _dummies: Array = []
+func _slash_dummies() -> void:
+	_dummies = _dummies.filter(func(e: Variant) -> bool: return is_instance_valid(e) and not e.dead)
+	if _dummies.size() >= 2 or Engine.get_process_frames() % 20 != 0:
+		return
+	var f := facing()
+	var r := Vector3(f.z, 0.0, -f.x)
+	for side in [0.6, -0.6]:
+		var e := Enemy.new()
+		e.kind = "goblin"
+		get_tree().current_scene.add_child(e)
+		e.global_position = global_position + f * 1.9 + r * side
+		e.home = e.global_position
+		# física ligada: é ela que atualiza o clarão do acerto (o goblin pode andar e bater, tudo bem)
+		_dummies.append(e)
+		if _dummies.size() >= 2:
+			break
 
 
 ## Cor dos efeitos desenhados dos golpes: a do elemento do encantamento da arma ou, sem ele, a da arma.

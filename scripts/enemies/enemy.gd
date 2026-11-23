@@ -140,6 +140,7 @@ static var _bar_meshes: Array[QuadMesh] = []      # fundo e frente da barra de v
 var _overlay_base: Material = null
 var _overlay_now: Material = null     # o que está nas malhas agora (ver _set_overlay)
 var _flash_t := 0.0
+var _flash_mat: Material   ## camada do clarão no lugar da branca (flash_with), até o clarão acabar
 
 ## Multiplayer: id comum entre servidor e clientes.
 var net_id := 0
@@ -2339,12 +2340,21 @@ func apply_slow(t: float) -> void:
 	slow_timer = max(slow_timer, t)
 
 
+## Clarão com uma camada própria (`mat`, material_overlay) por `time` s, no lugar do branco do acerto
+## (o dourado do Vórtice Sombrio). Só visual, no cliente que chamou.
+func flash_with(mat: Material, time: float) -> void:
+	_flash_t = maxf(_flash_t, time)
+	_flash_mat = mat
+
+
 func _update_flash(delta: float) -> void:
 	_flash_t = max(0.0, _flash_t - delta)
 	_hint_t = maxf(0.0, _hint_t - delta)
 	var over: Material = _overlay_base
+	if _flash_t <= 0.0:
+		_flash_mat = null
 	if _flash_t > 0:
-		over = _overlay_hit
+		over = _flash_mat if _flash_mat != null else _overlay_hit
 	elif status_aura != null and status_aura.rim != null:
 		over = status_aura.rim   # status elemental: contorno na cor do efeito (o de gelo cobre a lentidão)
 	elif slow_timer > 0:

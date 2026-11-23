@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3]
+
+[ext_resource type="Shader" path="res://shaders/sword_vortex/vortex_smoke.gdshader" id="1"]
+[ext_resource type="Shader" path="res://shaders/sword_vortex/vortex_glow.gdshader" id="2"]
+[ext_resource type="NoiseTexture2D" path="res://assets/vfx/slash_layers/slash_noise.tres" id="3"]
+
+[sub_resource type="ShaderMaterial" id="glow"]
+render_priority = 2
+shader = ExtResource("2")
+shader_parameter/noise_tex = ExtResource("3")
+
+[resource]
+render_priority = 1
+next_pass = SubResource("glow")
+shader = ExtResource("1")
+shader_parameter/noise_tex = ExtResource("3")

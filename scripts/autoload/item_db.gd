@@ -20,7 +20,7 @@ const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mi
 ## Habilidades de todas as armas. `slot` 1..SLOT_COUNT (tecla de mesmo número); o slot 4 é a ultimate.
 ## O slot 5 é opcional: o cetro (Julgamento de Luz), a espada com escudo (Grito do Bastião) e a montante (Fúria Picante,
 ## que sai da tecla 3 para a Dança do Abismo); a barra só o mostra para quem tem.
-const SLOT_COUNT := 5
+const SLOT_COUNT := 6
 ## `ready` = a habilidade já está implementada (fonte única; senão "Em breve"). `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
 ## `aim: "ground"` = a tecla só prepara: mostra o círculo de raio `aim_radius` no chão, a até `aim_range` m, e o
 ## clique esquerdo confirma (Player._arm_area / confirm_area).
@@ -82,6 +82,12 @@ const ABILITIES := {
 	# (SwordAbilities.FURY_IDS), só muda a tecla. Sem a montante ela fica de fora (é "offhand").
 	"sword_fury_great": {"name": "Fúria Picante", "class": "sword", "offhand": "two_handed", "slot": 5, "level": 5, "cooldown": 28.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
+	# tecla 5 da espada de uma mão sem escudo (com escudo o Grito do Bastião e com a montante a Fúria Picante trocam)
+	"sword_vortex": {"name": "Vórtice Sombrio", "class": "sword", "slot": 5, "level": 6, "cooldown": 14.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "cleaver", "desc": "Agacha com a espada para trás e gira no próprio eixo, envolto num redemoinho de energia sombria: cada meia volta corta quem estiver em volta (até 3 m, 0,55x o dano corpo a corpo). A última volta fecha num corte enorme à frente, com um clarão violeta e uma meia-lua de fumaça negra: 2,6x o dano corpo a corpo e atordoa (até 4,6 m, à frente e dos lados). Dá para andar devagar girando; a esquiva só cancela no preparo."},
+	# a mesma habilidade com a montante, na tecla 6 (a 5 da montante é a Fúria Picante)
+	"sword_vortex_great": {"name": "Vórtice Sombrio", "class": "sword", "offhand": "two_handed", "slot": 6, "level": 6, "cooldown": 14.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "cleaver", "desc": "Com a montante: agacha com a lâmina para trás e gira no próprio eixo, envolto num redemoinho de energia sombria, subindo a lâmina a cada volta: cada meia volta corta quem estiver em volta (até 3 m, 0,55x o dano corpo a corpo). A última volta fecha num corte enorme à frente, com um clarão violeta e uma meia-lua de fumaça negra: 2,6x o dano corpo a corpo e atordoa (até 4,6 m, à frente e dos lados). Dá para andar devagar girando; a esquiva só cancela no preparo."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
 	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca o Turbilhão na tecla 4

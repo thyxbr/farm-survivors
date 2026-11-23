@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://shaders/sword_vortex/smoke_strip.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/vfx/sword_vortex/fumaca_faixa.png" id="2"]
+
+[resource]
+render_priority = 1
+shader = ExtResource("1")
+shader_parameter/smoke = ExtResource("2")
+shader_parameter/repeat = 2.0
+shader_parameter/flow = 0.35
+shader_parameter/along_v = false
+shader_parameter/tail_fade = 0.35
+shader_parameter/shade_lo = 0.35
