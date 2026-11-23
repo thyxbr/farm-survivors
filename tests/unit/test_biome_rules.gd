@@ -10,6 +10,8 @@ func test_vale_keeps_the_default() -> void:
 	var v := BiomeRules.of("vila")
 	T.eq(v.grass, BiomeRules.VALE.grass, "o Vale continua com o capim de sempre")
 	T.ok(not BiomeRules.has_sky("vila"), "o Vale não troca o céu")
+	var a := BiomeRules.atmo("vila")
+	T.ok(not a.has("sky_top") and float(a.get("view", 0.0)) > 0.0, "o Vale troca só a vista: névoa por distância")
 	var s := _w(0.7, 0.0, 0.0, 0.5, 0.8)
 	T.eq(BiomeRules.weather("vila", s), s, "o clima do Vale passa sem mudar")
 
