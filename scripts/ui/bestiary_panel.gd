@@ -431,7 +431,9 @@ func _abilities(bt: BalanceTables, kind: String, e: Dictionary) -> String:
 		out.append("Chama reforços: %s" % enemies.get(str(e.summon), {}).get("name", e.summon))
 	if e.has("heal_radius"):
 		out.append("Cura os aliados por perto")
-	if e.has("slam_every"):
+	if e.has("slam_every") and str(e.get("slam_fx", "")) == "lightning":
+		out.append("Chama um raio sobre si a cada %d ataques: onda de choque em área" % int(e.slam_every))
+	elif e.has("slam_every"):
 		out.append("Golpe pesado em área a cada %d ataques" % int(e.slam_every))
 	if e.has("blast") and not e.has("throw_cd"):
 		out.append("Explode em área")
