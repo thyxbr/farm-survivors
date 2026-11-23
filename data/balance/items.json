@@ -231,6 +231,174 @@
 		"desc": "Duas luas abraçam um sol apagado na guarda. As runas acendem a cada golpe que bebe vida.",
 		"model": "w_eclipse_greatsword"
 	},
+	"abyss_greatsword": {
+		"name": "Olho do Abismo",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 70,
+		"price": 2200,
+		"color": {
+			"$c": [
+				0.62,
+				0.3,
+				1.0,
+				1.0
+			]
+		},
+		"glow": 1.4,
+		"shape": "great",
+		"stats": {
+			"str": 8,
+			"hp": 45,
+			"leech": 0.04
+		},
+		"desc": "Oito garras de ébano seguram um olho que nunca fecha. Pela fenda da lâmina correm as almas que ela já cortou.",
+		"model": "w_abyss_greatsword"
+	},
+	"arcane_greatsword": {
+		"name": "Grade Arcana",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 68,
+		"price": 2200,
+		"color": {
+			"$c": [
+				0.3,
+				0.75,
+				1.0,
+				1.0
+			]
+		},
+		"glow": 1.4,
+		"shape": "great",
+		"stats": {
+			"str": 7,
+			"int": 4,
+			"crit": 0.1
+		},
+		"desc": "Cristal azul preso numa moldura de aço com runas. Os circuitos acendem a cada golpe e a gema da guarda zumbe.",
+		"model": "w_arcane_greatsword"
+	},
+	"dawn_greatsword": {
+		"name": "Aurora Radiante",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 70,
+		"price": 2200,
+		"color": {
+			"$c": [
+				1.0,
+				0.82,
+				0.4,
+				1.0
+			]
+		},
+		"glow": 1.4,
+		"shape": "great",
+		"stats": {
+			"str": 8,
+			"vit": 4,
+			"hp": 50
+		},
+		"desc": "Sol de ouro na guarda e cinco gemas na lâmina. A luz que ela solta nunca deixa a noite chegar perto.",
+		"model": "w_dawn_greatsword"
+	},
+	"storm_greatsword": {
+		"name": "Quebra-Tormenta",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 69,
+		"price": 2200,
+		"color": {
+			"$c": [
+				0.3,
+				0.7,
+				1.0,
+				1.0
+			]
+		},
+		"glow": 1.4,
+		"shape": "great",
+		"stats": {
+			"str": 7,
+			"agi": 4,
+			"speed": 0.06
+		},
+		"desc": "A águia da guarda prende um raio entre as duas metades da lâmina. Cada golpe estala como trovão.",
+		"model": "w_storm_greatsword"
+	},
+	"crimson_greatsword": {
+		"name": "Presa Carmesim",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 72,
+		"price": 2200,
+		"color": {
+			"$c": [
+				1.0,
+				0.2,
+				0.28,
+				1.0
+			]
+		},
+		"glow": 1.4,
+		"shape": "great",
+		"stats": {
+			"str": 9,
+			"crit": 0.1,
+			"leech": 0.03
+		},
+		"desc": "Um crânio de dragão morde a lâmina negra. Os veios vermelhos pulsam como sangue quente.",
+		"model": "w_crimson_greatsword"
+	},
+	"winter_greatsword": {
+		"name": "Inverno Eterno",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 68,
+		"price": 2200,
+		"color": {
+			"$c": [
+				0.7,
+				0.9,
+				1.0,
+				1.0
+			]
+		},
+		"glow": 1.4,
+		"shape": "great",
+		"stats": {
+			"str": 7,
+			"vit": 5,
+			"hp": 55
+		},
+		"desc": "Um halo de prata segura o coração de gelo. A geada que cresce na guarda nunca derrete.",
+		"model": "w_winter_greatsword"
+	},
 	"azure_edge": {
 		"name": "Gume Celeste",
 		"type": "weapon",
@@ -2469,6 +2637,45 @@
 		"price": 15,
 		"stack": true,
 		"desc": "Restaura 60 de vida."
+	},
+	"health_potion_greater": {
+		"name": "Poção de Vida Maior",
+		"type": "consumable",
+		"heal_hp": 150,
+		"price": 45,
+		"stack": true,
+		"potion_line": "health_potion",
+		"drop_level": 15,
+		"color": {
+			"$c": [0.75, 0.06, 0.12, 1.0]
+		},
+		"desc": "Restaura 150 de vida. Mais espessa, mais rubra."
+	},
+	"health_potion_superior": {
+		"name": "Poção de Vida Superior",
+		"type": "consumable",
+		"heal_hp": 320,
+		"price": 110,
+		"stack": true,
+		"potion_line": "health_potion",
+		"drop_level": 28,
+		"color": {
+			"$c": [0.7, 0.1, 0.4, 1.0]
+		},
+		"desc": "Restaura 320 de vida. A rolha de prata segura a pressão."
+	},
+	"health_potion_supreme": {
+		"name": "Poção de Vida Suprema",
+		"type": "consumable",
+		"heal_hp": 600,
+		"price": 240,
+		"stack": true,
+		"potion_line": "health_potion",
+		"drop_level": 41,
+		"color": {
+			"$c": [1.0, 0.45, 0.1, 1.0]
+		},
+		"desc": "Restaura 600 de vida. Brilha como brasa dentro do frasco."
 	},
 	"mana_potion": {
 		"name": "Poção de Mana",

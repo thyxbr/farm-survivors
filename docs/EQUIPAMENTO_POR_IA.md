@@ -107,8 +107,12 @@ A diferença é a animação: o monstro dobra em várias juntas, então a malha 
   e pela frente do lábio), separa os lábios, põe a parte de baixo 100% na mandíbula (`Jaw`, dobradiça atrás do
   canto) e um saco escuro por dentro, metade na cabeça e metade na mandíbula, que tapa o vão quando abre. A mandíbula
   da IA é fina (1,5 cm na frente): o saco sobe para dentro do focinho e acaba antes da frente, senão fura o queixo.
-- **Ver no jogo.** `godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk|attack --glb=wolf_ia`
-  troca só o GLB (`EnemyModel.swap`); `Enemy` liga o `PivotSkin` sozinho quando o modelo tem esqueleto.
+- **Ver no jogo.** Antes de trocar, `godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk|attack --glb=<glb>`
+  (laboratório) ou `--monster-glb=<modelo>:<glb>` (jogo) trocam só o GLB (`EnemyModel.swap`); `Enemy` liga o
+  `PivotSkin` sozinho quando o modelo tem esqueleto.
+- **Troca no jogo.** `EnemyModel.MODELS["wolf"]` aponta para `wolf_ia.glb`, e a estátua do lobo na dungeon das raízes
+  (`map_dungeon.gd`, `STATUES`) também; a malha com pele em repouso serve de estátua. O `wolf.glb` de código continua
+  sendo gerado pelo `build_assets.py` e serve para comparar: `--glb=wolf` no laboratório.
 
 No jogo (`--monster-glb=wolf:wolf_ia`, na Mina perto de x 785, z 34) o usuário achou "bem melhor que o atual", mas o
 movimento das **patas de trás** ficou estranho. Causa: só a parte de baixo da coxa ia na perna (`LegB*`), o resto
@@ -116,19 +120,70 @@ ficava no `Body`; a coxa ficava parada e a canela girava embaixo dela. Correçã
 `renders/lobo_ia/patas_tras_r2.gif`): a coxa inteira segue a perna, pela distância ao eixo quadril-joelho no perfil,
 até perto do pivô do quadril; só a face de dentro, junto da barriga, fica no `Body`. Para conferir pesos, pinte cada
 vértice com a cor do osso dominante e marque os pivôs numa vista de lado.
+O usuário pediu a troca no jogo (2026-11-22): o Lobo da Geada e o Lobo Alfa usam o `wolf_ia.glb`.
 Em aberto: olhos e cristais sem brilho (a pintura da IA é fosca; o conceito tem olhos e
-cristais acesos), trocar o `wolf.glb` de vez, custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
+cristais acesos), custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
 
-## Armas (próximo uso)
+### Espinheira, a Guardiã-Raiz (chefe do Covil das Raízes; rodada 1 aprovada em 2026-11-22)
+
+![Conceito x jogo](renders/espinheira_ia/conceito_x_jogo.png) — `tools/blender/thorn_ia_build.py` →
+`assets/models/thorn_tree_ia.glb` (6,3 m, 20 mil faces, textura 2048). Folhas do lab em `renders/espinheira_ia/ia_*.png`
+(andar, varrer e as três habilidades: raízes, brotos, esporos). É o modelo da Espinheira no jogo
+(`EnemyModel.MODELS["thorn_tree"]`); a de código continua em `thorn_tree.glb` (`--glb=thorn_tree` no monster_lab).
+
+- **Vista de lado diferente das outras não estragou.** No lado o braço veio esticado para a frente; na frente e nas
+  costas, aberto e para baixo. O gerador seguiu frente e costas (braço aberto, um pouco para a frente). Vale gerar
+  antes de pedir outra imagem.
+- **Copa em tufos grandes** (pedido no prompt: "chunky stylized leaf masses, not individual leaves") saiu limpa e
+  de uma peça só. Os cipós finos também (presos na copa, longe dos braços).
+- **Cipós achados por fatia.** Em cada fatia de 6 cm, grupos de vértices ligados a até 15 cm; grupo com menos de
+  30 cm é fio. Com 7 cm a malha reduzida (~8 cm entre vértices) quebrava o tronco em "fios" e o alto do tronco ia
+  inteiro para o `Hang`. Filtros que faltaram: a ponta de baixo do fio fica fora da planta do tronco, e o fio sobe
+  até a copa (z > 4); sem eles, os tocos de galho do ombro viravam cipó. Cada fio vai no `Hang` do lado e da metade
+  (frente/trás) dele, com a raiz misturada no galho.
+- **Regra de um membro não pode pegar o outro.** A massa do quadril (z 1,3–1,95) ia para a perna sem limite em x, e
+  as mãos pendem nessa mesma altura (x ~2): os dedos ficaram 85% na perna e viraram tiras esticadas quando o braço
+  subia no golpe. Toda regra de região precisa de um limite no eixo do membro. Abaixo da virilha, ponto mais perto da
+  mão que da coluna da perna é dedo. Conferir com a contagem de grupos por vértice de um lado (`LegR+HandR` = erro),
+  não só pela cor do osso dominante, que esconde mistura.
+- **Boca na fenda esculpida.** A pintura quase não mostra a boca, mas a IA esculpiu a fenda sob o nariz: o corte
+  segue a fenda (z 3,345) e para antes da ponta do nariz, que desce até a mesma altura mais à frente (cortá-la soltou
+  uma lasca de 17 vértices, e o resto do nariz ia junto com a mandíbula). O saco escuro precisa de UV e textura lisa,
+  senão a prévia de textura mostra branco.
+- **Em aberto:** com o tronco curvado (raízes, esporos) a copa, mais alta e maior que a de código, desce na frente
+  do rosto; o rosa das veias virou um tom avermelhado espalhado e a copa rosa vazou para os dois lados; a pintura
+  é fosca (olhos sem brilho), como no lobo.
+
+## Armas
+
+Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).
+
+![Montantes: conceito x jogo](renders/montantes_ia/conceito_x_jogo.png)
 
 Arma é uma peça rígida só, então não tem pele nem espelho, mas tem convenções próprias (`tools/blender/armory.py`):
 
 - Centro da empunhadura na origem, frente = -Y. Espada `w_*`: lâmina em +Z, largura em X. Cajado `st_*`: haste em
   +Z, mão em z = 0,3. Arco `bw_*`: braços em ±Z, corda fora do GLB. Um empty `Tip` marca a ponta (efeitos e rastro).
-- Vistas: frente (face larga da lâmina), lado (perfil, a ponta para cima), costas. Lâmina curva: o gume de dentro
-  do mesmo lado nas três.
-- Medir a escala pelo cabo (largura da mão) e pelo comprimento total das armas da mesma classe; conferir a pegada
-  com o personagem empunhando (`tools/weapon_shot.gd`) e no jogo, com a câmera do jogo.
-- O preparo e o build da arma ainda não existem: o primeiro uso cria a entrada em `PECAS` (giro para a lâmina
-  ficar em +Z, sem espelho) e um builder que carrega a base, centra a empunhadura, põe o `Tip` e exporta o
-  `<id>.glb` com a textura em JPEG (como `_dgia_export` faz para o equipamento, mas na pasta das armas).
+- **Vistas: só frente e costas.** O Gemini não desenha a vista de lado de uma espada (gira a guarda junto ou
+  desenha a mesma face mais estreita), e o Hunyuan3D-2mv acerta a espessura sem ela (lâmina de ~5 cm em 2 m).
+  Pedir a arma **deitada** (frente em cima, costas embaixo, ponta para a direita) aproveita a imagem larga;
+  `tools/ia3d/recortar_arma.py` põe de pé e espelha as costas (o Gemini desenha as costas como a arma girada no
+  próprio eixo; o gerador quer a vista de trás).
+- Escala: montante tem 2 m (passa da altura do herói, ~1,8 m). O cabo não é medido pelo trecho estreito (anéis
+  com espinhos e pomo fino quebram o trecho): a guarda é a faixa mais larga da metade de baixo e a pegada fica
+  `GSIA_HANDS` (25 cm) abaixo dela. Conferir com `tools/weapon_shot.gd` e no jogo (`--level=60 --weapon=<id>`,
+  `--autoswing --shots=3,0.25` para o golpe).
+- Preparo: `dragon_ia_peca_prep.py` com as peças `gs_*` (giro 0, sem espelho). Brilho: o builder tira da própria
+  pintura uma textura de emissão (pixels no tom da arma); aura: empties `Aura_<tipo>_<n>` na guarda, na ponta e
+  nas duas bordas da lâmina, que `BowAura` liga em partículas (tipos em `scripts/player/bow_aura.gd`).
+
+### Erros das montantes (e como evitar)
+
+| Erro | Causa | Como evitar |
+|---|---|---|
+| Espada inteira branca no jogo | o shader toon (`toon_character.gdshader`) usava a cor de emissão (branca) e ignorava a textura de emissão | o toon agora multiplica pela `emission_tex`; arma nova com emissão por textura já funciona |
+| Decalque, tinta e redução para 1024 px sumiam no jogo | a imagem vem empacotada no GLB: `save()`/`pack()` gravam os bytes originais | nas `gs_*` o preparo copia os pixels para uma imagem nova antes de salvar (os GLBs caíram de ~1 MB para ~0,5 MB) |
+| Traços finos perdidos (circuitos do Arcano, orbes do Abismo, penas da águia) | a pintura da IA borra o que tem poucos pixels | `DECAL` no preparo: só as linhas na cor alvo do conceito, nas faces de frente e de costas (lâmina plana, malha gerada das mesmas vistas). Não é a projeção inteira da regra 1 |
+| Fenda fechada / raio sem vão | o gerador fechou parte do vão | `FURO`: faces de frente/costas que caem no fundo do conceito nas duas vistas saem |
+| Guarda virou bloco | uma semente ruim e a pintura clara apagando as penas | gerar com outras sementes (`gerar.py --semente 7 --octree 512`), comparar em cinza e decalcar a cor escura (o filtro mede o brilho relativo à cor alvo) |
+| Máscara de brilho pegando o cristal inteiro (32%) | tolerância de tom larga demais | tolerância 0,55; conferir a linha `BRILHO ... % da textura` (0,5–15% é o normal) |

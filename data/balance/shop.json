@@ -1,6 +1,9 @@
 {
 	"stock": [
 		"health_potion",
+		"health_potion_greater",
+		"health_potion_superior",
+		"health_potion_supreme",
 		"mana_potion",
 		"seed_carrot",
 		"seed_wheat",
