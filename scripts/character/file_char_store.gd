@@ -24,6 +24,14 @@ var path: String
 var fail_next_write := false
 ## Teste: com fail_next_write, deixa passar esta quantidade de gravações antes da que falha.
 var fail_after_writes := 0
+## Gravação adiada: com isto ligado, save_char só guarda o estado na memória (e as linhas da economia numa
+## fila), e o disco é escrito em flush(). O Econ liga só em volta do abate e do loot do solo, que acontecem
+## várias vezes por segundo em combate e travavam o quadro (~3 ms por escrita, duas por abate). Qualquer
+## gravação comum, leitura do personagem, partida, close() ou o flush periódico do Econ escreve antes o
+## que está pendente, na ordem. Numa queda do jogo perde-se no máximo o que estava pendente.
+var defer_writes := false
+var _pending := {}         # conta -> estado do personagem ainda não escrito
+var _pending_rows := []    # linhas da economia ainda não escritas, na ordem
 
 
 func _init(p_path: String) -> void:
@@ -54,12 +62,16 @@ func files() -> Array[String]:
 
 ## Apaga os arquivos do personagem solo, das partidas e da economia (testes e wipe).
 func remove_files() -> void:
+	_pending.clear()
+	_pending_rows.clear()
 	for f in files():
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
 func load_char(account_id: int) -> Variant:
+	if _pending.has(account_id):
+		return (_pending[account_id] as Dictionary).duplicate(true)
 	return _read_json(char_path(account_id))
 
 
@@ -89,6 +101,13 @@ func _read_json(p: String) -> Variant:
 func save_char(account_id: int, state: Dictionary, rows: Array, at: int) -> bool:
 	var d := state.duplicate(true)
 	d["updated_at"] = at
+	if defer_writes:
+		_pending[account_id] = d
+		_pending_rows.append_array(rows)
+		return true
+	_pending.erase(account_id)   # o estado novo já contém o pendente
+	if not flush():
+		return false
 	if not _write_atomic(char_path(account_id), JSON.stringify(d, "\t")):
 		return false
 	return rows.is_empty() or append_economy(rows)
@@ -111,8 +130,32 @@ func append_economy(rows: Array) -> bool:
 	return err == OK
 
 
+## Há gravação adiada esperando o disco.
+func has_pending() -> bool:
+	return not _pending.is_empty() or not _pending_rows.is_empty()
+
+
+## Escreve no disco o que save_char adiou (personagens e depois a economia). false se alguma escrita
+## falhou; o que não foi escrito continua pendente para a próxima tentativa.
+func flush() -> bool:
+	for id in _pending.keys():
+		if not _write_atomic(char_path(id), JSON.stringify(_pending[id], "	")):
+			return false
+		_pending.erase(id)
+	if not _pending_rows.is_empty():
+		if not append_economy(_pending_rows):
+			return false
+		_pending_rows = []
+	return true
+
+
+func close() -> void:
+	flush()
+
+
 ## Linhas da economia gravadas (testes e conferência).
 func economy_rows() -> Array:
+	flush()
 	var out := []
 	var p := economy_path()
 	if not FileAccess.file_exists(p):
@@ -126,6 +169,9 @@ func economy_rows() -> Array:
 
 ## Apaga o personagem e o temporário; o do solo leva junto o registro da economia ("Novo jogo").
 func delete_char(account_id: int) -> bool:
+	_pending.erase(account_id)
+	if account_id == SOLO_ACCOUNT:
+		_pending_rows.clear()
 	var p := char_path(account_id)
 	var gone := [p, p + ".tmp"]
 	if account_id == SOLO_ACCOUNT:
@@ -260,6 +306,9 @@ func _name(account_id: int) -> String:
 ## Grava `data` em `p` e depois o personagem (com as linhas da economia). Se o personagem falhar, `p`
 ## volta ao conteúdo anterior (ou some, se não existia): ou os dois mudam, ou nenhum.
 func _write_with_char(p: String, data: Dictionary, account_id: int, state: Dictionary, rows: Array, at: int) -> bool:
+	_pending.erase(account_id)   # o estado novo já contém o pendente
+	if not flush():
+		return false
 	var had := FileAccess.file_exists(p)
 	var old := FileAccess.get_file_as_string(p) if had else ""
 	if not _write_atomic(p, JSON.stringify(data, "\t")):
