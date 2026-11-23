@@ -14,10 +14,11 @@ const RIM := {
 	"congelado": Color(0.85, 0.97, 1.0), "fogo": Color(1.0, 0.45, 0.1),
 	"veneno": Color(0.4, 0.95, 0.25), "gelo": Color(0.45, 0.85, 1.0),
 }
-## Tinta do corpo (alfa = quanto cobre). O contorno aditivo sozinho some sob o sol: a tinta é o que lê de longe.
+## Tinta do corpo (alfa = quanto cobre). Leve: o monstro continua reconhecível; o contorno e as partículas
+## completam a leitura (o contorno aditivo sozinho some sob o sol).
 const TINT := {
-	"congelado": Color(0.82, 0.95, 1.0, 0.6), "fogo": Color(1.0, 0.38, 0.05, 0.55),
-	"veneno": Color(0.45, 0.95, 0.1, 0.55), "gelo": Color(0.5, 0.85, 1.0, 0.36),
+	"congelado": Color(0.75, 0.92, 1.0, 0.26), "fogo": Color(1.0, 0.42, 0.08, 0.2),
+	"veneno": Color(0.45, 0.95, 0.1, 0.2), "gelo": Color(0.5, 0.85, 1.0, 0.18),
 }
 
 static var _slots := 0
@@ -89,7 +90,7 @@ func _rim_for(el: String) -> Material:
 	m.shader = BuffAura.SH_RIM
 	m.set_shader_parameter("color", RIM[el])
 	m.set_shader_parameter("color2", RIM[el])
-	m.set_shader_parameter("strength", 2.0 if el == "congelado" else 1.3)
+	m.set_shader_parameter("strength", 1.8 if el == "congelado" else 1.6)
 	m.set_shader_parameter("pulse_speed", 0.0 if el == "congelado" else 2.4)
 	m.set_shader_parameter("rise", 1.0 if el == "fogo" else 0.0)
 	m.render_priority = 3
