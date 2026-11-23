@@ -85,7 +85,7 @@ static func breath_gust(mouth: Vector3, floor_y: float, yaw: float, reach: float
 	if _root() == null:
 		return
 	var half := deg_to_rad(half_deg)
-	for i in 3:
+	for i in 2:
 		var a := yaw + randf_range(-half, half) * 0.85
 		var dir := Vector3(sin(a), 0.0, cos(a))
 		var d := randf_range(0.08, 1.0) * reach
@@ -94,15 +94,16 @@ static func breath_gust(mouth: Vector3, floor_y: float, yaw: float, reach: float
 			{"vel": dir * randf_range(5.0, 9.0), "delay": d * 0.012, "grow": 0.12, "hold": 0.1, "fade": 0.4})
 	var a1 := yaw + randf_range(-half, half) * 0.9
 	var d1 := Vector3(sin(a1), 0.0, cos(a1))
-	FXToon.streak(mouth + d1 * 1.0, Vector3(mouth.x, floor_y + 0.5, mouth.z) + d1 * reach * randf_range(0.6, 1.0), 0.12,
-		{"core": Color.WHITE, "mid": FXToon.MIST.mid, "edge": RIME.edge},
-		{"billboard": true, "shadow": false, "sweep": 0.14, "hold": 0.03, "fade": 0.2, "peak": 0.5})
+	# a rajada pintada: vento gelado correndo da boca até perto do fim do cone
+	IceFX.gust(_root(), mouth, Vector3(mouth.x, floor_y + 0.6, mouth.z) + d1 * reach * randf_range(0.7, 1.0),
+		randf_range(2.0, 3.2))
 	if randf() < 0.6:
 		var a2 := yaw + randf_range(-half, half) * 0.9
 		var d2 := randf_range(0.25, 1.0) * reach
 		var foot := Vector3(mouth.x + sin(a2) * d2, floor_y, mouth.z + cos(a2) * d2)
 		var h := randf_range(0.7, 1.4)
-		FXToon.crystal(foot, h, h * 0.5, Vector3.UP + Vector3(sin(a2), 0.0, cos(a2)) * 0.5, {"pal": FROSTBITE, "hold": 1.1})
+		IceFX.sprout(_root(), foot, h * 1.5, Vector3.UP + Vector3(sin(a2), 0.0, cos(a2)) * 0.5)
+		IceFX.frost_patch(_root(), foot, randf_range(1.2, 1.8), 1.5)   # a geada fica no chão por onde o cone passou
 
 
 # ------------------------------------------------------------ estaca caindo
@@ -111,34 +112,23 @@ static func falling_spike(pos: Vector3, fall: float) -> void:
 	var root := _root()
 	if root == null:
 		return
-	var mi := MeshInstance3D.new()
-	mi.mesh = FXToon.crystal_mesh()
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.set_instance_shader_parameter("col_core", FROSTBITE.core)
-	mi.set_instance_shader_parameter("col_mid", FROSTBITE.mid)
-	mi.set_instance_shader_parameter("col_edge", FROSTBITE.edge)
-	root.add_child(mi)
-	# de ponta para baixo: a base larga do cristal fica em cima
-	mi.basis = Basis(Vector3.RIGHT, PI).scaled_local(Vector3(0.72, 3.6, 0.72))
+	# o cristal pintado, de ponta para baixo (o mesmo que fica cravado: IceSpike)
+	var mi := IceFX.crystal_card(root, IceFX.SPIKE_CELL, IceFX.SPIKE_H, true)
 	mi.global_position = pos + Vector3.UP * 16.0
 	var tw := mi.create_tween()
-	tw.tween_property(mi, "global_position", pos + Vector3.UP * 3.3, maxf(0.05, fall)).set_ease(Tween.EASE_IN) \
-		.set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(mi, "global_position", pos, maxf(0.05, fall)).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 	tw.tween_callback(mi.queue_free)
 
 
-## A estaca crava no chão: estilhaços lapidados em volta, tufos de frio e o anel no chão.
+## A estaca crava no chão: o cacho de cristais pintado abre como flor (IceFX.bloom, com cacos e geada), tufos de
+## frio e o anel no chão.
 static func spike_impact(pos: Vector3, radius: float) -> void:
 	if _root() == null:
 		return
 	FXToon.ring_wave(pos + Vector3.UP * 0.07, radius, 0.16, RIME, 0.14)
 	FXToon.ground_gust(pos, radius * 1.3, FXToon.MIST, 0.35)
-	for i in 6:
-		var out := Vector3.BACK.rotated(Vector3.UP, TAU * (i + randf_range(-0.3, 0.3)) / 6.0)
-		var h := randf_range(0.6, 1.1)
-		FXToon.crystal(pos + out * radius * randf_range(0.45, 0.8), h, h * 0.5, Vector3.UP + out * 0.7,
-			{"pal": FROSTBITE, "hold": 0.5, "delay": 0.03 * i})
-	for i in 4:
+	IceFX.bloom(_root(), pos, radius)
+	for i in 2:
 		var a := randf() * TAU
 		FXToon.puff(pos + Vector3(cos(a), 0.4, sin(a)) * radius * 0.4, randf_range(1.2, 1.8), RIME if i % 2 else FXToon.MIST,
 			{"vel": Vector3(cos(a) * 2.5, 1.2, sin(a) * 2.5), "grow": 0.1, "hold": 0.12, "fade": 0.45})

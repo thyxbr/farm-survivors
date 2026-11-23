@@ -5,11 +5,14 @@ extends Node3D
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=blades   Lâminas Rúnicas (RuneBladesFX)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=boom     Explosão de fogo (ExplosionFX via FXToon.fire_burst)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=boomdark Explosão sombria dos monstros (FXToon.blast)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=ice      Estaca de gelo cravando (BlizzardFX.spike_impact)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=breath   Sopro Congelante girando (BlizzardFX.breath_gust)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=roar     Urro da nevasca (IceFX.roar)
 ##   Espaço  repete (lâminas, explosão)   N  dia / noite   L  câmera lenta
 ## Com `--seq=<pasta>` grava os quadros e fecha (rode com `--fixed-fps 30`); `--noon` grava de dia.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
-const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44}
+const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44, "ice": 75, "breath": 80, "roar": 50}
 const BLADE_SPEED := 17.0
 const TARGET := Vector3(0.0, 0.0, -15.0)
 
@@ -74,9 +77,15 @@ func _ready() -> void:
 			add_child(h)
 			cam.position = Vector3(0.0, 3.4, 8.6)
 			cam.look_at(Vector3(0.0, -0.4, 0.0))
-		"boom", "boomdark":
+		"boom", "boomdark", "ice":
 			cam.position = Vector3(0.0, 2.6, 8.0)
 			cam.look_at(Vector3(0.0, 1.3, 0.0))
+		"roar":
+			cam.position = Vector3(0.0, 5.0, 13.0)
+			cam.look_at(Vector3(0.0, 1.5, 0.0))
+		"breath":
+			cam.position = Vector3(11.0, 8.0, -3.0)
+			cam.look_at(Vector3(0.0, 0.5, 7.0))
 		"orb":
 			var o := ShadowOrbFX.new()
 			o.radius = 1.0
@@ -163,6 +172,15 @@ func _record(dir: String) -> void:
 			_blades()
 		if i == 4 and _fx.begins_with("boom"):
 			_boom()
+		if i == 4 and _fx == "ice":   # a estaca cai, crava (o cacho abre) e fica no chão
+			BlizzardFX.falling_spike(Vector3.ZERO, 0.5)
+		if i == 19 and _fx == "ice":
+			BlizzardFX.spike_impact(Vector3.ZERO, 1.8)
+			add_child(IceSpike.new())
+		if i == 4 and _fx == "roar":
+			IceFX.roar(self, Vector3.ZERO, 5.5)
+		if _fx == "breath" and i >= 4 and i % 2 == 0:   # o sopro girando, uma rajada a cada 0,07 s como no jogo
+			BlizzardFX.breath_gust(Vector3(0.0, 2.2, 0.0), 0.0, lerpf(-0.6, 0.6, float(i) / 80.0), 15.0, 20.0)
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/%03d.png" % [dir, i])
 	get_tree().quit()
