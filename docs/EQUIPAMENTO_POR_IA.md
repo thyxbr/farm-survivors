@@ -107,8 +107,12 @@ A diferença é a animação: o monstro dobra em várias juntas, então a malha 
   e pela frente do lábio), separa os lábios, põe a parte de baixo 100% na mandíbula (`Jaw`, dobradiça atrás do
   canto) e um saco escuro por dentro, metade na cabeça e metade na mandíbula, que tapa o vão quando abre. A mandíbula
   da IA é fina (1,5 cm na frente): o saco sobe para dentro do focinho e acaba antes da frente, senão fura o queixo.
-- **Ver no jogo.** `godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk|attack --glb=wolf_ia`
-  troca só o GLB (`EnemyModel.swap`); `Enemy` liga o `PivotSkin` sozinho quando o modelo tem esqueleto.
+- **Ver no jogo.** Antes de trocar, `godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk|attack --glb=<glb>`
+  (laboratório) ou `--monster-glb=<modelo>:<glb>` (jogo) trocam só o GLB (`EnemyModel.swap`); `Enemy` liga o
+  `PivotSkin` sozinho quando o modelo tem esqueleto.
+- **Troca no jogo.** `EnemyModel.MODELS["wolf"]` aponta para `wolf_ia.glb`, e a estátua do lobo na dungeon das raízes
+  (`map_dungeon.gd`, `STATUES`) também; a malha com pele em repouso serve de estátua. O `wolf.glb` de código continua
+  sendo gerado pelo `build_assets.py` e serve para comparar: `--glb=wolf` no laboratório.
 
 No jogo (`--monster-glb=wolf:wolf_ia`, na Mina perto de x 785, z 34) o usuário achou "bem melhor que o atual", mas o
 movimento das **patas de trás** ficou estranho. Causa: só a parte de baixo da coxa ia na perna (`LegB*`), o resto
@@ -116,8 +120,9 @@ ficava no `Body`; a coxa ficava parada e a canela girava embaixo dela. Correçã
 `renders/lobo_ia/patas_tras_r2.gif`): a coxa inteira segue a perna, pela distância ao eixo quadril-joelho no perfil,
 até perto do pivô do quadril; só a face de dentro, junto da barriga, fica no `Body`. Para conferir pesos, pinte cada
 vértice com a cor do osso dominante e marque os pivôs numa vista de lado.
+O usuário pediu a troca no jogo (2026-11-22): o Lobo da Geada e o Lobo Alfa usam o `wolf_ia.glb`.
 Em aberto: olhos e cristais sem brilho (a pintura da IA é fosca; o conceito tem olhos e
-cristais acesos), trocar o `wolf.glb` de vez, custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
+cristais acesos), custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
 
 ### Espinheira, a Guardiã-Raiz (chefe do Covil das Raízes; rodada 1 aprovada em 2026-11-22)
 

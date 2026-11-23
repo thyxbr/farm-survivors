@@ -3,7 +3,7 @@ extends Node3D
 ## a IA e roda a animação de um modo, salvando uma folha de quadros vista de lado e de 3/4.
 ##   godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk --out=lab.png [--frames=8] [--span=1.0]
 ##   [--focus=Head --zoom=0.9]   (close de um pivô; zoom = altura da vista em metros)
-##   [--glb=wolf_ia]   (troca o GLB do modelo por assets/models/<glb>.glb, com os mesmos pivôs: monstro gerado por IA)
+##   [--glb=wolf]   (troca o GLB do modelo por assets/models/<glb>.glb com os mesmos pivôs; ex.: o lobo antigo, feito por código)
 ## Modos: idle, walk (anda na velocidade do tipo), run (1,5x), attack (o ataque comum do tipo: lunge, swing, slam,
 ## shoot ou howl com --attack=<tipo>); span = segundos cobertos pela folha (para o ataque, a duração dele).
 
