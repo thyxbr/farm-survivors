@@ -211,6 +211,24 @@ abdômen; animação `_animate_bat` (modelo `mosquito`) com o abdômen balançan
 - **Asa e abdômen pela altura, não por y.** Perto da raiz a asa da IA se estendia para trás por cima do abdômen;
   limite da asa em z (o alto do abdômen fica abaixo de 0,18) e o abdômen nunca no mesmo vértice da asa.
 
+### Sanguessuga do Lodo (Pântano Sussurrante; rodada 1 aprovada em 2026-11-23)
+
+![Conceito x jogo](renders/sanguessuga_ia/conceito_x_jogo.png) — rastejando: `renders/sanguessuga_ia/sanguessuga_rastejar.gif`,
+bote: `sanguessuga_bote.gif`, pesos: `pesos.png`. `tools/blender/leech_ia_build.py` → `assets/models/leech_ia.glb`
+(8 mil faces). Tipo `sanguessuga_lodo` com os números do Slime nos 10 lugares dele no `bosque.tscn` (dois não tinham
+`kind` e usavam o padrão "slime": receberam o tipo escrito). Primeiro monstro por IA sem esqueleto de outro: cadeia
+nova (`Head` < `Body` > `Tail` > `Tail2` > `Tail3`) e um `_animate_leech` (onda de lado a lado que corre da cabeça à
+cauda, cada gomo com atraso; bote que ergue a frente e dispara a cabeça, com o pulo do slime).
+
+- **Vista de frente girada não estragou.** A folha veio com a frente em quase 3/4 (a cauda saindo de lado); a malha
+  saiu reta e simétrica assim mesmo.
+- **Cadeia: só vizinhos dividem vértice.** Pesos pela posição ao longo do eixo com mistura de ±6 cm em cada pivô; a
+  conferência marca como erro qualquer par que não seja vizinho na cadeia.
+- **Osso a cada gomo e meio.** Com 4 ossos o meio do corpo (0,5 de comprimento) ficava rígido e a onda saía dura;
+  com o corpo dividido em Body, Tail, Tail2 e Tail3 (~0,22 cada) a curva em S fica lisa.
+- **Onda pela direção absoluta.** Cada gomo tem a sua direção `A·sin(fase - i·atraso)`; o giro de cada pivô é a
+  diferença para o pai. Assim a onda anda pelo corpo sem acumular giro na ponta.
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).

@@ -13,7 +13,7 @@
 		"goblins": {"name": "Goblins", "kinds": ["goblin", "goblin_arqueiro", "goblin_xama", "goblin_bombardeiro", "goblin_bruto", "goblin_dourado", "goblin_campeao"]},
 		"mortos": {"name": "Mortos-vivos", "kinds": ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro"]},
 		"feras": {"name": "Feras do Vale", "kinds": ["raptor_capim", "tecela", "flor_faminta", "asa_couro", "bocarrao"]},
-		"pantano": {"name": "Criaturas do Pântano", "kinds": ["tartaruga_musgo", "pernilongo_brejo"]},
+		"pantano": {"name": "Criaturas do Pântano", "kinds": ["tartaruga_musgo", "pernilongo_brejo", "sanguessuga_lodo"]},
 		"cavernas": {"name": "Cavernas", "kinds": ["kobold", "centopeia", "toupeira", "golem_cristal"]},
 		"gelo": {"name": "Terras Geladas", "kinds": ["lobo_geada", "gralha_cristal", "ieti", "lobo_alfa"]},
 		"chefes": {"name": "Chefes", "kinds": ["goblin_king", "espinheira", "mae_verme", "forjador_runico", "sentinela_nevasca", "lich", "arauto_abismo"]}

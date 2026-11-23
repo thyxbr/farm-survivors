@@ -1585,15 +1585,17 @@ kind = "slime_rainha"
 respawn = 240.0
 level = 20
 
-[node name="slime" type="Node3D" parent="Monstros" unique_id=23798379]
+[node name="sanguessuga_lodo" type="Node3D" parent="Monstros" unique_id=23798379]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 12)
 script = ExtResource("7_pea20")
+kind = "sanguessuga_lodo"
 level = 12
 level_max = 20
 
-[node name="slime 2" type="Node3D" parent="Monstros" unique_id=2074614877]
+[node name="sanguessuga_lodo 2" type="Node3D" parent="Monstros" unique_id=2074614877]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 4)
 script = ExtResource("7_pea20")
+kind = "sanguessuga_lodo"
 level = 12
 level_max = 20
 
@@ -1641,10 +1643,10 @@ region_id = "ninho_rainha"
 shape = 1
 radius = 16.0
 
-[node name="bando slime 1" type="Node3D" parent="Monstros"]
+[node name="bando sanguessuga_lodo 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 25)
 script = ExtResource("7_pea20")
-kind = "slime"
+kind = "sanguessuga_lodo"
 count = 4
 radius = 4.0
 respawn = 25.0
@@ -1657,10 +1659,10 @@ count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime 2" type="Node3D" parent="Monstros"]
+[node name="bando sanguessuga_lodo 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 8)
 script = ExtResource("7_pea20")
-kind = "slime"
+kind = "sanguessuga_lodo"
 count = 4
 radius = 4.0
 respawn = 25.0
