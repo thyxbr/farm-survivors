@@ -89,10 +89,9 @@ var throw_point := Vector3.ZERO
 var _dyn: MeshInstance3D = null
 var hit_done := false
 var slow_timer := 0.0
-## Marca tóxica (arma encantada com Veneno): enquanto venom_timer > 0, todo dano recebido vale
-## (1 + venom_amp). Estado do dono do inimigo (servidor ou solo); as réplicas pedem por apply_venom.
-var venom_amp := 0.0
-var venom_timer := 0.0
+## Status elementais (queimadura, veneno, lentidão de gelo, congelamento): StatusEffects, filho do inimigo.
+## O dono roda os pulsos; a réplica só recebe o bitmask pelo snapshot.
+var status: StatusEffects
 var stagger := 0.0
 ## Segundos em que o inimigo segue perseguindo depois de levar dano, mesmo com o jogador longe.
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
@@ -253,6 +252,8 @@ static var _nock_mesh: Mesh
 
 func _ready() -> void:
 	data = TYPES[kind]
+	status = StatusEffects.new(self)
+	add_child(status)
 	if not horde and not puppet:
 		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
 		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
@@ -677,6 +678,9 @@ func _physics_process(delta: float) -> void:
 	if _horde_frozen():
 		velocity = Vector3.ZERO
 		return
+	status.tick(delta)
+	if dead:
+		return
 	if sleep_radius > 0.0:
 		_sleep_t -= delta
 		if _sleep_t <= 0.0:
@@ -688,7 +692,6 @@ func _physics_process(delta: float) -> void:
 	attack_cd = max(0.0, attack_cd - delta)
 	web_cd = maxf(0.0, web_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
-	venom_timer = maxf(0.0, venom_timer - delta)
 	if ai() == "burrow" and state != "burrow":
 		surface_t += delta
 	if ai() == "worm":
@@ -2230,10 +2233,10 @@ func head_top() -> float:
 	return float(data.height) * float(data.scale) * (size_mult if level > 0 else 1.0)
 
 
-## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica, menor se estiver
-## bem acima do nível de quem bateu: placa vermelha).
+## Dano que este inimigo leva de um acerto de `amount` (menor se estiver bem acima do nível de quem bateu:
+## placa vermelha).
 func incoming(amount: float) -> float:
-	var a := amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+	var a := amount
 	if level > 0:
 		var foe := Game.level
 		if Network.is_server():
@@ -2289,16 +2292,12 @@ static func vs(enemy_level: int, p, amount: float) -> float:
 	return amount * float(ProgressionRules.danger_mults(Balance.tables, enemy_level, foe_level(p)).dmg)
 
 
-## Marca tóxica: por `secs` segundos, todo dano recebido vale (1 + amp). Não empilha: fica a mais forte.
-func apply_venom(amp: float, secs: float) -> void:
+## Status elemental (StatusEffects): a réplica pede ao servidor; o dono aplica com quem bateu por último.
+func apply_status(el: String, power: float, secs: float) -> void:
 	if puppet:
-		Network.client_mark_enemy(net_id, amp, secs)
+		Network.client_apply_status(net_id, el, power, secs)
 		return
-	if amp <= 0.0 or secs <= 0.0:
-		return
-	if venom_timer <= 0.0 or amp >= venom_amp:
-		venom_amp = amp
-	venom_timer = maxf(venom_timer, secs)
+	status.apply(el, power, secs, last_hitter)
 
 
 func apply_slow(t: float) -> void:

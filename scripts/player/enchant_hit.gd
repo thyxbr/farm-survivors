@@ -4,9 +4,9 @@ extends RefCounted
 ## magias e armas automáticas da Horda não passam por aqui). Números em data/balance/enchant.json
 ## ("effects"), lidos por EnchantRules.effect via Game.weapon_effect().
 ##   scale(): antes do dano  -> Sagrado aumenta o golpe em chefes e elites.
-##   on_hit(): depois do dano -> queimadura, lentidão, corrente, marca tóxica ou cura.
+##   on_hit(): depois do dano -> queimadura, lentidão, corrente, veneno ou cura.
 ## Um efeito nunca dispara outro: o dano da queimadura e da corrente vai direto por take_damage.
-## O combate é do cliente; só a marca tóxica vira estado do inimigo (o servidor a limita).
+## O combate é do cliente; queimadura, lentidão e veneno viram estado do inimigo no servidor (StatusEffects).
 
 const BURN_TICKS := 3
 
@@ -53,7 +53,7 @@ static func on_hit(target: Node, dmg: float) -> void:
 				chain(e, dmg, fx)
 		"veneno":
 			if not e.dead:
-				e.apply_venom(v, float(fx.get("secs", 4.0)))
+				e.apply_status("veneno", dmg * v, float(fx.get("secs", 5.0)))
 				FX.burst(e.global_position + Vector3.UP * 0.8, EnchantFX.ELEMENTS["veneno"].color, 6, 2.0, 0.07, 0.5, 2.0)
 		"sombra":
 			if Game.hp > 0.0:

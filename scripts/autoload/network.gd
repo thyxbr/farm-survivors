@@ -796,23 +796,24 @@ func _taunt_enemy(net_id: int, hold: float, secs: float) -> void:
 	e.apply_taunt(rp, clampf(hold, 0.0, cfg.hold_time), clampf(secs, 0.0, cfg.taunt_time))
 
 
-## Marca tóxica pedida por um cliente: mesmas conferências de um acerto (zona e alcance) e os valores
-## limitados ao que a tabela permite (o cliente não escolhe quanto dano a mais o alvo leva).
+## Status elemental pedido por um cliente (Enemy.apply_status): mesmas conferências de um acerto (zona e
+## alcance). O cliente rolou a chance; o servidor recusa alvo imune ao elemento e corta força e tempo ao que a
+## tabela permite (StatusRules.cap_*). Quem pediu fica como dono dos pulsos (abate, XP e loot).
 @rpc("any_peer", "call_remote", "reliable")
-func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
+func _apply_status(net_id: int, el: String, power: float, secs: float) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
 	var e: Enemy = enemies.get(net_id)
 	if e == null or not is_instance_valid(e) or e.dead or zone_of(id) != "world":
 		return
+	if not (el in StatusRules.STATUS_ELEMENTS) or not is_finite(power) or not is_finite(secs):
+		return
 	if not HitGuard.accepts(0.0, last_pos.get(id, Vector3.INF), e.global_position):
 		return
-	var max_amp := EnchantRules.max_effect(Balance.tables, "veneno")
-	var max_secs := float(Balance.tables.get_table("enchant").get("effects", {}).get("veneno", {}).get("secs", 0.0))
-	if not is_finite(amp) or not is_finite(secs) or max_amp <= 0.0 or max_secs <= 0.0:
+	if StatusRules.enemy_resist(Balance.tables, e.kind, el) >= 1.0:
 		return
-	e.apply_venom(clampf(amp, 0.0, max_amp), clampf(secs, 0.0, max_secs))
+	e.status.apply(el, StatusRules.cap_power(Balance.tables, el, power), StatusRules.cap_secs(Balance.tables, el, secs), id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -834,7 +835,7 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 		var em := e.element_mult(mix)
 		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
 		for pid in _enemy_peers(e):
-			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount) * em, crit, em)   # o número já com a marca tóxica e o elemento
+			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount) * em, crit, em)   # o número já com o nível e o elemento
 		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0), mix)
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
@@ -1317,10 +1318,10 @@ func client_taunt_enemy(net_id: int, hold: float, secs: float) -> void:
 		_taunt_enemy.rpc_id(1, net_id, hold, secs)
 
 
-## Marca tóxica da arma encantada com Veneno (ver Enemy.apply_venom): quem aplica é o servidor.
-func client_mark_enemy(net_id: int, amp: float, secs: float) -> void:
+## Status elemental da arma encantada (ver Enemy.apply_status): quem aplica é o servidor.
+func client_apply_status(net_id: int, el: String, power: float, secs: float) -> void:
 	if is_client():
-		_mark_enemy.rpc_id(1, net_id, amp, secs)
+		_apply_status.rpc_id(1, net_id, el, power, secs)
 
 
 func request_boss() -> void:

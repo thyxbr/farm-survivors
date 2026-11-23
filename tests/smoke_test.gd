@@ -3986,6 +3986,43 @@ func _fx_dummy(at: Vector3) -> Enemy:
 	return e
 
 
+## Status elementais direto no componente do monstro (sem chance: Enemy.apply_status aplica sempre).
+func _test_status_effects(spot: Vector3) -> void:
+	var a := _fx_dummy(spot + Vector3(0, 0, 4))
+	await wait(0.1)
+	a.apply_status("fogo", 30.0, 3.0)
+	check(a.status.has("fogo") and a.status.mask() & StatusRules.BITS.fogo != 0, "fogo aplicado entra no bitmask")
+	var hp0: float = a.hp
+	a.status.tick(1.01)
+	check(a.hp < hp0, "queimadura tira vida no primeiro tick (%.1f -> %.1f)" % [hp0, a.hp])
+	a.status.tick(3.0)
+	check(not a.status.has("fogo"), "queimadura acaba")
+	a.apply_status("veneno", 50.0, 5.0)
+	var hp1: float = a.hp
+	for i in 6:
+		a.status.tick(1.0)
+	check(absf((hp1 - a.hp) - 50.0 * a.element_mult("veneno")) < 1.0, "veneno dá a força toda em 5 s (x%.2f: %.1f)" % [a.element_mult("veneno"), hp1 - a.hp])
+	check(not a.status.has("veneno"), "veneno acaba")
+	for i in 3:
+		a.apply_status("gelo", 0.0, 2.0)
+	check(a.status.has("congelado") and a.stagger > 0.0 and a.slow_timer > 0.0, "3 gelos congelam")
+	a.status.tick(1.1)
+	check(not a.status.has("congelado"), "congelamento dura ~1 s")
+	a.stagger = 0.0
+	for i in 3:
+		a.apply_status("gelo", 0.0, 2.0)
+	check(not a.status.has("congelado") and a.stagger <= 0.0, "em recarga não congela de novo")
+	var boss := _fx_dummy(spot + Vector3(-4, 0, 4))
+	await wait(0.1)
+	boss.is_boss = true
+	for i in 3:
+		boss.apply_status("gelo", 0.0, 2.0)
+	check(not boss.status.has("congelado") and boss.slow_timer > 0.0, "chefe fica lento, nunca congela")
+	a.queue_free()
+	boss.queue_free()
+	await wait(0.1)
+
+
 ## Troca o elemento da arma equipada pelo serviço (mantém o nível) e confere que trocou.
 func _swap_element(el: String, lv: int) -> void:
 	Econ.request("enchant", [el])
@@ -4053,13 +4090,8 @@ func _test_enchant_effects() -> void:
 	b.queue_free()
 	await wait(0.1)
 
-	# veneno +2: alvo marcado recebe +6% de dano por 4 s
-	await _swap_element("veneno", lv)
-	EnchantHit.on_hit(a, 1.0)
-	check(a.venom_timer > 3.5 and absf(a.venom_amp - 0.06) < 0.001, "veneno +2 marca o alvo por 4 s com +6%")
-	var hp1: float = a.hp
-	a.take_damage(50.0, player.global_position, false)
-	check(absf((hp1 - a.hp) - 53.0 * a.element_mult("fisico")) < 0.01, "alvo marcado: 50 de dano vira 53 (x%.2f de físico: %.1f)" % [a.element_mult("fisico"), hp1 - a.hp])
+	# status elementais no dono (StatusEffects): ticks, fim, congelamento e recarga
+	await _test_status_effects(spot)
 
 	# sagrado +2: +12% de dano em chefes e elites
 	await _swap_element("sagrado", lv)
