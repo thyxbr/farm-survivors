@@ -1003,6 +1003,28 @@ func count_item(id: String) -> int:
 	return n
 
 
+## Poção de vida que o atalho (R) bebe: a menor que tem na mochila e cobre a vida que falta; se nenhuma cobre,
+## a maior que tem. Sem nenhuma, "health_potion" (o aviso de "Sem poção" sai com o nome dela).
+func pick_health_potion() -> String:
+	var missing := max_hp() - hp
+	var best := ""
+	for id in ItemDB.potion_line("health_potion"):
+		if count_item(id) <= 0:
+			continue
+		best = id
+		if float(ItemDB.get_item(id).get("heal_hp", 0)) >= missing:
+			break
+	return best if best != "" else "health_potion"
+
+
+## Total de poções de vida na mochila, somando todos os níveis.
+func count_health_potions() -> int:
+	var n := 0
+	for id in ItemDB.potion_line("health_potion"):
+		n += count_item(id)
+	return n
+
+
 ## Usa um item da mochila. true = pedido feito (a cura/comida vale quando o Econ confirmar).
 ## A checagem "vida já está cheia" continua aqui, antes de pedir.
 func use_item(id: String) -> bool:

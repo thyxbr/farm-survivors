@@ -140,8 +140,9 @@ func test_roundtrip_matches_consts() -> void:
 			var old_stock: Array = (BalanceTables.decode(snap[n]) as Dictionary).get("stock", [])
 			for id in cur.get("stock", []):
 				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"]
-					or id in ["pickaxe_stone", "axe_stone"],
-					"loja: %s estava antes, é semente/material ou ferramenta de pedra" % id)
+					or id in ["pickaxe_stone", "axe_stone"]
+					or t.get_table("items").get(id, {}).get("potion_line", "") == "health_potion",   # poções de vida maiores
+					"loja: %s estava antes, é semente/material, ferramenta de pedra ou poção de vida maior" % id)
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json

@@ -43,6 +43,9 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 			out.items[entry[0]] = int(out.items.get(entry[0], 0)) + 1
 	# o que saiu da tabela antes da troca por classe (o bestiário registra o item da tabela do monstro)
 	out["rolled"] = out.items.duplicate()
+	# poção de vida em monstro de nível alto cai já na versão maior do nível (sem sorteio: não mexe no RNG)
+	if level > 0:
+		out.items = upgrade_potions(bt, out.items, level)
 	if char_class != "":
 		var adapted := {}
 		for id in out.items:
@@ -62,6 +65,31 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 				var cid := str(c.get("item", ""))
 				out.items[cid] = int(out.items.get(cid, 0)) + 1
 	return out
+
+
+## Troca cada poção da tabela pela versão mais forte da mesma linha (`potion_line` no items.json) cujo
+## `drop_level` o monstro já alcança. Sem versão maior liberada, fica a poção de antes.
+static func upgrade_potions(bt: BalanceTables, items_in: Dictionary, level: int) -> Dictionary:
+	var out := {}
+	for id in items_in:
+		var to := potion_for_level(bt, str(id), level)
+		out[to] = int(out.get(to, 0)) + int(items_in[id])
+	return out
+
+
+static func potion_for_level(bt: BalanceTables, id: String, level: int) -> String:
+	var items: Dictionary = bt.get_table("items")
+	var best := id
+	var best_lv := 0
+	for iid in items:
+		var it: Dictionary = items[iid]
+		if str(it.get("potion_line", "")) != id:
+			continue
+		var lv := int(it.get("drop_level", 0))
+		if lv <= level and lv > best_lv:
+			best = str(iid)
+			best_lv = lv
+	return best
 
 
 ## Equipamento que pode cair de monstro: nem nomeado (chefe), nem só de craft, nem variante de qualidade.

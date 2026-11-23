@@ -2638,6 +2638,45 @@
 		"stack": true,
 		"desc": "Restaura 60 de vida."
 	},
+	"health_potion_greater": {
+		"name": "Poção de Vida Maior",
+		"type": "consumable",
+		"heal_hp": 150,
+		"price": 45,
+		"stack": true,
+		"potion_line": "health_potion",
+		"drop_level": 15,
+		"color": {
+			"$c": [0.75, 0.06, 0.12, 1.0]
+		},
+		"desc": "Restaura 150 de vida. Mais espessa, mais rubra."
+	},
+	"health_potion_superior": {
+		"name": "Poção de Vida Superior",
+		"type": "consumable",
+		"heal_hp": 320,
+		"price": 110,
+		"stack": true,
+		"potion_line": "health_potion",
+		"drop_level": 28,
+		"color": {
+			"$c": [0.7, 0.1, 0.4, 1.0]
+		},
+		"desc": "Restaura 320 de vida. A rolha de prata segura a pressão."
+	},
+	"health_potion_supreme": {
+		"name": "Poção de Vida Suprema",
+		"type": "consumable",
+		"heal_hp": 600,
+		"price": 240,
+		"stack": true,
+		"potion_line": "health_potion",
+		"drop_level": 41,
+		"color": {
+			"$c": [1.0, 0.45, 0.1, 1.0]
+		},
+		"desc": "Restaura 600 de vida. Brilha como brasa dentro do frasco."
+	},
 	"mana_potion": {
 		"name": "Poção de Mana",
 		"type": "consumable",

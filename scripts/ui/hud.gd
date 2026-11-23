@@ -637,9 +637,10 @@ func _refresh_static() -> void:
 	talent_chip.visible = tp > 0
 	(talent_chip.get_child(0) as Label).text = "+%d talento [K]" % tp
 	for id in ["health_potion", "mana_potion"]:
-		var c := Game.count_item(id)
+		# vida: o slot mostra a poção que o R vai beber agora e o total de todos os níveis
+		var c := Game.count_health_potions() if id == "health_potion" else Game.count_item(id)
 		var s: ItemSlot = slots[id]
-		s.set_state(id, 0)
+		s.set_state(Game.pick_health_potion() if id == "health_potion" else id, 0)
 		s.info_text = "x%d" % c
 		s.dim = c <= 0
 	Game.ensure_selected_food()
