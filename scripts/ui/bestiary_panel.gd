@@ -23,7 +23,7 @@ static var _sil_mat: ShaderMaterial
 const STARS := {"comum": 1, "forte": 2, "elite": 3, "chefe": 4}
 const BAND_NAMES := ["", "Comum", "Incomum", "Raro", "Muito raro"]
 ## Habilidade especial -> texto (campos do enemies.json que mudam o jeito de lutar).
-const SHOTS := {"bolt": "Lança raios mágicos de longe", "ice": "Cospe estilhaços de gelo", "acid": "Cospe ácido"}
+const SHOTS := {"bolt": "Lança esferas sombrias de longe", "ice": "Cospe estilhaços de gelo", "acid": "Cospe ácido"}
 
 var tooltip: ItemTooltip
 var _family := ""            # filtro ("" = todas)

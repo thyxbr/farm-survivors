@@ -703,7 +703,8 @@ static func slam(pos: Vector3, radius: float) -> void:
 static func blast(pos: Vector3, radius: float) -> void:
 	if FX._scene() == null:
 		return
-	fire_burst(pos + Vector3.UP * 0.6, clampf(radius / 2.6, 0.8, 1.8), HELLFIRE, SOOT, HELLFIRE, MENACE)
+	var burst := clampf(radius / 2.6, 0.8, 1.8)
+	fire_burst(pos + Vector3.UP * (0.4 + 0.7 * burst), burst, HELLFIRE, SOOT, HELLFIRE, MENACE)   # a nuvem inteira acima do chão
 	var gf := ground_frame(pos, radius * 0.6)
 	ring_wave(gf.origin + gf.basis.y * 0.07, radius, clampf(1.0 / radius, 0.12, 0.32), MENACE, 0.14, 0.0, null, gf.basis)
 	thorns(gf.origin, gf.basis, radius * 0.3, radius * 0.75, 8, 0.8)
@@ -736,17 +737,10 @@ static func fire_burst(pos: Vector3, size := 1.0, fire: Dictionary = FIRE, smoke
 		flash: Dictionary = FLASH, sparks: Dictionary = EMBER) -> void:
 	if FX._scene() == null:
 		return
-	# fumaça primeiro (fica atrás do fogo) e por último a sumir
-	for i in 7:
-		var v := (_burst_dir() * 0.8 + Vector3.UP * 0.5).normalized()
-		puff(pos + v * 0.5 * size, randf_range(1.3, 1.9) * size, smoke,
-			{"vel": v * randf_range(2.0, 3.4) * size + Vector3.UP * 0.9, "delay": 0.15 + randf() * 0.08,
-			"grow": 0.3, "hold": 0.3, "fade": 0.65, "sort": -0.2})
-	for i in 6:
-		var v := _burst_dir()
-		puff(pos + v * 0.3 * size, randf_range(1.2, 1.7) * size, fire,
-			{"vel": v * randf_range(4.0, 6.5) * size, "grow": 0.1, "hold": 0.07, "fade": 0.3})
-	puff(pos, 1.9 * size, flash, {"grow": 0.06, "hold": 0.05, "fade": 0.22, "sort": 0.2})
+	# a nuvem pintada (ExplosionFX): fogo na cor de `fire`/`flash`, fumaça de `smoke` puxada para o tom do fogo
+	var smoke_a: Color = (smoke.mid as Color).lerp(fire.edge, 0.6) * 0.55
+	ExplosionFX.spawn(FX._scene(), pos, size, {"hot": flash.core, "body": fire.mid, "smoke_a": smoke_a,
+		"smoke_b": smoke_a * 0.4, "ember": fire.mid})
 	impact_sparks(pos, Vector3.BACK, 8, 180.0, sparks)
 	ring_wave(pos - Vector3.UP * 0.3, 2.3 * size, 0.2, fire, 0.1)
 

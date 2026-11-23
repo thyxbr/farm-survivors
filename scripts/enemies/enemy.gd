@@ -4423,8 +4423,18 @@ func _abyss_warn(elapsed: float) -> void:
 		"swing":
 			AbyssFX.arc_warning(c, _abyss_dir, AbyssRules.CLAW_R, AbyssRules.CLAW_HALF, left)
 		"volley":
-			for d in AbyssRules.volley_dirs(_abyss_dir, _abyss_shots()):
+			var blade_pts: Array = []
+			var blade_dirs: Array = AbyssRules.volley_dirs(_abyss_dir, _abyss_shots())
+			for d in blade_dirs:
 				AbyssFX.line_warning(c + d * 1.4, c + d * 15.0, 0.4, left)
+				blade_pts.append(_abyss_muzzle(c, d))
+			if FX._scene() != null:   # as lâminas nascem no ar em leque aberto, uma a uma, e fecham na mira
+				var hover: Array = []
+				for d in blade_dirs:
+					var ang: float = _abyss_dir.signed_angle_to(d, Vector3.UP) * 3.2
+					hover.append(c + _abyss_dir.rotated(Vector3.UP, ang) * 2.3
+						+ Vector3.UP * (_abyss_muzzle(c, d).y - c.y + 0.9 - absf(ang) * 0.35))
+				RuneBladesFX.charge(FX._scene(), blade_pts, blade_dirs, left, 1.9, RuneBladesFX.RED, hover)
 			Sfx.play_at("heal", c, 0.3, -8.0)
 		"voids":
 			for pt in _abyss_pts:
@@ -4483,14 +4493,19 @@ func _abyss_claw(visual: bool) -> void:
 			p.add_shake(0.35)
 
 
-## A Rajada sai: um orbe de sombra por direção do leque (a réplica desenha os mesmos, sem dano).
+## De onde sai cada lâmina da Rajada (as lâminas do preparo nascem nos mesmos pontos).
+func _abyss_muzzle(c: Vector3, d: Vector3) -> Vector3:
+	return c + Vector3.UP * clampf(float(data.height) * float(data.scale) * 0.3, 0.8, 1.4) + d * 1.3
+
+
+## A Rajada sai: uma lâmina rúnica por direção do leque (a réplica desenha as mesmas, sem dano).
 func _abyss_volley(visual: bool) -> void:
 	var c := _abyss_origin
 	Sfx.play_at("bow_shot", c, 0.3, -3.0)
 	var y := clampf(float(data.height) * float(data.scale) * 0.3, 0.8, 1.4)
 	for d in AbyssRules.volley_dirs(_abyss_dir, _abyss_shots()):
 		var orb := ENEMY_ARROW.new()
-		orb.magic = true
+		orb.blade = true
 		orb.direction = d
 		orb.damage = 0.0 if visual else _abyss_dmg() * 0.6
 		orb.level = level
