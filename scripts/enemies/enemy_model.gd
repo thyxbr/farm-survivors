@@ -31,6 +31,7 @@ const MODELS := {
 	"leech": preload("res://assets/models/leech_ia.glb"),   # Sanguessuga do Lodo, gerada por IA (tools/blender/leech_ia_build.py)
 	"mosquito": preload("res://assets/models/mosquito_ia.glb"),   # Pernilongo do Brejo, gerado por IA (tools/blender/mosquito_ia_build.py)
 	"turtle": preload("res://assets/models/turtle_ia.glb"),   # Tartaruga-Musgo, gerada por IA (tools/blender/turtle_ia_build.py)
+	"toad": preload("res://assets/models/toad_ia.glb"),   # Sapo-Bufo, gerado por IA (tools/blender/toad_ia_build.py)
 	"wolf": preload("res://assets/models/wolf_ia.glb"),   # gerado por IA (tools/blender/wolf_ia_build.py); o de código: wolf.glb
 	"crow": preload("res://assets/models/crow.glb"),
 	"yeti": preload("res://assets/models/yeti.glb"),

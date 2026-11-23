@@ -1715,10 +1715,10 @@ count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando slime_explosivo 1" type="Node3D" parent="Monstros"]
+[node name="bando sapo_bufo 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, -50)
 script = ExtResource("7_pea20")
-kind = "slime_explosivo"
+kind = "sapo_bufo"
 count = 4
 radius = 3.0
 respawn = 25.0
