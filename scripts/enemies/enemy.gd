@@ -1343,7 +1343,7 @@ func _begin_attack(dist := 0.0) -> void:
 	if data.model == "slime":
 		attack_kind = "lunge"
 		velocity.y = 4.5
-	elif data.model == "turtle":
+	elif data.model in ["turtle", "mosquito"]:   # Pernilongo: o rasante da Asa-couro com os números do Slime Veloz
 		attack_kind = "lunge"   # mesmo bote do Slime de Gelo que ela substitui, sem o pulo: estica o pescoço e morde
 	elif (is_boss and attack_count % 3 == 0) or (data.has("slam_every") and attack_count % int(data.slam_every) == 0):
 		attack_kind = "slam"
@@ -1538,7 +1538,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill), data.get("chill_venom", false))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf", "turtle"]):
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf", "turtle", "mosquito"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -2619,7 +2619,7 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "frog":
 		_animate_frog(hspeed, k)
 		return
-	if data.model == "bat":
+	if data.model in ["bat", "mosquito"]:
 		_animate_bat(hspeed, k)
 		return
 	if data.model == "crow":
@@ -3006,8 +3006,12 @@ func _animate_frog(hspeed: float, k: float) -> void:
 ## Asa-couro: bate as asas sem parar (mais rápido voando), o corpo sobe e desce no ritmo; no rasante desce até
 ## a altura do jogador com as asas abertas para trás e sobe de volta.
 func _animate_bat(hspeed: float, k: float) -> void:
+	# Pernilongo do Brejo: o mesmo voo com zumbido (batida rápida e curta) e o abdômen balançando (Tail)
+	var buzz: bool = data.model == "mosquito"
 	var beat := anim_t * 2.2
 	var flap := sin(beat) * (0.55 + clampf(hspeed / 5.0, 0.0, 1.0) * 0.2)
+	if buzz:   # ~18 batidas por segundo, parado ou voando (a 60 quadros a asa vira um borrão tremendo, como de verdade)
+		flap = sin((_life_t + float(_uid() % 7)) * TAU * 18.0) * 0.5
 	var y := sin(beat - 0.6) * 0.08
 	var body_x := 0.0
 	if state == "attack" and attack_kind == "lunge":
@@ -3040,6 +3044,8 @@ func _animate_bat(hspeed: float, k: float) -> void:
 		parts.WingR.rotation.z = -flap
 	if parts.Head:
 		parts.Head.rotation.x = lerp(parts.Head.rotation.x, -body_x * 0.5, k)
+	if parts.Tail:   # abdômen: balança devagar atrás do voo e encolhe para a frente no rasante
+		parts.Tail.rotation.x = lerp(parts.Tail.rotation.x, sin(anim_t * 0.9) * 0.12 + body_x * 0.6, k)
 
 
 ## Alfa da Matilha: uivo que acelera os lobos por perto (servidor/solo); a réplica só mostra o anel e o som.

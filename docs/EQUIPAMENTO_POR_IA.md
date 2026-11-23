@@ -185,6 +185,32 @@ aberto, estica a cabeça e fecha no acerto (é o `lunge` do slime, sem o pulo).
 - **Em aberto:** olhos foscos (no conceito brilham), a lentidão ainda tem o efeito visual de gelo e a tartaruga
   herdou as resistências do slime (imune a gelo).
 
+### Pernilongo do Brejo (Pântano Sussurrante; rodada 2 aprovada em 2026-11-23)
+
+![Conceito x jogo](renders/pernilongo_ia/conceito_x_jogo.png) — voo: `renders/pernilongo_ia/pernilongo_voo.gif` (câmera
+lenta: `pernilongo_voo_camera_lenta.gif`), rasante: `pernilongo_rasante.gif`, asas vistas de cima: `asas_de_cima.png`.
+`tools/blender/mosquito_ia_build.py` → `assets/models/mosquito_ia.glb` (8 mil faces + duas asas). Tipo
+`pernilongo_brejo` com os números do Slime Veloz nos 14 lugares dele no `bosque.tscn`; `height` 1,4 (voa: com 0,6 os
+golpes passariam por baixo). Pivôs da Asa-couro (`Body` pairando a 1,5, `Head`, `WingL`, `WingR`) mais um `Tail` no
+abdômen; animação `_animate_bat` (modelo `mosquito`) com o abdômen balançando e encolhendo no rasante.
+
+- **Asas da IA reprovadas.** Vieram em V (como a imagem, apesar de "spread flat out to the sides" no prompt), com
+  borda rasgada (lâmina fina) e dobra na raiz. O usuário quer asas na horizontal e bonitas: o builder corta a asa da
+  IA (fora do tórax em x e acima do ombro, e a raiz que sobe acima do tórax — sem isso sobram dois tocos em pé nos
+  ombros), fecha o buraco (`holes_fill`, com UV copiado dos vizinhos; sem isso a tampa lê o canto cinza da
+  textura) e faz asas novas: lâmina de 1 cm em forma de folha (`sqrt(sin(πu))` arredonda as pontas), veios e borda
+  pintados numa textura gerada no builder, raiz 4 cm dentro do tórax e na cor do corpo. Asa fina é parte que a IA não
+  faz bem: para insetos, já planejar asa por código.
+- **Batida de inseto não segue o passo.** A da Asa-couro cresce com a velocidade (`anim_t`); o mosquito bate a
+  ~18 Hz sempre (`_life_t`, fase por indivíduo), amplitude 0,5. Em GIF não aparece (aliasing): mostrar também em
+  câmera lenta (`--span=0.111 --frames=16`, ~2 batidas).
+- **Patas finas por fatia, na malha cheia.** Grupo pequeno de vértices ligados numa fatia de 4 cm é pata. Na malha
+  reduzida (arestas ~4 cm) a fatia do abdômen quebrava em pedaços e virava "pata" (faixa cinza no abdômen): achar na
+  malha de 40 mil faces e passar para a reduzida pelo vértice mais perto (`KDTree`). O ferrão também é fino e baixo:
+  a busca só vale atrás dele (y > -0,45), senão a ponta ficava no `Body` e dobrava na pose de teste.
+- **Asa e abdômen pela altura, não por y.** Perto da raiz a asa da IA se estendia para trás por cima do abdômen;
+  limite da asa em z (o alto do abdômen fica abaixo de 0,18) e o abdômen nunca no mesmo vértice da asa.
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).
