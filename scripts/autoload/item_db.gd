@@ -25,8 +25,9 @@ const SLOT_COUNT := 5
 ## `aim: "ground"` = a tecla só prepara: mostra o círculo de raio `aim_radius` no chão, a até `aim_range` m, e o
 ## clique esquerdo confirma (Player._arm_area / confirm_area).
 const ABILITIES := {
-	"fireball": {"name": "Bola de Fogo", "class": "staff", "slot": 1, "level": 1, "cooldown": 0.9, "cost": 12,
-		"ready": true, "ultimate": false, "icon": "fireball", "desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
+	# a tecla 1 do cajado (a bola de fogo segue no clique do cajado). Dano, mana e ritmo: FlameChannelConfig
+	"staff_flame": {"name": "Canalização de Fogo", "class": "staff", "slot": 1, "level": 1, "cooldown": 1.5, "cost": 8,
+		"ready": true, "ultimate": false, "icon": "fireball", "desc": "Segure a tecla: o mago estende a mão livre, um círculo mágico de fogo se forma e gira na frente da palma, e dele irrompe uma labareda reta de 6,5 m. Cada inimigo na chama leva 4 + INT x 0,6 de dano de fogo 5 vezes por segundo. Gasta 14 de mana por segundo; ao soltar, o fogo se dissipa. Dá para andar devagar e virar com a câmera enquanto canaliza; a esquiva interrompe."},
 	"frost_nova": {"name": "Nova Gélida", "class": "staff", "slot": 2, "level": 3, "cooldown": 7.0, "cost": 28,
 		"ready": true, "ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
 	"heal": {"name": "Cura", "class": "scepter", "slot": 1, "level": 1, "cooldown": 4.0, "cost": 20,

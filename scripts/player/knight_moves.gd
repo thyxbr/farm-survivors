@@ -298,6 +298,18 @@ const METEOR_RAISE := {
 }
 const METEOR_TREMBLE := 0.045   ## tremor dos braços e do tronco canalizando (rad)
 const METEOR_RAISE_SPEED := 1.4 ## multiplica a suavização ao erguer o cajado
+## Canalização de Fogo (FlameChannelAbilities): o braço esquerdo (o que não segura o cajado) estica para a frente na
+## altura do ombro, cotovelo quase reto, e o pulso dobra para trás para a palma ficar virada para o alvo (como o
+## empurrão da Bola de Fogo sem cajado, KnightMoves.CAST.fireball); o ombro esquerdo vem à frente (twist), o cajado
+## fica baixo na direita e as pernas abrem numa base firme, o pé esquerdo à frente.
+const FLAME_PALM := {
+	"arm_l": Vector3(-1.5, 0.28, 0.06), "elbow_l": -0.1, "wrist_l": -0.95,
+	"arm_r": Vector3(-0.2, 0.05, -0.32), "elbow_r": -0.55, "wrist_r": 0.15,
+	"twist": -0.32, "body_x": 0.12, "body_y": -0.03, "head_x": 0.05, "head_y": 0.22,
+	"leg_l": -0.34, "knee_l": 0.34, "leg_r": 0.24, "knee_r": 0.2,
+}
+const FLAME_TREMBLE := 0.035     ## tremor do braço com a labareda saindo (rad)
+const FLAME_RAISE_SPEED := 1.6   ## multiplica a suavização ao esticar o braço
 # ------------------------------------------------------------------ habilidades da espada
 ## Investida (SwordAbilities.CHARGE_TIME = 0,6 s): preparo até 0,25 (agacha, espada para trás),
 ## avanço até 0,67 (estocada com a lâmina à frente, em investida) e recuperação.
