@@ -3,7 +3,7 @@ extends Node3D
 ## Estaca de Gelo (Sentinela da Nevasca): a estaca que caiu do teto fica cravada no chão por BlizzardRules.SPIKE_LIFE
 ## s soltando frio; quem encosta nela (SPIKE_AURA m) leva um tique a cada SPIKE_TICK s e fica lento. No fim ela
 ## racha e se desfaz. Servidor e cliente criam a estaca no mesmo ponto; só quem manda no chefe (`deal`: servidor ou
-## solo) dá o dano. Desenho: a estaca lapidada de ponta para baixo, cacos em volta do pé e a geada no chão.
+## solo) dá o dano. Desenho: a estaca pintada de ponta para baixo (IceFX.crystal_card), cacos em volta do pé e a geada pintada no chão (IceFX.frost_patch).
 
 ## Dano por tique, já com o multiplicador do chefe; o nível ajusta contra cada jogador.
 var dmg := 5.0
@@ -20,28 +20,20 @@ func _ready() -> void:
 		return
 	_body = Node3D.new()
 	add_child(_body)
-	var lean := Vector3(randf_range(-0.12, 0.12), 0.0, randf_range(-0.12, 0.12))
-	_shard(Vector3(0, 3.3, 0), Basis(Vector3.RIGHT, PI + lean.x) * Basis(Vector3.BACK, lean.z), Vector3(0.72, 3.6, 0.72))
-	for i in 4:   # cacos em volta do pé, de pé e abertos para fora
-		var a := TAU * (i + randf_range(-0.3, 0.3)) / 4.0
-		var h := randf_range(0.5, 0.9)
+	# a estaca: a agulha pintada de ponta para baixo, um pouco torta
+	var spike := IceFX.crystal_card(_body, IceFX.SPIKE_CELL, IceFX.SPIKE_H, true)
+	spike.rotation = Vector3(randf_range(-0.1, 0.1), 0.0, randf_range(-0.1, 0.1))
+	for i in 5:   # cacos em volta do pé, de pé e abertos para fora
+		var a := TAU * (i + randf_range(-0.3, 0.3)) / 5.0
 		var out := Vector3(cos(a), 0.0, sin(a))
-		_shard(out * randf_range(0.45, 0.7) - Vector3.UP * 0.05, Basis(out.cross(Vector3.UP).normalized(), -0.5), Vector3(h * 0.5, h, h * 0.5))
-	FXToon.frost_sigil(global_position, BlizzardRules.SPIKE_AURA, 0.25, BlizzardRules.SPIKE_LIFE - 0.9)
+		var shard := IceFX.crystal_card(_body, 1 + i % 3, randf_range(0.9, 1.5))
+		shard.position = out * randf_range(0.5, 0.85)
+		shard.basis = Basis(out.cross(Vector3.UP).normalized(), -randf_range(0.25, 0.55)) * shard.basis
+	# a geada pintada no chão marca a área do frio enquanto a estaca dura
+	IceFX.frost_patch(BlizzardFX._root(), global_position, BlizzardRules.SPIKE_AURA * 1.15, BlizzardRules.SPIKE_LIFE - 0.3)
 	_body.scale = Vector3(1.0, 0.6, 1.0)
 	var tw := _body.create_tween()
 	tw.tween_property(_body, "scale", Vector3.ONE, 0.12).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-
-
-func _shard(pos: Vector3, basis: Basis, size: Vector3) -> void:
-	var mi := MeshInstance3D.new()
-	mi.mesh = FXToon.crystal_mesh()
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.set_instance_shader_parameter("col_core", BlizzardFX.FROSTBITE.core)
-	mi.set_instance_shader_parameter("col_mid", BlizzardFX.FROSTBITE.mid)
-	mi.set_instance_shader_parameter("col_edge", BlizzardFX.FROSTBITE.edge)
-	mi.transform = Transform3D(basis.scaled_local(size), pos)
-	_body.add_child(mi)
 
 
 func _physics_process(delta: float) -> void:

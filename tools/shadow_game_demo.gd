@@ -3,6 +3,7 @@ extends Node
 ## descartável (user://demo_solo.json: não mexe no save solo):
 ##   --shadowdemo=mago     Esqueleto Mago: o projétil é a Esfera Sombria (ShadowOrbFX)
 ##   --shadowdemo=bomba    Slime Explosivo: a explosão nova (ExplosionFX, por FXToon.blast)
+##   --shadowdemo=sentinela Sentinela da Nevasca: Estacas, Sopro e o urro com o gelo pintado (IceFX)
 ##   --shadowdemo=arauto   Arauto do Abismo: Rajada de Sombras = Lâminas Rúnicas (RuneBladesFX) e Zonas de Vazio =
 ##                         Buraco Negro (BlackHoleFX); de longe ele dá três rajadas e depois abre as zonas
 ##   godot --path . res://scenes/world.tscn -- --level=60 --weapon=iron_sword --nointro --hora=12 --weather=sol --shadowdemo=arauto
@@ -56,10 +57,10 @@ func _spawn() -> void:
 	if is_instance_valid(_mob):
 		_mob.queue_free()
 	_mob = Enemy.new()
-	_mob.kind = {"arauto": "arauto_abismo", "bomba": "slime_explosivo"}.get(_which, "esqueleto_mago")
+	_mob.kind = {"arauto": "arauto_abismo", "bomba": "slime_explosivo", "sentinela": "sentinela_nevasca"}.get(_which, "esqueleto_mago")
 	get_tree().current_scene.add_child(_mob)
 	var f: Vector3 = _player.facing()
-	_mob.global_position = _player.global_position + f * (11.0 if _which == "arauto" else 8.0)
+	_mob.global_position = _player.global_position + f * (11.0 if _which in ["arauto", "sentinela"] else 8.0)
 	_mob.home = _mob.global_position
 
 
@@ -95,6 +96,19 @@ func _shot(dir: String) -> void:
 			get_tree().quit(1)
 			return
 		await _frames(dir + "/voids", 120, 2)
+	elif _which == "sentinela":
+		# de longe ela abre com as Estacas, depois o Sopro; com pouca vida, o urro da nevasca
+		if not await _wait_attack("icicles", 40.0):
+			get_tree().quit(1)
+			return
+		await _frames(dir + "/icicles", 110, 1)
+		if not await _wait_attack("breath", 60.0):
+			get_tree().quit(1)
+			return
+		await _frames(dir + "/breath", 90, 2)
+		_mob.hp = _mob.max_hp * 0.2
+		if await _wait_attack("blizzard", 40.0):
+			await _frames(dir + "/roar", 60, 1)
 	elif _which == "bomba":
 		if not await _wait_attack("fuse", 40.0):
 			get_tree().quit(1)

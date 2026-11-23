@@ -5819,6 +5819,9 @@ func _roar_warn(elapsed: float) -> void:
 	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 30.0:
 		lp.add_shake(0.8)
 	Sfx.play_at("frost", global_position, 0.0, 3.0)
+	if FX._scene() != null:   # a cúpula de riscos de gelo abre em volta dela
+		var c := _net_pos if puppet else global_position
+		IceFX.roar(FX._scene(), Vector3(c.x, _blz_floor, c.z), 5.5)
 
 
 ## O urro termina: a nevasca toma a sala (os braseiros passam a mostrar o abrigo).
