@@ -2437,7 +2437,9 @@ func set_net_target(pos: Vector3, yaw: float) -> void:
 	_net_yaw = yaw
 
 
-func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, atk_t: float, atk_kind: String, flags: int) -> void:
+func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, atk_t: float, atk_kind: String, flags: int,
+		status_mask := 0) -> void:
+	status.set_mask(status_mask)
 	_net_pos = pos
 	_net_yaw = yaw
 	if new_hp != hp:

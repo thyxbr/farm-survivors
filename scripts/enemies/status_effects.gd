@@ -102,6 +102,8 @@ func _pulse(el: String, amount: float, applier: int) -> void:
 	var prev := enemy.last_hitter
 	if server:
 		enemy.last_hitter = applier if Network.players.has(applier) else 0
+	if server:
+		Network.server_show_hit(enemy, amount, el)   # o número do pulso nas réplicas (antes: o vivo ainda tem vida)
 	enemy.take_damage(amount, enemy.global_position, false, 0.0, 0.0, 0.0, el)
 	if server and is_instance_valid(enemy):
 		enemy.last_hitter = prev
