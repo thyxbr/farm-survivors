@@ -1,53 +1,48 @@
 class_name WormFX
 extends RefCounted
-## Efeitos da Mãe-Verme das Profundezas, feitos em código sobre seis pinturas (claro em fundo preto, tingidas no
-## shader); os cristais são malha 3D pintada como desenho (de lado, pintura chapada denunciava o truque):
-##   crystal_ring  um anel da Onda de Cristais: cachos de cristais 3D facetados que sobem de dentro do chão
-##                 num jorro de terra (jorro_terra.png, 4 quadros), com lascas de pedra (pedras_folha.png), poeira
-##                 (a nuvem da explosão, em tons de terra) e a crista de choque correndo o anel; depois afundam
-##   falling_rock  o pedregulho do Desmoronamento caindo (pedras_folha.png) e o impacto: chão quebrado com as
-##                 rachaduras acesas (chao_rachado.png), anel de choque, poeira e lascas
-##   glob          a bolha de ácido voando (acido_respingo.png), virada para onde vai: o cuspe e as Poças
-##   acid_splash   a coroa do respingo (acido_respingo.png, 3 quadros)
+## Efeitos da Mãe-Verme das Profundezas. Tudo o que fica em pé ou voa é malha 3D pintada como desenho (tons em
+## faixas duras e traço por casco invertido): de lado, pintura chapada num quad denunciava o truque. Só o que é
+## chão continua pintura deitada (claro em fundo preto, tingida no shader).
+##   crystal_ring  um anel da Onda de Cristais: cachos de cristais facetados que sobem de dentro do chão entre
+##                 espigões de terra, com lascas de pedra, bolas de poeira e a crista de choque correndo o anel;
+##                 depois afundam
+##   falling_rock  o pedregulho do Desmoronamento caindo e o impacto: chão quebrado com as rachaduras acesas
+##                 (chao_rachado.png), anel de choque, poeira e lascas
+##   glob          a bolha de ácido voando, gota com a cauda para trás e gotinhas atrás: o cuspe e as Poças
+##   acid_splash   a coroa do respingo: línguas de ácido que sobem em volta e gotas arremessadas
 ##   acid_pool     a poça (acido_poca.png girando, com a trama de acido_bolhas.png fervendo): a tela de AcidPool
 ## Em jogo: BossFX.crystal_ring / falling_rock / lob, Enemy._acid_hit, AcidPool e EnemyArrow (cuspe).
 
-const DIRT_TEX := preload("res://assets/vfx/worm/jorro_terra.png")
-const ROCKS_TEX := preload("res://assets/vfx/worm/pedras_folha.png")
 const CRATER_TEX := preload("res://assets/vfx/worm/chao_rachado.png")
 const POOL_TEX := preload("res://assets/vfx/worm/acido_poca.png")
-const SPLASH_TEX := preload("res://assets/vfx/worm/acido_respingo.png")
 const WEB_TEX := preload("res://assets/vfx/worm/acido_bolhas.png")
-const CLOUD_TEX := preload("res://assets/vfx/explosion/nuvem_folha.png")
-const EMBER_TEX := preload("res://assets/vfx/explosion/rachas_brasa.png")
 const CREST_TEX := preload("res://assets/vfx/lightning_shockwave/onda_faixa.png")
-const CARD := preload("res://shaders/worm/worm_card.gdshader")
 const GROUND := preload("res://shaders/worm/worm_ground.gdshader")
 const POOL := preload("res://shaders/worm/acid_pool.gdshader")
-const CLOUD := preload("res://shaders/explosion/cloud_flip.gdshader")
 const RING := preload("res://shaders/lightning_shockwave/wave_ring.gdshader")
-const CRYSTAL := preload("res://shaders/worm/worm_crystal.gdshader")
-const CRYSTAL_INK := preload("res://shaders/worm/worm_crystal_ink.gdshader")
+const FACET := preload("res://shaders/worm/worm_facet.gdshader")
+const BLOB := preload("res://shaders/worm/worm_blob.gdshader")
+const INK := preload("res://shaders/worm/worm_ink.gdshader")
 
 ## Cores como se vê na tela (sRGB); `_v` converte para o shader. Cada paleta: face clara, cor, sombra.
 const CYAN := [Color(0.88, 0.99, 1.0), Color(0.22, 0.8, 1.0), Color(0.16, 0.12, 0.62)]
 const FURY := [Color(1.0, 0.9, 0.82), Color(1.0, 0.24, 0.14), Color(0.42, 0.02, 0.14)]
-const EARTH := [Color(0.84, 0.74, 0.6), Color(0.56, 0.43, 0.31), Color(0.25, 0.17, 0.13)]
-const ROCK := [Color(0.8, 0.78, 0.76), Color(0.5, 0.47, 0.46), Color(0.2, 0.18, 0.21)]
+const EARTH := [Color(0.84, 0.74, 0.6), Color(0.6, 0.46, 0.33), Color(0.3, 0.2, 0.15)]
+const ROCK := [Color(0.82, 0.8, 0.78), Color(0.55, 0.52, 0.5), Color(0.26, 0.23, 0.26)]
 const ACID := [Color(0.78, 1.0, 0.3), Color(0.36, 0.9, 0.08), Color(0.03, 0.26, 0.05)]
-const DUST_A := Color(0.66, 0.58, 0.48)
-const DUST_B := Color(0.4, 0.33, 0.27)
+const DUST := [Color(0.8, 0.72, 0.6), Color(0.62, 0.54, 0.44), Color(0.36, 0.29, 0.24)]
 const AMBER := Color(1.0, 0.62, 0.15)
 ## O pedregulho do Desmoronamento (m) e a altura de onde cai.
-const BOULDER := 2.6
+const BOULDER := 2.4
 const DROP_H := 14.0
 
 static var _mats := {}
-static var _quad: QuadMesh
-static var _strip: QuadMesh
 static var _plane: PlaneMesh
 static var _annulus: ArrayMesh
 static var _crystal: ArrayMesh
+static var _rock: ArrayMesh
+static var _ball: SphereMesh
+static var _drop: ArrayMesh
 
 
 static func _v(c: Color) -> Vector3:
@@ -56,38 +51,33 @@ static func _v(c: Color) -> Vector3:
 
 
 static func _shared() -> void:
-	if _quad != null:
+	if _plane != null:
 		return
-	_quad = QuadMesh.new()
-	_strip = QuadMesh.new()
-	_strip.center_offset = Vector3(0.0, 0.5, 0.0)
 	_plane = PlaneMesh.new()
 	_plane.size = Vector2.ONE
 	_annulus = LightningShockwaveFX._annulus()
-	# [pintura, linha do pé na célula, prioridade]: a terra atrás, os cristais na frente
-	for spec in [["dirt", DIRT_TEX, 0.13, 1], ["rock", ROCKS_TEX, 0.0, 4],
-			["splash", SPLASH_TEX, 0.1, 3]]:
-		var m := ShaderMaterial.new()
-		m.shader = CARD
-		m.set_shader_parameter("paint", spec[1])
-		m.set_shader_parameter("cols", 2.0)
-		m.set_shader_parameter("base", spec[2])
-		m.set_shader_parameter("foot_fade", 0.14 if spec[0] == "splash" else 0.0)
-		m.render_priority = spec[3]
-		_mats[spec[0]] = m
-	var ink := ShaderMaterial.new()
-	ink.shader = CRYSTAL_INK
-	var gem := ShaderMaterial.new()
-	gem.shader = CRYSTAL
-	gem.next_pass = ink
-	_mats["crystal"] = gem
 	_crystal = _crystal_mesh()
-	var cloud := ShaderMaterial.new()
-	cloud.shader = CLOUD
-	cloud.set_shader_parameter("sheet", CLOUD_TEX)
-	cloud.set_shader_parameter("cracks", EMBER_TEX)
-	cloud.render_priority = 2
-	_mats["cloud"] = cloud
+	_rock = _rock_mesh()
+	_drop = _drop_mesh()
+	_ball = SphereMesh.new()
+	_ball.radius = 1.0
+	_ball.height = 2.0
+	_ball.radial_segments = 14
+	_ball.rings = 7
+	# [nome, shader, como o traço engorda (ver worm_ink), largura do traço (m), tremor da gosma]
+	for spec in [["crystal", FACET, 0, 0.035, 0.0], ["rock", FACET, 2, 0.035, 0.0], ["acid", BLOB, 1, 0.03, 0.06],
+			["dust", BLOB, 1, 0.03, 0.0]]:
+		var ink := ShaderMaterial.new()
+		ink.shader = INK
+		ink.set_shader_parameter("mode", spec[2])
+		ink.set_shader_parameter("width", spec[3])
+		ink.set_shader_parameter("wobble", spec[4])
+		var m := ShaderMaterial.new()
+		m.shader = spec[1]
+		if spec[1] == BLOB:
+			m.set_shader_parameter("wobble", spec[4])
+		m.next_pass = ink
+		_mats[spec[0]] = m
 	var ground := ShaderMaterial.new()
 	ground.shader = GROUND
 	ground.set_shader_parameter("cracks", CRATER_TEX)
@@ -97,7 +87,7 @@ static func _shared() -> void:
 	pool.set_shader_parameter("pool", POOL_TEX)
 	pool.set_shader_parameter("web", WEB_TEX)
 	_mats["pool"] = pool
-	for spec in [["ring_dust", DUST_B.darkened(0.45), 0.35], ["ring_glow", Color(0.05, 0.05, 0.3), 0.7]]:
+	for spec in [["ring_dust", DUST[2].darkened(0.45), 0.35], ["ring_glow", Color(0.05, 0.05, 0.3), 0.7]]:
 		var ring := ShaderMaterial.new()
 		ring.shader = RING
 		ring.set_shader_parameter("crest", CREST_TEX)
@@ -107,16 +97,7 @@ static func _shared() -> void:
 		_mats[spec[0]] = ring
 
 
-static func _node(parent: Node, mesh: Mesh, mat: Material, cull := 4.0) -> MeshInstance3D:
-	var n := MeshInstance3D.new()
-	n.mesh = mesh
-	n.material_override = mat
-	n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	n.extra_cull_margin = cull
-	parent.add_child(n)
-	return n
-
-
+# ------------------------------------------------------------ malhas
 ## Um cristal: prisma de seis faces de raio 1 e altura 1, com o pé um pouco mais fino e a ponta a partir de 0,68.
 ## Normais chapadas (uma por face): cada face ganha um tom só no shader.
 static func _crystal_mesh() -> ArrayMesh:
@@ -141,59 +122,136 @@ static func _crystal_mesh() -> ArrayMesh:
 	return st.commit()
 
 
-## Um cacho de cristais 3D com o pé na origem de `parent`: um grande no meio e outros menores abrindo em leque.
-## `h` = altura do maior (m). Devolve os cristais (para animar o brilho).
-static func crystal_cluster(parent: Node3D, h: float, pal: Array) -> Array[MeshInstance3D]:
-	_shared()
-	var out: Array[MeshInstance3D] = []
-	var count := 5 + randi() % 3
-	var turn := randf() * TAU
-	for i in count:
-		var n := _node(parent, _crystal, _mats["crystal"], h)
-		var k := 1.0 if i == 0 else randf_range(0.4, 0.75)
-		var thick := h * k * randf_range(0.13, 0.18)
-		n.scale = Vector3(thick, h * k, thick)
-		if i > 0:   # os menores tombam para fora, em volta do grande
-			var a := turn + TAU * i / float(count - 1) + randf_range(-0.3, 0.3)
-			var lean := Vector3(cos(a), 0.0, sin(a))
-			n.position = lean * h * randf_range(0.05, 0.12)
-			n.basis = Basis(lean.cross(Vector3.UP).normalized(), -randf_range(0.35, 0.8)) * Basis.from_scale(n.scale)
-		n.rotate_object_local(Vector3.UP, randf() * TAU)
-		n.position.y -= h * 0.12      # o pé fica enterrado
-		n.set_instance_shader_parameter("core", _v(pal[0]))
-		n.set_instance_shader_parameter("mid", _v(pal[1]))
-		n.set_instance_shader_parameter("shade", _v(pal[2]))
-		out.append(n)
-	return out
+## Uma pedra: esfera de poucas faces amassada (raio ~0,5), de normais chapadas.
+static func _rock_mesh() -> ArrayMesh:
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 7
+	sm.rings = 4
+	var arr := sm.get_mesh_arrays()
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+	var rng := RandomNumberGenerator.new()
+	var moved := {}
+	for i in v.size():
+		var key := Vector3i(roundi(v[i].x * 100.0), roundi(v[i].y * 100.0), roundi(v[i].z * 100.0))
+		if not moved.has(key):
+			rng.seed = hash(key)
+			moved[key] = v[i] * rng.randf_range(0.72, 1.12)
+		v[i] = moved[key]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in range(0, idx.size(), 3):
+		for k in 3:
+			st.add_vertex(v[idx[t + k]])
+	st.generate_normals()
+	return st.commit()
 
 
-## Uma pintura da folha `sheet` ("dirt", "rock", "splash"), célula `cell`, nas cores de `pal`.
-## `upright`: em pé, com o pé na origem do nó (a escala é largura, altura); senão virada para a câmera.
-static func card(parent: Node, sheet: String, cell: int, pal: Array, upright := false) -> MeshInstance3D:
+## Uma gota: sólido de revolução em volta do Y, cabeça redonda de raio 1 em cima (o centro na origem) e cauda que
+## afina até -2,6. Normais lisas.
+static func _drop_mesh() -> ArrayMesh:
+	var prof: Array[Vector2] = []      # (raio, y), da ponta da cabeça à ponta da cauda
+	for i in 7:
+		var a := PI * 0.5 * i / 6.0
+		prof.append(Vector2(sin(a), cos(a)))
+	for i in range(1, 8):
+		var k := i / 7.0
+		prof.append(Vector2(pow(1.0 - k, 1.25) * (1.0 - 0.25 * sin(k * PI)), -2.6 * k))
+	var seg := 12
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in prof.size() - 1:
+		for j in seg:
+			var a0 := TAU * j / seg
+			var a1 := TAU * (j + 1) / seg
+			var p00 := Vector3(cos(a0) * prof[i].x, prof[i].y, sin(a0) * prof[i].x)
+			var p01 := Vector3(cos(a1) * prof[i].x, prof[i].y, sin(a1) * prof[i].x)
+			var p10 := Vector3(cos(a0) * prof[i + 1].x, prof[i + 1].y, sin(a0) * prof[i + 1].x)
+			var p11 := Vector3(cos(a1) * prof[i + 1].x, prof[i + 1].y, sin(a1) * prof[i + 1].x)
+			for p in [p00, p10, p01, p01, p10, p11]:
+				st.set_smooth_group(0)
+				st.add_vertex(p)
+	st.index()
+	st.generate_normals()
+	return st.commit()
+
+
+# ------------------------------------------------------------ peças
+static func _node(parent: Node, mesh: Mesh, mat: Material, cull := 4.0) -> MeshInstance3D:
+	var n := MeshInstance3D.new()
+	n.mesh = mesh
+	n.material_override = mat
+	n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	n.extra_cull_margin = cull
+	parent.add_child(n)
+	return n
+
+
+## Uma peça 3D de `mesh` no material `mat` ("crystal", "rock", "acid", "dust"), nas cores de `pal`.
+static func _solid(parent: Node, mesh: Mesh, mat: String, pal: Array) -> MeshInstance3D:
 	_shared()
-	var n := _node(parent, _strip if upright else _quad, _mats[sheet])
-	n.set_instance_shader_parameter("cell", float(cell))
+	var n := _node(parent, mesh, _mats[mat])
 	n.set_instance_shader_parameter("core", _v(pal[0]))
 	n.set_instance_shader_parameter("mid", _v(pal[1]))
 	n.set_instance_shader_parameter("shade", _v(pal[2]))
-	n.set_instance_shader_parameter("upright", 1.0 if upright else 0.0)
-	n.set_instance_shader_parameter("flip", float(randi() % 2))
 	n.set_instance_shader_parameter("seed", randf())
 	return n
 
 
-## Uma baforada de poeira (a nuvem da explosão, sem fogo).
-static func _puff(parent: Node, size: float) -> MeshInstance3D:
+## Um leque de prismas com o pé na origem de `parent`: um grande no meio (altura `h`) e outros menores tombando
+## em volta. `thick` = grossura em relação à altura; `lean` = quanto os menores tombam (rad, mínimo e máximo).
+static func _spikes(parent: Node3D, count: int, h: float, pal: Array, thick: Vector2, lean: Vector2) -> Array[MeshInstance3D]:
 	_shared()
-	var n := _node(parent, _quad, _mats["cloud"], size)
-	n.scale = Vector3.ONE * size
-	n.set_instance_shader_parameter("roll", randf_range(-0.5, 0.5))
-	n.set_instance_shader_parameter("flip", float(randi() % 2))
-	n.set_instance_shader_parameter("seed", randf())
-	n.set_instance_shader_parameter("smoke_a", _v(DUST_A))
-	n.set_instance_shader_parameter("smoke_b", _v(DUST_B))
-	n.set_instance_shader_parameter("heat", 0.0)
-	n.set_instance_shader_parameter("glow", 0.0)
+	var out: Array[MeshInstance3D] = []
+	var turn := randf() * TAU
+	for i in count:
+		var n := _solid(parent, _crystal, "crystal", pal)
+		var k := 1.0 if i == 0 else randf_range(0.4, 0.75)
+		var w := h * k * randf_range(thick.x, thick.y)
+		n.scale = Vector3(w, h * k, w)
+		if i > 0:
+			var a := turn + TAU * i / float(count - 1) + randf_range(-0.3, 0.3)
+			var dir := Vector3(cos(a), 0.0, sin(a))
+			n.position = dir * h * randf_range(0.05, 0.12)
+			n.basis = Basis(dir.cross(Vector3.UP).normalized(), -randf_range(lean.x, lean.y)) * Basis.from_scale(n.scale)
+		n.rotate_object_local(Vector3.UP, randf() * TAU)
+		n.position.y -= h * 0.12      # o pé fica enterrado
+		out.append(n)
+	return out
+
+
+## Um cacho de cristais 3D com o pé na origem de `parent`; `h` = altura do maior (m). Devolve os cristais.
+static func crystal_cluster(parent: Node3D, h: float, pal: Array) -> Array[MeshInstance3D]:
+	var gems := _spikes(parent, 4 + randi() % 3, h, pal, Vector2(0.13, 0.18), Vector2(0.35, 0.8))
+	for g in gems:
+		g.set_instance_shader_parameter("streak", 1.0)
+	return gems
+
+
+## Uma baforada de poeira: bolas juntas (raio total ~`size`), que incham depressa e murcham até sumir.
+static func _puff(parent: Node, size: float) -> Node3D:
+	var puff := Node3D.new()
+	parent.add_child(puff)
+	for i in 6:
+		var b := _solid(puff, _ball, "dust", DUST)
+		var off := Vector3.ZERO if i == 0 else Vector3(randf_range(-1.0, 1.0), randf_range(-0.3, 0.8), randf_range(-1.0, 1.0)).normalized()
+		b.position = off * size * 0.5
+		b.scale = Vector3.ONE * size * (0.55 if i == 0 else randf_range(0.28, 0.45))
+	return puff
+
+
+## Tamanho da baforada no tempo `t` de `life` s: incha em 0,12 s, fica e murcha (sem transparência).
+static func _puff_scale(t: float, life: float) -> float:
+	var up := _k(t, 0.0, 0.12)
+	return maxf(0.001, (0.4 + 0.6 * LightningShockwaveFX._out(up)) * (1.0 - pow(_k(t, life * 0.45, life), 2.0)))
+
+
+## Uma lasca de pedra 3D, com `size` m.
+static func _chunk(parent: Node, size: float) -> MeshInstance3D:
+	var n := _solid(parent, _rock, "rock", ROCK)
+	n.scale = Vector3(randf_range(0.7, 1.2), randf_range(0.6, 1.0), randf_range(0.7, 1.2)) * size
 	return n
 
 
@@ -215,13 +273,23 @@ static func _k(t: float, a: float, b: float) -> float:
 	return clampf((t - a) / (b - a), 0.0, 1.0)
 
 
-## Quadro da nuvem de poeira no tempo `t` de `life` s: infla depressa (quadros 2 a 7) e se desfaz (até o 15).
-static func _dust_frame(t: float, life: float) -> float:
-	if t < 0.14:
-		return floorf(2.0 + 5.0 * t / 0.14)
-	return floorf(minf(15.0, 7.0 + 8.99 * (t - 0.14) / (life - 0.14)))
+## Anima uma lista de coisas arremessadas ({node, from, vel, spin, axis, size}): voam, giram e encolhem no fim.
+static func _fly(bits: Array, t: float, gravity: float, life: float) -> void:
+	for b in bits:
+		var node: Node3D = b.node
+		node.visible = t > 0.02 and t < life
+		var p: Vector3 = (b.from as Vector3) + (b.vel as Vector3) * t + Vector3.DOWN * gravity * t * t
+		var s: Vector3 = (b.size as Vector3) * maxf(0.001, 1.0 - _k(t, life * 0.65, life))
+		node.basis = Basis(b.axis as Vector3, float(b.spin) * t) * Basis.from_scale(s)
+		node.position = p
 
 
+static func _bit(node: Node3D, from: Vector3, vel: Vector3) -> Dictionary:
+	return {"node": node, "from": from, "vel": vel, "spin": randf_range(-9.0, 9.0), "size": node.scale,
+		"axis": Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized()}
+
+
+# ------------------------------------------------------------ Onda de Cristais
 ## Um anel da Onda de Cristais em volta de `pos`: raio do meio `r`, `n` cachos. `fury`: cristais vermelhos.
 static func crystal_ring(root: Node, pos: Vector3, r: float, n: int, fury := false) -> void:
 	if root == null or not root.is_inside_tree():
@@ -244,22 +312,20 @@ static func crystal_ring(root: Node, pos: Vector3, r: float, n: int, fury := fal
 		# o cacho tomba para fora, como a onda que o empurra
 		holder.basis = RuneBladesFX.basis_along((Vector3.UP + out * randf_range(0.15, 0.5)).normalized())
 		var h := randf_range(2.3, 3.4)
-		var dirt := card(holder, "dirt", 0, EARTH, true)
-		var dw := h * randf_range(1.0, 1.25)
-		dirt.scale = Vector3(dw, dw, 1.0)
+		var dirt := Node3D.new()      # espigões de terra abrindo em leque, mais baixos e bem tombados
+		holder.add_child(dirt)
+		_spikes(dirt, 5, h * 0.62, EARTH, Vector2(0.09, 0.13), Vector2(0.7, 1.25))
 		var grp := Node3D.new()
 		holder.add_child(grp)
 		clusters.append({"dirt": dirt, "grp": grp, "h": h, "gems": crystal_cluster(grp, h, pal),
 			"delay": randf_range(0.0, 0.07)})
 		if i % 3 == 0:
-			var rock := card(fx, "rock", 1 + randi() % 3, ROCK)
-			rock.scale = Vector3.ONE * randf_range(0.45, 0.8)
-			bits.append({"node": rock, "from": foot + Vector3.UP * 0.4, "spin": randf_range(-9.0, 9.0),
-				"vel": (out * randf_range(-1.5, 3.5) + Vector3.UP * randf_range(5.0, 9.0))})
+			var rock := _chunk(fx, randf_range(0.3, 0.55))
+			bits.append(_bit(rock, foot + Vector3.UP * 0.4, out * randf_range(-1.5, 3.5) + Vector3.UP * randf_range(5.0, 9.0)))
 		if i % 3 == 1:
-			var puff := _puff(fx, randf_range(2.6, 3.6))
-			puffs.append({"node": puff, "from": foot + Vector3.UP * 0.7, "delay": randf_range(0.03, 0.12), "life": randf_range(0.8, 1.05),
-				"vel": out * randf_range(0.5, 1.6) + Vector3.UP * randf_range(0.8, 1.6)})
+			var size := randf_range(1.0, 1.4)
+			puffs.append({"node": _puff(fx, size), "from": foot + Vector3.UP * 0.5, "delay": randf_range(0.03, 0.12),
+				"life": randf_range(0.7, 0.95), "vel": out * randf_range(0.5, 1.6) + Vector3.UP * randf_range(0.8, 1.6)})
 	var crest := _crest(fx, "ring_glow", pal[1], r + 4.0)
 	crest.set_instance_shader_parameter("width", 1.6)
 	crest.set_instance_shader_parameter("lift", 0.5)
@@ -273,28 +339,25 @@ static func crystal_ring(root: Node, pos: Vector3, r: float, n: int, fury := fal
 			(c.grp as Node3D).visible = ct >= 0.0 and rise > 0.01
 			for g in c.gems:
 				(g as MeshInstance3D).set_instance_shader_parameter("glow", lerpf(1.0, 0.2, _k(ct, 0.05, 0.4)))
-			var d: MeshInstance3D = c.dirt
-			d.visible = ct >= 0.0 and ct < 0.44
-			d.set_instance_shader_parameter("cell", floorf(clampf(ct / 0.11, 0.0, 3.0)))
-		for b in bits:
-			var node: MeshInstance3D = b.node
-			node.visible = t > 0.03 and t < 0.9
-			node.position = (b.from as Vector3) + (b.vel as Vector3) * t + Vector3.DOWN * 11.0 * t * t
-			node.set_instance_shader_parameter("roll", float(b.spin) * t)
-			node.set_instance_shader_parameter("erode", _k(t, 0.6, 0.9))
+			# a terra sai um instante antes e volta logo
+			var burst := _k(ct, -0.02, 0.07) * (1.0 - _k(ct, 0.2, 0.5))
+			(c.dirt as Node3D).position.y = -float(c.h) * 0.75 * (1.0 - burst)
+			(c.dirt as Node3D).visible = burst > 0.01
+		_fly(bits, t, 11.0, 0.9)
 		for p in puffs:
-			var node: MeshInstance3D = p.node
+			var node: Node3D = p.node
 			var pt := t - float(p.delay)
 			node.visible = pt >= 0.0 and pt < float(p.life)
 			if node.visible:
 				node.position = (p.from as Vector3) + (p.vel as Vector3) * (1.0 - exp(-3.0 * pt)) / 3.0
-				node.set_instance_shader_parameter("frame", _dust_frame(pt, float(p.life)))
+				node.scale = Vector3.ONE * _puff_scale(pt, float(p.life))
 		crest.set_instance_shader_parameter("radius", r - 1.0 + 1.2 * LightningShockwaveFX._out(_k(t, 0.0, 0.3)))
 		crest.set_instance_shader_parameter("erode", lerpf(0.08, 1.0, _k(t, 0.12, 0.5)))
 		crest.visible = t < 0.5
 	fx.step.call(0.0)
 
 
+# ------------------------------------------------------------ Desmoronamento
 ## O pedregulho do Desmoronamento: cai do alto até `pos` em `fall` s, girando, e estoura no chão (`radius` = a
 ## área que dói).
 static func falling_rock(root: Node, pos: Vector3, fall: float, radius := 2.2) -> void:
@@ -305,10 +368,10 @@ static func falling_rock(root: Node, pos: Vector3, fall: float, radius := 2.2) -
 	fx.life = fall + 0.1
 	root.add_child(fx)
 	fx.global_position = pos
-	var rock := card(fx, "rock", 0, ROCK)
-	rock.scale = Vector3.ONE * BOULDER
-	var spin := randf_range(-5.0, 5.0)
-	var roll0 := randf() * TAU
+	var rock := _solid(fx, _rock, "rock", ROCK)
+	var size := Vector3(1.0, 0.85, 0.95) * BOULDER
+	var axis := Vector3(randf_range(-1.0, 1.0), randf_range(-0.3, 0.3), randf_range(-1.0, 1.0)).normalized()
+	var spin := randf_range(3.0, 6.0)
 	fx.step = func(t: float) -> void:
 		if not rock.visible:
 			return
@@ -317,8 +380,8 @@ static func falling_rock(root: Node, pos: Vector3, fall: float, radius := 2.2) -
 			rock_impact(root, pos, radius)
 			return
 		var k := t / fall
+		rock.basis = Basis(axis, spin * t) * Basis.from_scale(size)
 		rock.position = Vector3.UP * lerpf(DROP_H, BOULDER * 0.35, k * k)
-		rock.set_instance_shader_parameter("roll", roll0 + spin * t)
 	fx.step.call(0.0)
 
 
@@ -338,22 +401,21 @@ static func rock_impact(root: Node, pos: Vector3, radius: float) -> void:
 	crater.set_instance_shader_parameter("hot", _v(AMBER))
 	crater.set_instance_shader_parameter("stone_a", _v(Color(0.47, 0.41, 0.36)))
 	crater.set_instance_shader_parameter("stone_b", _v(Color(0.2, 0.16, 0.14)))
-	var crest := _crest(fx, "ring_dust", DUST_A, radius * 3.0)
+	var crest := _crest(fx, "ring_dust", DUST[1], radius * 3.0)
 	crest.set_instance_shader_parameter("lift", 0.9)
 	var puffs: Array[Dictionary] = []
-	for i in 5:
-		var a := TAU * i / 4.0 + randf_range(-0.4, 0.4)
+	for i in 6:
+		var a := TAU * i / 5.0 + randf_range(-0.4, 0.4)
 		var out := Vector3.ZERO if i == 0 else Vector3(cos(a), 0.0, sin(a))
-		var puff := _puff(fx, radius * (1.5 if i == 0 else randf_range(0.9, 1.25)))
-		puffs.append({"node": puff, "from": out * radius * 0.5 + Vector3.UP * radius * (0.5 if i == 0 else 0.3), "delay": 0.0 if i == 0 else randf_range(0.02, 0.08), "life": randf_range(0.65, 0.85),
+		puffs.append({"node": _puff(fx, radius * (0.6 if i == 0 else randf_range(0.36, 0.5))),
+			"from": out * radius * 0.5 + Vector3.UP * radius * (0.4 if i == 0 else 0.25),
+			"delay": 0.0 if i == 0 else randf_range(0.02, 0.08), "life": randf_range(0.65, 0.85),
 			"vel": out * randf_range(2.5, 4.0) + Vector3.UP * randf_range(0.8, 1.8)})
 	var bits: Array[Dictionary] = []
-	for i in 8:
-		var a := TAU * i / 8.0 + randf_range(-0.3, 0.3)
-		var chunk := card(fx, "rock", 1 + i % 3, ROCK)
-		chunk.scale = Vector3.ONE * randf_range(0.45, 0.95)
-		bits.append({"node": chunk, "spin": randf_range(-10.0, 10.0),
-			"vel": Vector3(cos(a), 0.0, sin(a)) * randf_range(3.0, 6.5) + Vector3.UP * randf_range(5.0, 9.5)})
+	for i in 9:      # o pedregulho se parte: lascas para todos os lados
+		var a := TAU * i / 9.0 + randf_range(-0.3, 0.3)
+		bits.append(_bit(_chunk(fx, randf_range(0.35, 0.8)), Vector3.UP * 0.5,
+			Vector3(cos(a), 0.0, sin(a)) * randf_range(3.0, 6.5) + Vector3.UP * randf_range(5.0, 9.5)))
 	IceFX._flash(fx, Vector3.UP * 0.6, AMBER, radius * 2.0, 0.08, 0.14)
 	var light := OmniLight3D.new()
 	light.light_color = AMBER
@@ -370,50 +432,77 @@ static func rock_impact(root: Node, pos: Vector3, radius: float) -> void:
 		crest.set_instance_shader_parameter("erode", lerpf(0.05, 1.0, _k(t, 0.14, 0.45)))
 		crest.visible = t < 0.46
 		for p in puffs:
-			var node: MeshInstance3D = p.node
+			var node: Node3D = p.node
 			var pt := t - float(p.delay)
 			node.visible = pt >= 0.0 and pt < float(p.life)
 			if node.visible:
 				node.position = (p.from as Vector3) + (p.vel as Vector3) * (1.0 - exp(-4.0 * pt)) / 4.0
-				node.set_instance_shader_parameter("frame", _dust_frame(pt, float(p.life)))
-		for b in bits:
-			var node: MeshInstance3D = b.node
-			node.visible = t < 1.0
-			node.position = Vector3.UP * 0.4 + (b.vel as Vector3) * t + Vector3.DOWN * 12.0 * t * t
-			node.set_instance_shader_parameter("roll", float(b.spin) * t)
-			node.set_instance_shader_parameter("erode", _k(t, 0.65, 1.0))
+				node.scale = Vector3.ONE * _puff_scale(pt, float(p.life))
+		_fly(bits, t, 12.0, 1.0)
 		light.light_energy = 3.5 * (1.0 - _k(t, 0.0, 0.5))
 	fx.step.call(0.0)
 
 
-## A bolha de ácido voando, com `size` m: filha de `parent`, vira a cauda para trás de onde anda sozinha.
-static func glob(parent: Node, size: float) -> Glob:
+# ------------------------------------------------------------ ácido
+## A bolha de ácido voando, com a cabeça de `radius` m: filha de `parent`, aponta sozinha para onde anda.
+static func glob(parent: Node, radius: float) -> Glob:
+	_shared()
 	var g := Glob.new()
 	parent.add_child(g)
-	var n := card(g, "splash", 0, ACID)
-	n.scale = Vector3.ONE * size
-	n.set_instance_shader_parameter("flip", 0.0)
-	n.set_instance_shader_parameter("glow", 0.5)
-	g.card = n
+	var head := _solid(g, _drop, "acid", ACID)
+	head.scale = Vector3.ONE * radius
+	head.set_instance_shader_parameter("spec", 1.0)
+	head.set_instance_shader_parameter("glow", 0.25)
+	for i in 3:      # gotinhas soltas atrás da cauda
+		var d := _solid(g, _ball, "acid", ACID)
+		d.scale = Vector3.ONE * radius * (0.3 - 0.07 * i)
+		d.position = Vector3(randf_range(-0.3, 0.3), -(2.9 + 0.75 * i), randf_range(-0.3, 0.3)) * radius
+		d.set_instance_shader_parameter("spec", 1.0)
 	return g
 
 
-## A coroa do respingo de ácido em `pos` (o chão), com `width` m.
+## A coroa do respingo de ácido em `pos` (o chão), com `width` m de largura.
 static func acid_splash(root: Node, pos: Vector3, width: float) -> void:
 	if root == null or not root.is_inside_tree():
 		return
+	_shared()
 	var fx := IceFX.Timed.new()
-	fx.life = 0.42
+	fx.life = 0.5
 	root.add_child(fx)
 	fx.global_position = pos
-	var n := card(fx, "splash", 1, ACID, true)
-	n.set_instance_shader_parameter("glow", 0.5)
+	var tongues: Array[Dictionary] = []
+	var count := 9
+	for i in count:      # línguas em coroa: a gota de cabeça para cima, tombada para fora
+		var a := TAU * i / count + randf_range(-0.2, 0.2)
+		var n := _solid(fx, _drop, "acid", ACID)
+		n.set_instance_shader_parameter("spec", 1.0)
+		n.set_instance_shader_parameter("glow", 0.25)
+		tongues.append({"node": n, "out": Vector3(cos(a), 0.0, sin(a)), "lean": randf_range(0.35, 0.75),
+			"r": width * randf_range(0.055, 0.085), "h": width * randf_range(0.3, 0.52), "delay": randf_range(0.0, 0.04)})
+	var drops: Array[Dictionary] = []
+	for i in 10:
+		var a := TAU * i / 10.0 + randf_range(-0.3, 0.3)
+		var d := _solid(fx, _ball, "acid", ACID)
+		d.scale = Vector3.ONE * width * randf_range(0.03, 0.06)
+		d.set_instance_shader_parameter("spec", 1.0)
+		drops.append(_bit(d, Vector3.UP * 0.2, Vector3(cos(a), 0.0, sin(a)) * width * randf_range(0.8, 1.7)
+			+ Vector3.UP * width * randf_range(1.6, 2.6)))
 	IceFX._flash(fx, Vector3.UP * width * 0.25, ACID[1], width * 0.9, 0.07, 0.1)
 	fx.step = func(t: float) -> void:
-		var k := _k(t, 0.0, 0.42)
-		n.set_instance_shader_parameter("cell", 1.0 + floorf(minf(2.0, k * 3.0)))
-		var s := width * lerpf(0.7, 1.15, LightningShockwaveFX._out(k))
-		n.scale = Vector3(s, s, 1.0)
+		for g in tongues:
+			var n: MeshInstance3D = g.node
+			var tt := t - float(g.delay)
+			# sobe depressa e desce afinando
+			var up := LightningShockwaveFX._out(_k(tt, 0.0, 0.14)) * (1.0 - pow(_k(tt, 0.2, 0.46), 2.0))
+			n.visible = tt >= 0.0 and up > 0.01
+			var out: Vector3 = g.out
+			var axis := (Vector3.UP + out * float(g.lean)).normalized()
+			var h := float(g.h) * up
+			var rr := float(g.r) * (0.5 + 0.5 * up)
+			# a cauda da gota (2,6 raios abaixo da cabeça) fica cravada no chão: a cabeça sobe a `h`
+			n.basis = RuneBladesFX.basis_along(axis) * Basis.from_scale(Vector3(rr, maxf(h / 2.6, 0.001), rr))
+			n.position = out * width * lerpf(0.18, 0.34, _k(tt, 0.0, 0.3)) + axis * h
+		_fly(drops, t, width * 6.5, 0.5)
 	fx.step.call(0.0)
 
 
@@ -432,22 +521,18 @@ static func acid_pool(parent: Node, radius: float) -> MeshInstance3D:
 	return n
 
 
-## A bolha de ácido: a pintura tem a cabeça à direita e a cauda à esquerda, então gira no plano da tela para a
-## cabeça apontar para onde o nó anda.
+## A bolha de ácido: a gota tem a cabeça no +Y e a cauda no -Y, então o nó vira o +Y para onde anda.
 class Glob:
 	extends Node3D
 
-	var card: MeshInstance3D
 	var _prev := Vector3.ZERO
 	var _has_prev := false
 
 	func _process(_delta: float) -> void:
-		var cam := get_viewport().get_camera_3d()
 		var at := global_position
-		if _has_prev and cam != null and card != null:
+		if _has_prev:
 			var d := at - _prev
 			if d.length() > 0.001:
-				var b := cam.global_basis
-				card.set_instance_shader_parameter("roll", atan2(d.dot(b.y), d.dot(b.x)))
+				global_basis = RuneBladesFX.basis_along(d)
 		_prev = at
 		_has_prev = true

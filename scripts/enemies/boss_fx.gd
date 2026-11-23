@@ -52,7 +52,7 @@ static func ring_warning(pos: Vector3, r: float, w: float, dur: float) -> void:
 	tw.tween_callback(mi.queue_free)
 
 
-## Cristais irrompendo em anel de raio `r` em volta de `pos`: `n` cachos pintados (WormFX) que sobem de dentro do
+## Cristais irrompendo em anel de raio `r` em volta de `pos`: `n` cachos de cristais 3D (WormFX) que sobem de dentro do
 ## chão num jorro de terra, ficam e afundam. `fury`: cristais vermelhos.
 static func crystal_ring(pos: Vector3, r: float, n: int, fury := false) -> void:
 	WormFX.crystal_ring(_root(), pos, r, n, fury)
@@ -68,7 +68,7 @@ static func lob(from: Vector3, to: Vector3, dur: float, height := 4.0) -> void:
 	var root := _root()
 	if root == null:
 		return
-	var g := WormFX.glob(root, 1.3)
+	var g := WormFX.glob(root, 0.42)
 	g.global_position = from
 	var tw := g.create_tween()
 	tw.tween_method(func(t: float) -> void: g.global_position = ThrowRules.arc(from, to, t, height), 0.0, 1.0,

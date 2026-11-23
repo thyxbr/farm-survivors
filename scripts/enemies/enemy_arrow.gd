@@ -42,7 +42,7 @@ func _ready() -> void:
 	if blade:
 		_build_blade()
 		return
-	if magic and acid:   # o cuspe da Mãe-Verme: a bolha pintada, com a própria cauda
+	if magic and acid:   # o cuspe da Mãe-Verme: a bolha 3D, com a própria cauda
 		_build_orb()
 		return
 	if magic:
@@ -132,7 +132,7 @@ func _build_orb() -> void:
 		return
 	if acid:
 		if FX._scene() != null:
-			WormFX.glob(self, 2.0)
+			WormFX.glob(self, 0.3)
 			var glow := OmniLight3D.new()
 			glow.light_color = Color(0.5, 1.0, 0.25)
 			glow.light_energy = 1.2
