@@ -1380,6 +1380,16 @@ func _slam_radius() -> float:
 	return 5.0 if is_boss else 3.6
 
 
+## O visual da pancada em área. `slam_fx: "lightning"` (Golem de Cristal): um raio cai no próprio monstro e a onda
+## de choque elétrica abre até o raio do golpe (LightningShockwaveFX); os outros levantam a poeira de sempre.
+func _slam_visual(sr: float) -> void:
+	if str(data.get("slam_fx", "")) == "lightning":
+		Sfx.play_at("zap", global_position, 0.1, 3.0)
+		LightningShockwaveFX.cast(get_parent(), FXToon.ground_frame(global_position, sr * 0.7), sr, self)
+	else:
+		FXToon.slam(global_position, sr)
+
+
 func _attack_duration() -> float:
 	match attack_kind:
 		"slam":
@@ -1547,7 +1557,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
-			FXToon.slam(global_position, sr)
+			_slam_visual(sr)
 			if data.has("chill"):   # Ieti: o soco no chão levanta gelo em volta
 				FXToon.frost_nova(global_position, sr * 0.8)
 			if player and dist <= sr:
@@ -2586,7 +2596,7 @@ func _puppet_process(delta: float) -> void:
 			hit_done = true
 			if attack_kind == "slam":
 				Sfx.play_at("slam", global_position, 0.0)
-				FXToon.slam(global_position, _slam_radius())
+				_slam_visual(_slam_radius())
 				if data.has("chill"):
 					FXToon.frost_nova(global_position, _slam_radius() * 0.8)
 			elif attack_kind == "shoot":

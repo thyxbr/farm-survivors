@@ -139,6 +139,9 @@ func _ready() -> void:
 	if "--rallydemo" in OS.get_cmdline_user_args():
 		# demonstração do Grito do Bastião (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/party_shield_demo.gd").new())
+	if "--golemdemo" in OS.get_cmdline_user_args():
+		# demonstração do Raio e Onda de Choque do Golem de Cristal (tools/lightning_golem_demo.gd)
+		get_tree().root.add_child.call_deferred(load("res://tools/lightning_golem_demo.gd").new())
 	if "--earthquakedemo" in OS.get_cmdline_user_args():
 		# demonstração do Terremoto Devastador (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/earthquake_demo.gd").new())
