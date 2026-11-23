@@ -4012,6 +4012,29 @@ func _test_status_effects(spot: Vector3) -> void:
 	for i in 3:
 		a.apply_status("gelo", 0.0, 2.0)
 	check(not a.status.has("congelado") and a.stagger <= 0.0, "em recarga não congela de novo")
+	# reaplicar só renova: os pulsos seguem no ritmo (arma rápida não pode adiar a queimadura para sempre)
+	var hpr: float = a.hp
+	a.apply_status("fogo", 30.0, 3.0)
+	for i in 3:
+		a.status.tick(0.6)
+		a.apply_status("fogo", 30.0, 3.0)
+	check(a.hp < hpr, "reaplicar fogo a cada 0,6 s não adia os pulsos (%.1f -> %.1f)" % [hpr, a.hp])
+	a.status.tick(10.0)
+	# pulso de status não faz o monstro recuar nem cancela o ataque dele
+	a.stagger = 0.0
+	a.apply_status("veneno", 20.0, 5.0)
+	a.status.tick(1.01)
+	check(a.stagger <= 0.0, "pulso de veneno não faz recuar (%.2f)" % a.stagger)
+	a.status.tick(10.0)
+	# morrer num pulso com dois efeitos ativos não quebra o laço
+	var weak := _fx_dummy(spot + Vector3(4, 0, 4))
+	await wait(0.1)
+	weak.apply_status("fogo", 500.0, 3.0)
+	weak.apply_status("veneno", 500.0, 5.0)
+	weak.hp = 1.0
+	weak.status.tick(1.01)
+	check(weak.dead and weak.status.mask() == 0 and weak.status.active_count() == 0, "morte no pulso com dois efeitos limpa tudo")
+	weak.queue_free()
 	# a aura acompanha o bitmask (a réplica recebe o mesmo pelo snapshot)
 	a.apply_status("veneno", 50.0, 5.0)
 	check(a.status_aura != null and a.status_aura.shown() == "veneno", "aura de veneno no corpo do monstro")

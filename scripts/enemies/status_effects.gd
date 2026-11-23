@@ -30,6 +30,11 @@ func mask() -> int:
 	return _mask
 
 
+## Quantos efeitos o dono está rodando (0 depois de uma morte).
+func active_count() -> int:
+	return _fx.size()
+
+
 ## Réplica: bitmask vindo do snapshot.
 func set_mask(m: int) -> void:
 	if m != _mask:
@@ -59,10 +64,15 @@ func apply(el: String, power: float, secs: float, applier: int) -> void:
 		var n := maxi(1, StatusRules.ticks(bt, el))
 		if power <= 0.0:
 			return
-		var cur: Dictionary = StatusRules.renew(_fx.get(el, {}), power, secs)
+		var old: Dictionary = _fx.get(el, {})
+		var cur: Dictionary = StatusRules.renew(old, power, secs)
+		if old.is_empty():
+			cur["every"] = cur.timer / n
+			cur["next"] = cur.every
+		else:   # reaplicar só renova: o próximo pulso fica onde estava (golpe rápido não adia o dano)
+			cur["every"] = old.every
+			cur["next"] = old.next
 		cur["left"] = n
-		cur["every"] = cur.timer / n
-		cur["next"] = cur.every
 		cur["applier"] = applier
 		_fx[el] = cur
 	_refresh_mask()
@@ -75,6 +85,8 @@ func tick(delta: float) -> void:
 	_freeze_t = maxf(0.0, _freeze_t - delta)
 	_freeze_cd = maxf(0.0, _freeze_cd - delta)
 	for el in _fx.keys():
+		if not _fx.has(el):   # o monstro morreu num pulso de outro efeito e o estado foi limpo
+			continue
 		var f: Dictionary = _fx[el]
 		if el == "gelo":
 			f.timer -= delta
@@ -87,8 +99,9 @@ func tick(delta: float) -> void:
 			f.left -= 1
 			f.next += f.every
 			_pulse(el, f.power / float(StatusRules.ticks(Balance.tables, el)), int(f.applier))
-			if enemy == null or enemy.dead or not is_instance_valid(enemy):
+			if enemy == null or not is_instance_valid(enemy) or enemy.dead:
 				_fx.clear()
+				_freeze_t = 0.0
 				break
 		if _fx.has(el) and f.left <= 0:
 			_fx.erase(el)
@@ -104,7 +117,10 @@ func _pulse(el: String, amount: float, applier: int) -> void:
 		enemy.last_hitter = applier if Network.players.has(applier) else 0
 	if server:
 		Network.server_show_hit(enemy, amount, el)   # o número do pulso nas réplicas (antes: o vivo ainda tem vida)
+	enemy.no_flinch = true   # pulso não faz recuar nem cancela o ataque
 	enemy.take_damage(amount, enemy.global_position, false, 0.0, 0.0, 0.0, el)
+	if is_instance_valid(enemy):
+		enemy.no_flinch = false
 	if server and is_instance_valid(enemy):
 		enemy.last_hitter = prev
 

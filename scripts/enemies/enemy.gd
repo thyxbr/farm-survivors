@@ -94,6 +94,8 @@ var slow_timer := 0.0
 var status: StatusEffects
 ## Efeito do status no corpo (contorno + partículas). Só onde há tela: o servidor não monta.
 var status_aura: StatusAura = null
+## Dano sem impacto (pulso de status): não faz recuar nem cancela o ataque (take_damage).
+var no_flinch := false
 var stagger := 0.0
 ## Segundos em que o inimigo segue perseguindo depois de levar dano, mesmo com o jogador longe.
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
@@ -2126,7 +2128,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 			kb = kb.normalized() * ((-pull) if pull != 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
-		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
+		if not no_flinch and ((state != "attack" and not heavy) or (crit and attack_kind != "fuse")):
 			stagger = 0.3
 			if state == "attack":
 				_set_state("chase")
