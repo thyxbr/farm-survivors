@@ -325,7 +325,7 @@ func _shield(c: Color) -> MeshInstance3D:
 
 ## Línguas de fogo: quadrados com textura de chama, nascem num anel junto aos pés, crescem,
 ## sobem e afinam. `hot` = cor ao nascer, `cool` = cor ao morrer.
-func _flames(hot: Color, cool: Color, amount: int, radius: float, size: float) -> CPUParticles3D:
+static func _flames(hot: Color, cool: Color, amount: int, radius: float, size: float) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
 	var quad := QuadMesh.new()
 	quad.size = Vector2(size * 0.6, size)
@@ -367,7 +367,7 @@ func _flames(hot: Color, cool: Color, amount: int, radius: float, size: float) -
 
 
 ## Partículas pequenas (pontos, cruzes, estrelas) subindo de um anel ou flutuando numa esfera.
-func _emitter(o: Dictionary) -> CPUParticles3D:
+static func _emitter(o: Dictionary) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE * float(o.get("size", 0.05))
@@ -419,7 +419,7 @@ func _emitter(o: Dictionary) -> CPUParticles3D:
 	return p
 
 
-func _particle_mat(tex: String) -> StandardMaterial3D:
+static func _particle_mat(tex: String) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.vertex_color_use_as_albedo = true

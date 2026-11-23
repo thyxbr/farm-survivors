@@ -4,16 +4,26 @@ extends Node3D
 ##   godot --path . --resolution 1280x720 res://tools/element_shot.tscn -- --out=elementos.png
 ## Padrão: Slime Veloz com fogo (Fraco!), Slime Explosivo com fogo (Imune) e Esqueleto Cavaleiro com golpe
 ## físico (Resistiu). `--hits=tipo:elemento,...` troca a fileira.
+## `--status=tipo:efeito,...` (fogo, gelo, veneno, congelado): em vez do golpe, mostra a aura do status
+## elemental (StatusAura) em cada monstro, como a réplica desenha.
+##   godot --path . --resolution 1280x720 res://tools/element_shot.tscn -- --status=slime:fogo,goblin:gelo --out=s.png
 
 var out := "element_shot.png"
 var hits := [["slime_veloz", "fogo"], ["slime_explosivo", "fogo"], ["esqueleto_cavaleiro", "fisico"]]
 var enemies: Array = []
+var status_mode := false
 
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			out = a.substr(6)
+		elif a.begins_with("--status="):
+			status_mode = true
+			hits = []
+			for h in a.substr(9).split(","):
+				var p := h.split(":")
+				hits.append([p[0], p[1] if p.size() > 1 else "fogo"])
 		elif a.begins_with("--hits="):
 			hits = []
 			for h in a.substr(7).split(","):
@@ -47,6 +57,16 @@ func _ready() -> void:
 
 func _run() -> void:
 	await get_tree().create_timer(0.6).timeout
+	if status_mode:
+		for i in enemies.size():
+			var e: Enemy = enemies[i]
+			e.status.set_mask(int(StatusRules.BITS.get(hits[i][1], 0)))
+			e._update_flash(0.0)
+		await get_tree().create_timer(1.2).timeout   # as partículas enchem
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(out)
+		get_tree().quit()
+		return
 	for i in enemies.size():
 		var e: Enemy = enemies[i]
 		e.take_damage(16.0, e.global_position + Vector3(0, 0, 3), false, 0.0, 0.0, 0.0, hits[i][1])

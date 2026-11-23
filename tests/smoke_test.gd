@@ -4012,6 +4012,12 @@ func _test_status_effects(spot: Vector3) -> void:
 	for i in 3:
 		a.apply_status("gelo", 0.0, 2.0)
 	check(not a.status.has("congelado") and a.stagger <= 0.0, "em recarga não congela de novo")
+	# a aura acompanha o bitmask (a réplica recebe o mesmo pelo snapshot)
+	a.apply_status("veneno", 50.0, 5.0)
+	check(a.status_aura != null and a.status_aura.shown() == "veneno", "aura de veneno no corpo do monstro")
+	a.status.tick(6.0)
+	check(a.status_aura.shown() == "", "aura some quando o veneno acaba")
+	await _test_status_aura_cap()
 	var boss := _fx_dummy(spot + Vector3(-4, 0, 4))
 	await wait(0.1)
 	boss.is_boss = true
@@ -4021,6 +4027,34 @@ func _test_status_effects(spot: Vector3) -> void:
 	a.queue_free()
 	boss.queue_free()
 	await wait(0.1)
+
+
+## Horda em chamas: só StatusAura.MAX_PARTICLE_AURAS auras ganham partícula; as outras ficam só no contorno e
+## tentam de novo no próximo set_mask delas.
+func _test_status_aura_cap() -> void:
+	var base := StatusAura.particle_slots_used()
+	var auras: Array = []
+	for i in 15:
+		var au := StatusAura.new()
+		world.add_child(au)
+		auras.append(au)
+	var free_slots := StatusAura.MAX_PARTICLE_AURAS - base
+	for au in auras:
+		au.set_mask(StatusRules.BITS.fogo)
+	check(StatusAura.particle_slots_used() == StatusAura.MAX_PARTICLE_AURAS, "teto de auras com partícula (%d)" % StatusAura.particle_slots_used())
+	var with_p := auras.filter(func(x) -> bool: return x.has_particles())
+	var without := auras.filter(func(x) -> bool: return not x.has_particles())
+	check(with_p.size() == free_slots and without.size() == 15 - free_slots, "as que passaram do teto ficam só no contorno")
+	for k in 3:
+		with_p[k].set_mask(0)
+	check(StatusAura.particle_slots_used() == StatusAura.MAX_PARTICLE_AURAS - 3, "máscara 0 libera a vaga")
+	for au in without:
+		au.set_mask(StatusRules.BITS.fogo)
+	check(StatusAura.particle_slots_used() == StatusAura.MAX_PARTICLE_AURAS, "aura sem vaga pega a vaga livre no próximo set_mask")
+	for au in auras:
+		au.queue_free()
+	await wait(0.1)
+	check(StatusAura.particle_slots_used() == base, "aura que sai da árvore devolve a vaga")
 
 
 ## Troca o elemento da arma equipada pelo serviço (mantém o nível) e confere que trocou.

@@ -92,6 +92,8 @@ var slow_timer := 0.0
 ## Status elementais (queimadura, veneno, lentidão de gelo, congelamento): StatusEffects, filho do inimigo.
 ## O dono roda os pulsos; a réplica só recebe o bitmask pelo snapshot.
 var status: StatusEffects
+## Efeito do status no corpo (contorno + partículas). Só onde há tela: o servidor não monta.
+var status_aura: StatusAura = null
 var stagger := 0.0
 ## Segundos em que o inimigo segue perseguindo depois de levar dano, mesmo com o jogador longe.
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
@@ -368,6 +370,12 @@ func _ready() -> void:
 		glow.omni_range = 2.5
 		glow.position.y = 0.6
 		add_child(glow)
+
+	if not Network.is_server():
+		status_aura = StatusAura.new()
+		status_aura.height = float(data.height)
+		model.add_child(status_aura)
+		status.mask_changed.connect(status_aura.set_mask)
 
 	if _overlay_hit == null:
 		_overlay_hit = _flat_mat(Color(1, 1, 1, 0.7))
@@ -2323,6 +2331,8 @@ func _update_flash(delta: float) -> void:
 	var over: Material = _overlay_base
 	if _flash_t > 0:
 		over = _overlay_hit
+	elif status_aura != null and status_aura.rim != null:
+		over = status_aura.rim   # status elemental: contorno na cor do efeito (o de gelo cobre a lentidão)
 	elif slow_timer > 0:
 		over = _overlay_slow
 	_set_overlay(over)
@@ -2358,6 +2368,7 @@ func xp_reward() -> int:
 func die_visual() -> void:
 	dead = true
 	state = "dead"
+	status.set_mask(0)   # morto não queima: a aura some junto
 	remove_from_group("enemies")
 	collision_layer = 0
 	collision_mask = 1
