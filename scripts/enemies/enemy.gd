@@ -3776,7 +3776,7 @@ func _claw_warn(elapsed: float) -> void:
 func _thorn_claw(visual: bool) -> void:
 	var c := _claw_center()
 	Sfx.play_at("slam", c, 0.1, -2.0)
-	FXToon.slam(c, 2.8)
+	ThornFX.claw(BossFX._root(), c, 2.8, model_forward())
 	if visual:
 		return
 	for p in _boss_pool():
@@ -3807,8 +3807,7 @@ func _roots_tick(visual: bool, t0: float, t1: float) -> void:
 			continue
 		for d in _root_dirs:
 			var at := ThornRules.root_point(_root_origin, d, i)
-			FXToon.thorns(at, Basis.IDENTITY, 0.0, ThornRules.ROOT_HALF * 0.8, 4, 1.5 + 0.06 * i, 0.35)
-			FX.burst(at + Vector3.UP * 0.2, Color(0.32, 0.22, 0.14), 6, 3.0, 0.12, 0.5)
+			ThornFX.root_burst(BossFX._root(), at, d, ThornRules.ROOT_HALF, 1.5 + 0.06 * i)
 		if i % 3 == 0:
 			Sfx.play_at("slam", ThornRules.root_point(_root_origin, _root_dirs[0], i), 0.2, -8.0)
 		if visual:
@@ -3825,11 +3824,13 @@ func _roots_tick(visual: bool, t0: float, t1: float) -> void:
 					break
 
 
-## Aviso dos Brotos: um círculo de runas em cada ponto onde um vai nascer.
+## Aviso dos Brotos: um círculo de runas em cada ponto onde um vai nascer e, ali, o monte de terra que treme e
+## estoura com as gavinhas na hora em que o broto nasce (ThornFX).
 func _sprouts_warn(center: Vector3, elapsed: float) -> void:
 	var left := maxf(0.2, 1.2 - elapsed)
 	for pt in ThornRules.sprout_points(center, model_forward()):
 		FXToon.rune_circle(pt, 1.3, 0.3, left)
+		ThornFX.sprout_rise(BossFX._root(), pt, 1.2 - elapsed)
 	Sfx.play_at("slam", center, 0.4, -4.0)
 
 
@@ -3846,7 +3847,6 @@ func _thorn_sprouts() -> void:
 		e.arena = arena
 		e.position = pt + Vector3.UP * 0.3
 		parent.add_child(e)
-		FX.burst(e.position + Vector3.UP * 0.5, Color(0.35, 0.6, 0.2), 18, 4.0)
 
 
 ## Brotos vivos perto de `center` (os que ligam a ela e a curam).
@@ -3874,16 +3874,17 @@ func _spores_warn(elapsed: float) -> void:
 	var left := maxf(0.2, _hit_time() - elapsed)
 	for pt in _spore_pts:
 		FX.telegraph(pt, ThornRules.SPORE_R0, left)
+		ThornFX.spore_pod(BossFX._root(), pt, _hit_time() - elapsed)
 	var lp := _local_player()
 	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 30.0:
 		lp.add_shake(0.4)
 	Sfx.play_at("slime", global_position, 0.0, 0.0)
 
 
-## As nuvens nascem: um estouro de fumaça em cada ponto e a nuvem que fica crescendo (só o servidor/solo dá dano).
+## As nuvens nascem (o cogumelo de cada ponto estoura agora, ThornFX.spore_pod) e ficam crescendo (só o
+## servidor/solo dá dano).
 func _spore_hit(visual: bool) -> void:
 	for pt in _spore_pts:
-		FXToon.puff(pt + Vector3.UP * 0.5, 2.2, FXToon.BLIGHT, {"grow": 0.2, "hold": 0.3, "fade": 0.6})
 		var cloud := SporeCloud.new()
 		cloud.dmg = data.damage * dmg_mult * 0.22
 		cloud.level = level
@@ -3892,8 +3893,8 @@ func _spore_hit(visual: bool) -> void:
 		cloud.global_position = pt
 
 
-## A cada THORN_TICK s: a Espinheira recebe a cura dos brotos vivos (servidor/solo) e, em toda tela, um galho
-## carmim pulsa de cada broto até ela. O broto sem árvore em luta por perto murcha (some sem recompensa).
+## A cada THORN_TICK s: a Espinheira recebe a cura dos brotos vivos (servidor/solo) e, em toda tela, uma gota de
+## seiva voa em arco de cada broto até ela. O broto sem árvore em luta por perto murcha (some sem recompensa).
 func _thorn_process(delta: float) -> void:
 	_thorn_t -= delta
 	if _thorn_t > 0.0:
@@ -3913,8 +3914,7 @@ func _thorn_process(delta: float) -> void:
 		return
 	var heart := global_position + Vector3.UP * 2.2
 	for sp in sprouts:
-		FXToon.streak(sp.global_position + Vector3.UP * 0.8, heart, 0.07, FXToon.BLIGHT,
-			{"billboard": true, "shadow": false, "sweep": 0.12, "hold": 0.2, "fade": 0.25, "peak": 0.6})
+		ThornFX.sap(BossFX._root(), sp.global_position + Vector3.UP * 0.8, heart)
 	if puppet or hp >= max_hp or state == "idle":
 		return
 	hp = minf(max_hp, hp + ThornRules.sprout_heal(max_hp, sprouts.size(), THORN_TICK))

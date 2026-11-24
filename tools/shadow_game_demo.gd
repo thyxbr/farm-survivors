@@ -5,6 +5,8 @@ extends Node
 ##   --shadowdemo=bomba    Slime Explosivo: a explosão nova (ExplosionFX, por FXToon.blast)
 ##   --shadowdemo=sentinela Sentinela da Nevasca: Estacas, Sopro e o urro com o gelo pintado (IceFX)
 ##   --shadowdemo=verme    Mãe-Verme: cuspe de ácido, Onda de Cristais, Poças de Ácido e Desmoronamento (WormFX)
+##   --shadowdemo=espinheira Espinheira: Raízes, Brotos com a seiva, Garra e, na fúria, Esporos e Raízes em leque
+##                         (ThornFX); grava pasta/roots, sprouts, claw, spores e roots_fury
 ##   --shadowdemo=arauto   Arauto do Abismo: Rajada de Sombras = Lâminas Rúnicas (RuneBladesFX) e Zonas de Vazio =
 ##                         Buraco Negro (BlackHoleFX); de longe ele dá três rajadas e depois abre as zonas
 ##   godot --path . res://scenes/world.tscn -- --level=60 --weapon=iron_sword --nointro --hora=12 --weather=sol --shadowdemo=arauto
@@ -60,10 +62,10 @@ func _spawn() -> void:
 		_mob.queue_free()
 	_mob = Enemy.new()
 	_mob.kind = {"arauto": "arauto_abismo", "bomba": "slime_explosivo", "sentinela": "sentinela_nevasca",
-		"verme": "mae_verme"}.get(_which, "esqueleto_mago")
+		"verme": "mae_verme", "espinheira": "espinheira"}.get(_which, "esqueleto_mago")
 	get_tree().current_scene.add_child(_mob)
 	var f: Vector3 = _player.facing()
-	_mob.global_position = _player.global_position + f * (11.0 if _which in ["arauto", "sentinela"] else 13.0 if _which == "verme" else 8.0)
+	_mob.global_position = _player.global_position + f * (11.0 if _which in ["arauto", "sentinela"] else 13.0 if _which in ["verme", "espinheira"] else 8.0)
 	_mob.home = _mob.global_position
 
 
@@ -127,6 +129,26 @@ func _shot(dir: String) -> void:
 				await _frames(dir + "/" + step[0], step[1], step[2])
 		if not todo.is_empty():
 			print("SHADOWSHOT faltou ", todo.keys())
+	elif _which == "espinheira":
+		# Raízes de longe; depois os Brotos (o 4º golpe do ciclo), a Garra quando ela chega perto e, já na fúria,
+		# os Esporos e as Raízes em leque (o contador de golpes é adiantado para não esperar os ciclos)
+		if not await _wait_attack("roots", 40.0):
+			get_tree().quit(1)
+			return
+		await _frames(dir + "/roots", 100, 1)
+		_mob._thorn_n = 3
+		if await _wait_attack("sprouts", 40.0):
+			await _frames(dir + "/sprouts", 100, 1)
+		if await _wait_attack("swing", 40.0):
+			await _frames(dir + "/claw", 60, 1)
+		_mob.enraged = true
+		_mob._thorn_n = 7
+		if await _wait_attack("spores", 40.0):
+			await _frames(dir + "/spores", 90, 2)
+		_player.global_position = _mob.global_position - (_mob.model_forward() as Vector3) * -14.0 + Vector3.UP * 1.0
+		_player.velocity = Vector3.ZERO
+		if await _wait_attack("roots", 40.0):
+			await _frames(dir + "/roots_fury", 100, 1)
 	elif _which == "bomba":
 		if not await _wait_attack("fuse", 40.0):
 			get_tree().quit(1)
