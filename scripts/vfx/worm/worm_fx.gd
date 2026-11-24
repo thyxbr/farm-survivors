@@ -4,7 +4,7 @@ extends RefCounted
 ## faixas duras e traço por casco invertido): de lado, pintura chapada num quad denunciava o truque. Só o que é
 ## chão continua pintura deitada (claro em fundo preto, tingida no shader).
 ##   geode_ring    um anel da Onda de Cristais: geodos (pedras com pontas de cristal) que brotam do chão, acendem
-##                 por dentro e estouram em estilhaços de cristal, com cascas, poeira e a crista de choque
+##                 por dentro e estouram em estilhaços de cristal, com as cascas partidas e a crista de choque
 ##   falling_rock  o pedregulho do Desmoronamento caindo e o impacto: chão quebrado com as rachaduras acesas
 ##                 (chao_rachado.png), anel de choque, poeira e lascas
 ##   glob          a bolha de ácido voando, gota com a cauda para trás e gotinhas atrás: o cuspe e as Poças
@@ -127,8 +127,8 @@ static func _rock_mesh() -> ArrayMesh:
 	var sm := SphereMesh.new()
 	sm.radius = 0.5
 	sm.height = 1.0
-	sm.radial_segments = 7
-	sm.rings = 4
+	sm.radial_segments = 6
+	sm.rings = 3
 	var arr := sm.get_mesh_arrays()
 	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
@@ -138,7 +138,7 @@ static func _rock_mesh() -> ArrayMesh:
 		var key := Vector3i(roundi(v[i].x * 100.0), roundi(v[i].y * 100.0), roundi(v[i].z * 100.0))
 		if not moved.has(key):
 			rng.seed = hash(key)
-			moved[key] = v[i] * rng.randf_range(0.72, 1.12)
+			moved[key] = v[i] * rng.randf_range(0.62, 1.18)
 		v[i] = moved[key]
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -270,7 +270,7 @@ static func _bit(node: Node3D, from: Vector3, vel: Vector3) -> Dictionary:
 # ------------------------------------------------------------ Onda de Cristais
 ## Um anel da Onda de Cristais em volta de `pos` (raio do meio `r`), que estoura daqui a `delay` s: `n` geodos
 ## (pedras redondas com pontas de cristal) brotam do chão um pouco antes, tremem, acendem por dentro e explodem em
-## estilhaços de cristal voando para cima e para fora, com as cascas, poeira e a crista de choque correndo o anel.
+## estilhaços de cristal voando para cima e para fora, com as cascas partidas e a crista de choque correndo o anel.
 ## Não fica cristal em pé. `fury`: cristais vermelhos.
 static func geode_ring(root: Node, pos: Vector3, r: float, n: int, delay: float, fury := false) -> void:
 	if root == null or not root.is_inside_tree():
@@ -284,7 +284,6 @@ static func geode_ring(root: Node, pos: Vector3, r: float, n: int, delay: float,
 	fx.global_position = pos
 	var geodes: Array[Dictionary] = []
 	var shards: Array[Dictionary] = []
-	var puffs: Array[Dictionary] = []
 	var flashes: Array[Vector3] = []
 	var burst := [false]
 	for i in n:
@@ -311,16 +310,13 @@ static func geode_ring(root: Node, pos: Vector3, r: float, n: int, delay: float,
 			gem.set_instance_shader_parameter("glow", 0.5)
 			shards.append(_bit(gem, top, Vector3(cos(b), 0.0, sin(b)) * randf_range(1.5, 4.5) + out * randf_range(0.0, 2.5)
 				+ Vector3.UP * randf_range(6.0, 11.0)))
-		for k in 3:      # a casca partida
-			var b := TAU * k / 3.0 + randf_range(-0.5, 0.5)
+		for k in 5:      # a casca partida
+			var b := TAU * k / 5.0 + randf_range(-0.5, 0.5)
 			var bit := _solid(fx, _rock, "rock", GEODE)
 			bit.scale = Vector3.ONE * size * randf_range(0.28, 0.42)
 			shards.append(_bit(bit, top, Vector3(cos(b), 0.0, sin(b)) * randf_range(2.5, 5.0) + Vector3.UP * randf_range(3.5, 6.5)))
 		if i % 3 == 0:
 			flashes.append(top)
-		if i % 2 == 0:
-			puffs.append({"node": _puff(fx, randf_range(1.0, 1.3)), "from": foot + Vector3.UP * 0.5,
-				"life": randf_range(0.6, 0.85), "vel": out * randf_range(0.5, 1.6) + Vector3.UP * randf_range(0.8, 1.6)})
 	var crest := _crest(fx, "ring_glow", pal[1], r + 4.0)
 	crest.set_instance_shader_parameter("width", 1.6)
 	crest.set_instance_shader_parameter("lift", 0.5)
@@ -348,12 +344,6 @@ static func geode_ring(root: Node, pos: Vector3, r: float, n: int, delay: float,
 				burst[0] = true
 				for at in flashes:
 					IceFX._flash(fx, at, (pal[1] as Color).lerp(pal[0], 0.4), 3.2, 0.09, 0.16)
-		for p in puffs:
-			var node: Node3D = p.node
-			node.visible = bt >= 0.0 and bt < float(p.life)
-			if node.visible:
-				node.position = (p.from as Vector3) + (p.vel as Vector3) * (1.0 - exp(-3.0 * bt)) / 3.0
-				node.scale = Vector3.ONE * _puff_scale(bt, float(p.life))
 		crest.visible = bt >= 0.0 and bt < 0.5
 		crest.set_instance_shader_parameter("radius", r - 1.0 + 1.2 * LightningShockwaveFX._out(_k(bt, 0.0, 0.3)))
 		crest.set_instance_shader_parameter("erode", lerpf(0.08, 1.0, _k(bt, 0.12, 0.5)))
