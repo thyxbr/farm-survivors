@@ -1,5 +1,5 @@
 shader_type spatial;
-// Malha lisa da Mãe-Verme pintada como desenho: o ácido (bolha, gotas, línguas do respingo) e as bolas de poeira.
+// Malha lisa da Mãe-Verme pintada como desenho: o ácido (bolha, gotas, línguas do respingo).
 // Três tons em faixas duras pela direção da superfície para uma luz fixa na tela, um ponto de brilho (`spec`) e o
 // traço de fora no segundo passe (worm_ink). `wobble` faz a superfície tremer como gosma.
 render_mode unshaded, cull_back, shadows_disabled, fog_disabled;

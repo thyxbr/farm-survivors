@@ -1,7 +1,7 @@
 shader_type spatial;
 // O traço em volta das malhas da Mãe-Verme: a mesma malha um pouco mais gorda, só as faces de trás, na cor da
 // sombra. `mode` diz para onde engordar: 0 = para fora do eixo Y (os prismas: cristal e espigão de terra),
-// 1 = pela normal (malhas lisas: ácido e poeira), 2 = para fora do centro (as pedras, de normais chapadas).
+// 1 = pela normal (malhas lisas: o ácido), 2 = para fora do centro (as pedras, de normais chapadas).
 render_mode unshaded, cull_front, shadows_disabled, fog_disabled;
 
 uniform float width = 0.035;

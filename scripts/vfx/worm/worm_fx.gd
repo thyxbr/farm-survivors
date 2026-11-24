@@ -6,7 +6,7 @@ extends RefCounted
 ##   geode_ring    um anel da Onda de Cristais: geodos (pedras com pontas de cristal) que brotam do chão, acendem
 ##                 por dentro e estouram em estilhaços de cristal, com as cascas partidas e a crista de choque
 ##   falling_rock  o pedregulho do Desmoronamento caindo e o impacto: chão quebrado com as rachaduras acesas
-##                 (chao_rachado.png), anel de choque, poeira e lascas
+##                 (chao_rachado.png), anel de choque e lascas
 ##   glob          a bolha de ácido voando, gota com a cauda para trás e gotinhas atrás: o cuspe e as Poças
 ##   acid_splash   a coroa do respingo: línguas de ácido que sobem em volta e gotas arremessadas
 ##   acid_pool     a poça (acido_poca.png girando, com a trama de acido_bolhas.png fervendo): a tela de AcidPool
@@ -65,8 +65,8 @@ static func _shared() -> void:
 	_ball.radial_segments = 14
 	_ball.rings = 7
 	# [nome, shader, como o traço engorda (ver worm_ink), largura do traço (m), tremor da gosma]
-	for spec in [["crystal", FACET, 0, 0.035, 0.0], ["rock", FACET, 2, 0.035, 0.0], ["acid", BLOB, 1, 0.03, 0.06],
-			["dust", BLOB, 1, 0.03, 0.0]]:
+	for spec in [["crystal", FACET, 0, 0.035, 0.0], ["rock", FACET, 2, 0.035, 0.0],
+			["acid", BLOB, 1, 0.03, 0.06]]:
 		var ink := ShaderMaterial.new()
 		ink.shader = INK
 		ink.set_shader_parameter("mode", spec[2])
@@ -189,7 +189,7 @@ static func _node(parent: Node, mesh: Mesh, mat: Material, cull := 4.0) -> MeshI
 	return n
 
 
-## Uma peça 3D de `mesh` no material `mat` ("crystal", "rock", "acid", "dust"), nas cores de `pal`.
+## Uma peça 3D de `mesh` no material `mat` ("crystal", "rock", "acid"), nas cores de `pal`.
 static func _solid(parent: Node, mesh: Mesh, mat: String, pal: Array) -> MeshInstance3D:
 	_shared()
 	var n := _node(parent, mesh, _mats[mat])
@@ -206,24 +206,6 @@ static func _gem(parent: Node, h: float, w: float, pal: Array) -> MeshInstance3D
 	n.scale = Vector3(w, h, w)
 	n.set_instance_shader_parameter("streak", 1.0)
 	return n
-
-
-## Uma baforada de poeira: bolas juntas (raio total ~`size`), que incham depressa e murcham até sumir.
-static func _puff(parent: Node, size: float) -> Node3D:
-	var puff := Node3D.new()
-	parent.add_child(puff)
-	for i in 6:
-		var b := _solid(puff, _ball, "dust", DUST)
-		var off := Vector3.ZERO if i == 0 else Vector3(randf_range(-1.0, 1.0), randf_range(-0.3, 0.8), randf_range(-1.0, 1.0)).normalized()
-		b.position = off * size * 0.5
-		b.scale = Vector3.ONE * size * (0.55 if i == 0 else randf_range(0.28, 0.45))
-	return puff
-
-
-## Tamanho da baforada no tempo `t` de `life` s: incha em 0,12 s, fica e murcha (sem transparência).
-static func _puff_scale(t: float, life: float) -> float:
-	var up := _k(t, 0.0, 0.12)
-	return maxf(0.001, (0.4 + 0.6 * LightningShockwaveFX._out(up)) * (1.0 - pow(_k(t, life * 0.45, life), 2.0)))
 
 
 ## Uma lasca de pedra 3D, com `size` m.
@@ -378,7 +360,7 @@ static func falling_rock(root: Node, pos: Vector3, fall: float, radius := 2.2) -
 	fx.step.call(0.0)
 
 
-## O impacto de uma pedra em `pos`: chão quebrado com as rachaduras acesas, anel de choque, poeira e lascas.
+## O impacto de uma pedra em `pos`: chão quebrado com as rachaduras acesas, anel de choque e lascas.
 static func rock_impact(root: Node, pos: Vector3, radius: float) -> void:
 	if root == null or not root.is_inside_tree():
 		return
@@ -396,18 +378,10 @@ static func rock_impact(root: Node, pos: Vector3, radius: float) -> void:
 	crater.set_instance_shader_parameter("stone_b", _v(Color(0.2, 0.16, 0.14)))
 	var crest := _crest(fx, "ring_dust", DUST[1], radius * 3.0)
 	crest.set_instance_shader_parameter("lift", 0.9)
-	var puffs: Array[Dictionary] = []
-	for i in 6:
-		var a := TAU * i / 5.0 + randf_range(-0.4, 0.4)
-		var out := Vector3.ZERO if i == 0 else Vector3(cos(a), 0.0, sin(a))
-		puffs.append({"node": _puff(fx, radius * (0.6 if i == 0 else randf_range(0.36, 0.5))),
-			"from": out * radius * 0.5 + Vector3.UP * radius * (0.4 if i == 0 else 0.25),
-			"delay": 0.0 if i == 0 else randf_range(0.02, 0.08), "life": randf_range(0.65, 0.85),
-			"vel": out * randf_range(2.5, 4.0) + Vector3.UP * randf_range(0.8, 1.8)})
 	var bits: Array[Dictionary] = []
-	for i in 9:      # o pedregulho se parte: lascas para todos os lados
-		var a := TAU * i / 9.0 + randf_range(-0.3, 0.3)
-		bits.append(_bit(_chunk(fx, randf_range(0.35, 0.8)), Vector3.UP * 0.5,
+	for i in 16:      # o pedregulho se parte: lascas para todos os lados
+		var a := TAU * i / 16.0 + randf_range(-0.3, 0.3)
+		bits.append(_bit(_chunk(fx, randf_range(0.3, 0.95)), Vector3.UP * 0.5,
 			Vector3(cos(a), 0.0, sin(a)) * randf_range(3.0, 6.5) + Vector3.UP * randf_range(5.0, 9.5)))
 	IceFX._flash(fx, Vector3.UP * 0.6, AMBER, radius * 2.0, 0.08, 0.14)
 	var light := OmniLight3D.new()
@@ -424,13 +398,6 @@ static func rock_impact(root: Node, pos: Vector3, radius: float) -> void:
 		crest.set_instance_shader_parameter("width", radius * 0.55)
 		crest.set_instance_shader_parameter("erode", lerpf(0.05, 1.0, _k(t, 0.14, 0.45)))
 		crest.visible = t < 0.46
-		for p in puffs:
-			var node: Node3D = p.node
-			var pt := t - float(p.delay)
-			node.visible = pt >= 0.0 and pt < float(p.life)
-			if node.visible:
-				node.position = (p.from as Vector3) + (p.vel as Vector3) * (1.0 - exp(-4.0 * pt)) / 4.0
-				node.scale = Vector3.ONE * _puff_scale(pt, float(p.life))
 		_fly(bits, t, 12.0, 1.0)
 		light.light_energy = 3.5 * (1.0 - _k(t, 0.0, 0.5))
 	fx.step.call(0.0)
