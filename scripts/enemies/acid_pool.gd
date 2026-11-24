@@ -1,6 +1,6 @@
 class_name AcidPool
 extends Node3D
-## Poça de Ácido (Mãe-Verme): disco verde no chão que dói enquanto se está dentro e some depois de `life` s.
+## Poça de Ácido (Mãe-Verme): poça pintada no chão (WormFX.acid_pool) que dói enquanto se está dentro e some depois de `life` s.
 ## Servidor e cliente criam a poça no mesmo ponto; só quem manda no chefe (`deal`: servidor ou solo) dá o dano.
 
 const TICK := 0.5
@@ -13,36 +13,21 @@ var level := 0
 var deal := false
 var _t := 0.0
 var _tick := 0.0
-var _mat: StandardMaterial3D
+var _paint: MeshInstance3D
 
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
-	var mi := MeshInstance3D.new()
-	var disc := CylinderMesh.new()
-	disc.top_radius = radius
-	disc.bottom_radius = radius
-	disc.height = 0.04
-	disc.radial_segments = 20
-	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = Color(0.42, 0.95, 0.15, 0.6)
-	_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_mat.emission_enabled = true
-	_mat.emission = Color(0.35, 0.9, 0.1)
-	_mat.emission_energy_multiplier = 0.8
-	disc.material = _mat
-	mi.mesh = disc
-	mi.position.y = 0.05
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+	_paint = WormFX.acid_pool(self, radius)
+	_paint.set_instance_shader_parameter("grow", 0.1)
 
 
 func _physics_process(delta: float) -> void:
 	_t += delta
-	if _mat:
-		var bubble := 0.5 + sin(_t * 6.0) * 0.08
-		_mat.albedo_color.a = bubble * clampf((life - _t) / 0.8, 0.0, 1.0)
+	if _paint:   # a poça se espalha, ferve e some comida pela trama de bolhas
+		_paint.set_instance_shader_parameter("grow", lerpf(0.1, 1.0, 1.0 - pow(1.0 - clampf(_t / 0.3, 0.0, 1.0), 2.0)))
+		_paint.set_instance_shader_parameter("erode", clampf((_t - (life - 0.9)) / 0.9, 0.0, 1.0))
 	if _t >= life:
 		queue_free()
 		return

@@ -1,6 +1,6 @@
 class_name BossFX
 extends RefCounted
-## Efeitos das habilidades de chefe (Mãe-Verme): aviso em anel no chão, cristais brotando em anel, pedra caindo do
+## Efeitos das habilidades de chefe (Mãe-Verme): aviso em anel no chão, geodos estourando em anel, pedra caindo do
 ## teto e bolha de ácido em arco. Só visual (o dano é do servidor/solo); nada é criado no servidor sem tela.
 
 const CYAN := Color(0.25, 0.85, 1.0)
@@ -52,58 +52,15 @@ static func ring_warning(pos: Vector3, r: float, w: float, dur: float) -> void:
 	tw.tween_callback(mi.queue_free)
 
 
-## Cristais irrompendo em anel de raio `r` em volta de `pos`: `n` pontas que sobem rápido, ficam e afundam.
-static func crystal_ring(pos: Vector3, r: float, n: int, color := CYAN) -> void:
-	var root := _root()
-	if root == null:
-		return
-	var cone := CylinderMesh.new()
-	cone.top_radius = 0.0
-	cone.bottom_radius = 0.28
-	cone.height = 1.6
-	cone.radial_segments = 6
-	cone.material = _flat(color, 1.0, 2.2)
-	for i in n:
-		var a := TAU * (i + randf_range(-0.3, 0.3)) / n
-		var d := r + randf_range(-0.6, 0.6)
-		var mi := MeshInstance3D.new()
-		mi.mesh = cone
-		root.add_child(mi)
-		mi.global_position = pos + Vector3(cos(a) * d, 0.7, sin(a) * d)
-		mi.rotation = Vector3(randf_range(-0.35, 0.35), randf() * TAU, randf_range(-0.35, 0.35))
-		mi.scale = Vector3(1.0, 0.05, 1.0) * randf_range(0.8, 1.25)
-		var full := mi.scale * Vector3(1.0, 20.0, 1.0)
-		var tw := mi.create_tween()
-		tw.tween_property(mi, "scale", full, 0.12).set_ease(Tween.EASE_OUT)
-		tw.tween_interval(0.45)
-		tw.tween_property(mi, "scale", Vector3(full.x, 0.02, full.z), 0.3).set_ease(Tween.EASE_IN)
-		tw.tween_callback(mi.queue_free)
-	FX.burst(pos + Vector3.UP * 0.3, color, 6, 2.0, 0.12, 0.5)
+## Um anel da Onda de Cristais de raio `r` em volta de `pos`, que estoura daqui a `delay` s: `n` geodos (WormFX)
+## brotam do chão um pouco antes e explodem em estilhaços de cristal. `fury`: cristais vermelhos.
+static func geode_ring(pos: Vector3, r: float, n: int, delay: float, fury := false) -> void:
+	WormFX.geode_ring(_root(), pos, r, n, delay, fury)
 
 
-## Pedra do Desmoronamento: cai do alto até `pos` em `fall` segundos e se desfaz em poeira.
+## Pedra do Desmoronamento: cai do alto até `pos` em `fall` segundos e quebra o chão (WormFX).
 static func falling_rock(pos: Vector3, fall: float) -> void:
-	var root := _root()
-	if root == null:
-		return
-	var rock := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.75
-	sm.height = 1.3
-	sm.radial_segments = 7
-	sm.rings = 4
-	sm.material = _flat(Color(0.42, 0.39, 0.37), 1.0, 0.01)
-	rock.mesh = sm
-	root.add_child(rock)
-	rock.global_position = pos + Vector3.UP * 14.0
-	rock.rotation = Vector3(randf() * TAU, randf() * TAU, 0.0)
-	var tw := rock.create_tween()
-	tw.tween_property(rock, "global_position", pos + Vector3.UP * 0.5, maxf(0.05, fall)).set_ease(Tween.EASE_IN) \
-		.set_trans(Tween.TRANS_QUAD)
-	tw.tween_callback(func() -> void:
-		FX.burst(pos + Vector3.UP * 0.4, Color(0.5, 0.45, 0.4), 14, 4.0, 0.16, 0.7)
-		FXToon.ring_wave(pos + Vector3.UP * 0.07, 2.2, 0.3, FXToon.MENACE, 0.12)
-		rock.queue_free())
+	WormFX.falling_rock(_root(), pos, fall)
 
 
 ## Bolha de ácido em arco de `from` a `to` em `dur` segundos (o impacto é tratado por quem chamou).
@@ -111,20 +68,12 @@ static func lob(from: Vector3, to: Vector3, dur: float, height := 4.0) -> void:
 	var root := _root()
 	if root == null:
 		return
-	var mi := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.32
-	sm.height = 0.64
-	sm.radial_segments = 8
-	sm.rings = 4
-	sm.material = _flat(ACID, 1.0, 1.6)
-	mi.mesh = sm
-	root.add_child(mi)
-	mi.global_position = from
-	var tw := mi.create_tween()
-	tw.tween_method(func(t: float) -> void: mi.global_position = ThrowRules.arc(from, to, t, height), 0.0, 1.0,
+	var g := WormFX.glob(root, 0.42)
+	g.global_position = from
+	var tw := g.create_tween()
+	tw.tween_method(func(t: float) -> void: g.global_position = ThrowRules.arc(from, to, t, height), 0.0, 1.0,
 		maxf(0.05, dur))
-	tw.tween_callback(mi.queue_free)
+	tw.tween_callback(g.queue_free)
 
 
 # ------------------------------------------------------------ folhas da Espinheira

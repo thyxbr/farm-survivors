@@ -42,6 +42,9 @@ func _ready() -> void:
 	if blade:
 		_build_blade()
 		return
+	if magic and acid:   # o cuspe da Mãe-Verme: a bolha 3D, com a própria cauda
+		_build_orb()
+		return
 	if magic:
 		_build_orb()
 		# rastro desenhado atrás do orbe (lê `direction`)
@@ -127,6 +130,15 @@ func _build_orb() -> void:
 			o.radius = 0.42
 			add_child(o)
 		return
+	if acid:
+		if FX._scene() != null:
+			WormFX.glob(self, 0.3)
+			var glow := OmniLight3D.new()
+			glow.light_color = Color(0.5, 1.0, 0.25)
+			glow.light_energy = 1.2
+			glow.omni_range = 3.0
+			add_child(glow)
+		return
 	var mi := MeshInstance3D.new()
 	var orb := SphereMesh.new()
 	orb.radius = 0.2
@@ -199,6 +211,8 @@ func _physics_process(delta: float) -> void:
 				p.apply_chill(chill)
 			if blade:
 				RuneBladesFX.impact(FX._scene(), global_position)
+			elif acid:
+				WormFX.acid_splash(FX._scene(), global_position + Vector3.DOWN * 0.6, 1.8)
 			elif magic:
 				FXToon.spark_hit(global_position, direction, _pal(), 6, 1.1)
 			elif web:
