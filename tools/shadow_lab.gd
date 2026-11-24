@@ -11,12 +11,18 @@ extends Node3D
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=quake    Onda de Cristais da Mãe-Verme (BossFX.geode_ring)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=rock     Desmoronamento: a pedra cai e quebra o chão (BossFX.falling_rock)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=acid     Poças de Ácido: bolha em arco, respingo e poça (BossFX.lob, AcidPool)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=claw     Garra da Espinheira: rasgos e coroa de espinhos (ThornFX.claw)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=roots    Raízes da Espinheira na fúria: três linhas em leque (ThornFX.root_burst)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=sprouts  Brotos: monte de terra, gavinhas e a seiva até ela (ThornFX.sprout_rise/sap)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=spores   Nuvem de Esporos: cogumelo que estoura e o mofo (ThornFX.spore_pod, SporeCloud)
+##   Cada um da Espinheira tem a variante <nome>side, com a câmera rente ao chão, de lado.
 ##   Espaço  repete (lâminas, explosão)   N  dia / noite   L  câmera lenta
 ## Com `--seq=<pasta>` grava os quadros e fecha (rode com `--fixed-fps 30`); `--noon` grava de dia.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const FRAMES := {"hole": 60, "orb": 34, "blades": 110, "boom": 44, "boomdark": 44, "ice": 75, "breath": 80, "roar": 50, "quake": 75, "quakeside": 75, "rockside": 90, "acidside": 120,
-	"rock": 90, "acid": 120}
+	"rock": 90, "acid": 120, "claw": 60, "clawside": 60, "roots": 105, "rootsside": 105, "sprouts": 90,
+	"sproutsside": 90, "spores": 150, "sporesside": 150}
 const BLADE_SPEED := 17.0
 const TARGET := Vector3(0.0, 0.0, -15.0)
 
@@ -96,6 +102,21 @@ func _ready() -> void:
 		"acidside":
 			cam.position = Vector3(5.5, 1.5, 4.0)
 			cam.look_at(Vector3(-0.5, 1.0, 0.0))
+		"claw", "sprouts":
+			cam.position = Vector3(0.0, 7.0, 10.0)
+			cam.look_at(Vector3(0.0, 0.6, 0.0))
+		"roots":
+			cam.position = Vector3(0.0, 13.0, 9.0)
+			cam.look_at(Vector3(0.0, 0.0, -6.0))
+		"spores":
+			cam.position = Vector3(0.0, 6.0, 8.5)
+			cam.look_at(Vector3(0.0, 0.6, 0.0))
+		"clawside", "sproutsside", "sporesside":   # rente ao chão, de lado: tudo tem de ter volume
+			cam.position = Vector3(7.5, 1.4, 2.5)
+			cam.look_at(Vector3(0.0, 1.0, 0.0))
+		"rootsside":
+			cam.position = Vector3(8.0, 1.5, -2.0)
+			cam.look_at(Vector3(0.0, 0.9, -8.0))
 		"rock":
 			cam.position = Vector3(0.0, 6.0, 9.0)
 			cam.look_at(Vector3(0.0, 0.8, 0.0))
@@ -212,6 +233,21 @@ func _record(dir: String) -> void:
 			var pool := AcidPool.new()
 			pool.life = 2.6
 			add_child(pool)
+		if i == 4 and _fx.begins_with("claw"):
+			ThornFX.claw(self, Vector3.ZERO, 2.8, Vector3.BACK)
+		if _fx.begins_with("roots"):   # as três linhas da fúria, cada trecho na hora dele (ThornRules)
+			_roots_frame(i)
+		if i == 4 and _fx.begins_with("sprouts"):
+			for k in 3:
+				ThornFX.sprout_rise(self, Vector3(cos(TAU * k / 3.0), 0.0, sin(TAU * k / 3.0)) * 2.6, 1.2)
+		if _fx.begins_with("sprouts") and i >= 50 and i % 15 == 5:
+			for k in 3:
+				ThornFX.sap(self, Vector3(cos(TAU * k / 3.0), 0.0, sin(TAU * k / 3.0)) * 2.6 + Vector3.UP * 0.8,
+					Vector3(0.0, 2.2, -4.0))
+		if i == 4 and _fx.begins_with("spores"):
+			ThornFX.spore_pod(self, Vector3.ZERO, 1.4)
+		if i == 46 and _fx.begins_with("spores"):
+			add_child(SporeCloud.new())
 		if i == 4 and _fx == "roar":
 			IceFX.roar(self, Vector3.ZERO, 5.5)
 		if _fx == "breath" and i >= 4 and i % 2 == 0:   # o sopro girando, uma rajada a cada 0,07 s como no jogo
@@ -219,6 +255,17 @@ func _record(dir: String) -> void:
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/%03d.png" % [dir, i])
 	get_tree().quit()
+
+
+## Quadro `i` das Raízes: os trechos que irrompem entre este quadro e o anterior (começam no quadro 4).
+func _roots_frame(i: int) -> void:
+	var t0 := (i - 5) / 30.0
+	var t1 := (i - 4) / 30.0
+	for d in ThornRules.root_dirs(Vector3.FORWARD, true):
+		for k in ThornRules.ROOT_SEGS:
+			var tk := ThornRules.root_time(k) - ThornRules.ROOT_T0
+			if t0 < tk and tk <= t1:
+				ThornFX.root_burst(self, ThornRules.root_point(Vector3.ZERO, d, k), d, ThornRules.ROOT_HALF, 1.5 + 0.06 * k)
 
 
 func _unhandled_input(ev: InputEvent) -> void:
