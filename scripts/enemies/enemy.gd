@@ -1874,6 +1874,8 @@ func _quake_warn(elapsed: float) -> void:
 		var q := BossRules.quake_ring(i)
 		if float(q.t) > elapsed:
 			BossFX.ring_warning(c, float(q.r), float(q.w), float(q.t) - elapsed)
+			# os geodos brotam antes e estouram na hora do anel (o dano e o som são do _boss_tick)
+			BossFX.geode_ring(c, float(q.r), clampi(int(float(q.r) * 2.1), 8, 32), float(q.t) - elapsed, enraged)
 	var lp := _local_player()
 	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(c) < 30.0:
 		lp.add_shake(0.35)
@@ -1957,7 +1959,6 @@ func _boss_tick(visual: bool, t0: float, t1: float) -> void:
 		for i in BossRules.QUAKE_RINGS:
 			var q := BossRules.quake_ring(i)
 			if t0 < float(q.t) and float(q.t) <= t1:
-				BossFX.crystal_ring(c, float(q.r), clampi(int(float(q.r) * 2.4), 8, 40), enraged)
 				Sfx.play_at("slam", c, 0.1, -3.0)
 				if not visual:
 					for p in _boss_pool():

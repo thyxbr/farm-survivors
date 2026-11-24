@@ -8,7 +8,7 @@ extends Node3D
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=ice      Estaca de gelo cravando (BlizzardFX.spike_impact)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=breath   Sopro Congelante girando (BlizzardFX.breath_gust)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=roar     Urro da nevasca (IceFX.roar)
-##   godot --path . res://tools/shadow_lab.tscn -- --fx=quake    Onda de Cristais da Mãe-Verme (BossFX.crystal_ring)
+##   godot --path . res://tools/shadow_lab.tscn -- --fx=quake    Onda de Cristais da Mãe-Verme (BossFX.geode_ring)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=rock     Desmoronamento: a pedra cai e quebra o chão (BossFX.falling_rock)
 ##   godot --path . res://tools/shadow_lab.tscn -- --fx=acid     Poças de Ácido: bolha em arco, respingo e poça (BossFX.lob, AcidPool)
 ##   Espaço  repete (lâminas, explosão)   N  dia / noite   L  câmera lenta
@@ -199,9 +199,10 @@ func _record(dir: String) -> void:
 		if i == 19 and _fx == "ice":
 			BlizzardFX.spike_impact(Vector3.ZERO, 1.8)
 			add_child(IceSpike.new())
-		if _fx.begins_with("quake") and i in [4, 19]:   # dois anéis da Onda, 0,5 s um do outro
-			var r := 3.5 if i == 4 else 7.5
-			BossFX.crystal_ring(Vector3.ZERO, r, clampi(int(r * 2.4), 8, 40), false)
+		if _fx.begins_with("quake") and i == 4:   # dois anéis da Onda, 0,5 s um do outro
+			for k in 2:
+				var r := 3.5 + 4.0 * k
+				BossFX.geode_ring(Vector3.ZERO, r, clampi(int(r * 2.1), 8, 32), 0.7 + 0.5 * k, false)
 		if i == 4 and _fx.begins_with("rock"):
 			BossFX.falling_rock(Vector3.ZERO, 0.55)
 		if i == 4 and _fx.begins_with("acid"):

@@ -1,6 +1,6 @@
 class_name BossFX
 extends RefCounted
-## Efeitos das habilidades de chefe (Mãe-Verme): aviso em anel no chão, cristais brotando em anel, pedra caindo do
+## Efeitos das habilidades de chefe (Mãe-Verme): aviso em anel no chão, geodos estourando em anel, pedra caindo do
 ## teto e bolha de ácido em arco. Só visual (o dano é do servidor/solo); nada é criado no servidor sem tela.
 
 const CYAN := Color(0.25, 0.85, 1.0)
@@ -52,10 +52,10 @@ static func ring_warning(pos: Vector3, r: float, w: float, dur: float) -> void:
 	tw.tween_callback(mi.queue_free)
 
 
-## Cristais irrompendo em anel de raio `r` em volta de `pos`: `n` cachos de cristais 3D (WormFX) que sobem de dentro do
-## chão num jorro de terra, ficam e afundam. `fury`: cristais vermelhos.
-static func crystal_ring(pos: Vector3, r: float, n: int, fury := false) -> void:
-	WormFX.crystal_ring(_root(), pos, r, n, fury)
+## Um anel da Onda de Cristais de raio `r` em volta de `pos`, que estoura daqui a `delay` s: `n` geodos (WormFX)
+## brotam do chão um pouco antes e explodem em estilhaços de cristal. `fury`: cristais vermelhos.
+static func geode_ring(pos: Vector3, r: float, n: int, delay: float, fury := false) -> void:
+	WormFX.geode_ring(_root(), pos, r, n, delay, fury)
 
 
 ## Pedra do Desmoronamento: cai do alto até `pos` em `fall` segundos e quebra o chão (WormFX).
