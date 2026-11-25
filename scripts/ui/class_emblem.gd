@@ -5,7 +5,7 @@ extends Control
 ## Classe nova = um símbolo novo em `_symbol()` e o campo "emblem" em data/balance/classes.json.
 ## Sem autoloads: o executor de testes unitários (-s) carrega este script.
 
-const KINDS := ["warrior", "archer", "mage", "healer"]
+const KINDS := ["warrior", "archer", "mage", "healer", "tank"]
 const GOLD := Color(0.86, 0.68, 0.32)   ## o mesmo de UITheme.GOLD
 const FILL := Color(0.07, 0.05, 0.04)
 
@@ -99,6 +99,13 @@ static func _symbol(ci: CanvasItem, kind: String, col: Color, S: Callable, s: fl
 				ci.draw_line(S.call(a[0], a[1]), S.call(a[2], a[3]), col, 3.0 * s, true)
 			for a in [[18, 18, 22, 22], [46, 18, 42, 22], [18, 46, 22, 42], [46, 46, 42, 42]]:
 				ci.draw_line(S.call(a[0], a[1]), S.call(a[2], a[3]), col, 2.0 * s, true)
+		"tank":   # maça em pé: cabo com pomo e a cabeça com cravos dos lados e em cima
+			ci.draw_colored_polygon(_rect(S, 30, 26, 4, 24), col)
+			ci.draw_circle(S.call(32, 53), 2.8 * s, col)
+			ci.draw_colored_polygon(_rect(S, 22, 14, 20, 13), col)
+			for sp in [[22, 16, 16, 20.5, 22, 25], [42, 16, 48, 20.5, 42, 25], [27, 14, 32, 8, 37, 14]]:
+				ci.draw_colored_polygon(PackedVector2Array([S.call(sp[0], sp[1]), S.call(sp[2], sp[3]),
+					S.call(sp[4], sp[5])]), col)
 
 
 static func _rect(S: Callable, x: float, y: float, w: float, h: float) -> PackedVector2Array:

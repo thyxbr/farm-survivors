@@ -910,7 +910,7 @@ func _do_hit() -> void:
 	if hit_enemy and fist:
 		Sfx.play("punch_hit", 0.12)
 	elif hit_enemy:
-		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
+		Sfx.play(Sfx.melee_hit(_weapon_id(), flesh), 0.1)
 	if great and fin:
 		add_shake(0.3)   # golpe final da montante: a câmera dá um tranco, acertando alguém ou não
 	if hit_any:
@@ -994,7 +994,7 @@ func _attack_sound() -> String:
 			return "bow_shot"
 	if _unarmed():
 		return "punch"
-	return "sword_swing_heavy" if Sfx.heavy_sword(_weapon_id()) else "sword_swing"
+	return Sfx.melee_swing(_weapon_id())
 
 
 func _weapon_fx() -> String:

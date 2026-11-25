@@ -958,6 +958,18 @@ func test_choose_class_new_char_gets_starter() -> void:
 	T.eq(s.equipment.weapon, "sc_novice_scepter", "cetro inicial")
 
 
+func test_choose_class_tank_starts_with_mace_and_shield() -> void:
+	var s := _blank()
+	T.ok(CharRules.choose_class(s, _tables(), "tank", "m").ok, "escolheu tank")
+	T.eq(s.equipment.weapon, "tank_mace", "maça inicial")
+	T.eq(s.equipment.offhand, "wooden_shield", "escudo inicial")
+	T.eq(CharRules.class_weapon(_tables(), "tank"), "sword", "a maça luta como a espada com escudo")
+	T.eq(CharRules.class_of_weapon_name(_tables(), "sword"), "Guerreiro ou Tank", "as duas classes da espada")
+	var w := _blank()
+	CharRules.choose_class(w, _tables(), "warrior", "m")
+	T.eq(w.equipment.get("offhand", ""), "", "o guerreiro continua sem escudo de início")
+
+
 func test_choose_class_only_once() -> void:
 	var s := _blank()
 	CharRules.choose_class(s, _tables(), "mage", "m")

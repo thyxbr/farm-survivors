@@ -41,9 +41,12 @@ func hud_slot_ids() -> Array[String]:
 func equip_any(id: String, use := false) -> void:
 	if CharRules.slot_of(Balance.tables, id) == "weapon":
 		var wc := CharRules.weapon_class(Balance.tables, id)
-		for cls in CharRules.CLASS_IDS:
-			if CharRules.class_weapon(Balance.tables, cls) == wc and Game.char_class != cls:
-				Econ.test_force_class(cls)
+		# já é de uma classe da arma (guerreiro ou tank com espada): fica; senão, a primeira classe dela
+		if CharRules.class_weapon(Balance.tables, Game.char_class) != wc:
+			for cls in CharRules.CLASS_IDS:
+				if CharRules.class_weapon(Balance.tables, cls) == wc:
+					Econ.test_force_class(cls)
+					break
 	# o item pede nível: sobe o personagem só para equipar e devolve (o item equipado fica)
 	var lv0 := Game.level
 	Econ.test_force_level(maxi(lv0, CharRules.item_level(Balance.tables, id)))

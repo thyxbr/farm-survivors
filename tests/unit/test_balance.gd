@@ -88,11 +88,14 @@ func test_roundtrip_matches_consts() -> void:
 			continue
 		elif n == "classes":
 			# a ficha da tela de criação (história, papel, perfil, emblema) é apresentação, não balanceamento
+			# (dos dois lados: o snapshot foi regravado com o Tank e já traz a ficha)
 			cur = cur.duplicate(true)
+			var snap_classes: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			for id in cur:
-				for k in ["lore", "role", "style", "difficulty", "profile", "emblem"]:
+				for k in ["lore", "role", "style", "difficulty", "profile", "emblem", "weapon_label"]:
 					(cur[id] as Dictionary).erase(k)
-			T.ok(cur == BalanceTables.decode(snap[n]), "tabela classes igual ao snapshot (sem a ficha)")
+					(snap_classes.get(id, {}) as Dictionary).erase(k)
+			T.ok(cur == snap_classes, "tabela classes igual ao snapshot (sem a ficha)")
 			continue
 		elif n == "quests":
 			# o nível da missão e o XP pela fatia do nível nasceram depois do snapshot: compara sem eles

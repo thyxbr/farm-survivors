@@ -16,6 +16,8 @@ var _ench_el := ""
 var _ench_lv := -1
 ## Arma mostrada no lugar da equipada (tela de criação: a arma inicial da classe, sem equipar). "" = a equipada.
 var weapon_override := ""
+## Mão secundária mostrada junto com weapon_override (o escudo do Tank); "" = mão vazia.
+var offhand_override := ""
 ## Corpo mostrado ("m"/"f") no lugar do do personagem (tela de criação: o sexo escolhido). "" = Game.body.
 var body_override := ""
 var hair_override := ""     ## penteado mostrado com body_override (tela de criação)
@@ -106,7 +108,7 @@ func refresh() -> void:
 		eq["hair"] = hair_override if body_override != "" else Game.hair
 		if weapon_override != "":
 			eq["weapon"] = weapon_override
-			eq["offhand"] = ""   # a mão secundária equipada pode não combinar com a arma mostrada
+			eq["offhand"] = offhand_override   # a equipada pode não combinar com a arma mostrada
 		_look = KnightLook.apply(model, eq)
 		var e := Game.weapon_enchant()
 		if _ench_lv >= 0:
@@ -137,8 +139,9 @@ func show_hair(h: String) -> void:
 
 
 ## Mostra uma arma sem equipá-la (a arma inicial da classe na tela de criação). "" volta para a equipada.
-func show_weapon(id: String) -> void:
+func show_weapon(id: String, offhand := "") -> void:
 	weapon_override = id
+	offhand_override = offhand
 	refresh()
 
 
