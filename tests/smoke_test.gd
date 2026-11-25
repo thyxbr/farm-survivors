@@ -5610,7 +5610,7 @@ func _test_char_create() -> void:
 	get_tree().root.add_child(cc)
 	await wait(0.2)
 	check(cc.title_label.text == "Crie seu herói" and not cc.old_note.visible, "título de herói novo, sem aviso de arma")
-	check(cc.cards.size() == 4, "quatro cartões de classe (%d)" % cc.cards.size())
+	check(cc.cards.size() == CharRules.CLASS_IDS.size(), "um cartão por classe (%d)" % cc.cards.size())
 	var emb_ok := true
 	for id in cc.cards:
 		emb_ok = emb_ok and cc.cards[id].find_children("*", "ClassEmblem", true, false).size() == 1
@@ -5674,7 +5674,7 @@ func _test_char_create() -> void:
 	Econ.grant(5000, 0, {"azure_edge": 1}, "test", true)   # ouro: na loja, só a classe apaga a arma
 	Game.equip("azure_edge")
 	Game.notify.disconnect(cb)
-	check(Game.equipment.weapon == "short_bow" and "Gume Celeste é arma de Guerreiro." in notes,
+	check(Game.equipment.weapon == "short_bow" and "Gume Celeste é arma de Guerreiro ou Tank." in notes,
 		"espada da mochila recusada com aviso (%s)" % [notes])
 	check(not Game.can_wield("azure_edge") and Game.can_wield("short_bow") and Game.can_wield("health_potion"),
 		"arqueiro só empunha arco")
