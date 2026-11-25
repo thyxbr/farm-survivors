@@ -15,6 +15,7 @@ const BRANCH_COLORS := {
 	"archer_precision": Color(0.55, 0.38, 0.05), "archer_hunter": Color(0.2, 0.4, 0.15), "archer_wind": Color(0.1, 0.4, 0.45),
 	"mage_fire": Color(0.66, 0.2, 0.05), "mage_frost": Color(0.12, 0.33, 0.6), "mage_arcane": Color(0.42, 0.18, 0.58),
 	"healer_light": Color(0.58, 0.42, 0.04), "healer_protection": Color(0.18, 0.32, 0.56), "healer_grace": Color(0.14, 0.45, 0.25),
+	"tank_bulwark": Color(0.22, 0.32, 0.48), "tank_wrath": Color(0.55, 0.22, 0.1), "tank_guard": Color(0.3, 0.38, 0.3),
 }
 ## Desenho do ícone pela chave de bônus (IconPainter); "ability_*" usa o ícone da habilidade.
 const STAT_ICONS := {
@@ -22,7 +23,7 @@ const STAT_ICONS := {
 	"speed": "boot", "cooldown": "orb", "mp_pct": "potion", "mp_regen": "orb", "heal_power": "heal",
 	"nova_stun": "frost", "magnet": "ring", "gold": "ring", "ally_radius": "heal",
 }
-const WEAPON_ICONS := {"warrior": "sword", "archer": "bow", "mage": "staff", "healer": "staff"}
+const WEAPON_ICONS := {"warrior": "sword", "archer": "bow", "mage": "staff", "healer": "staff", "tank": "shield"}
 ## Bônus -> [texto, formato] para escrever o efeito de um talento num nível ("pct" = valor x 100 em %).
 const FMT := {
 	"damage": ["de dano", "pct"], "crit": ["de chance de crítico", "pct"], "lifesteal": ["de roubo de vida", "pctflat"],

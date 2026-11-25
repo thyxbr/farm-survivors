@@ -3,11 +3,13 @@ extends Node
 ## sorteiam sem repetir o último). Os da horta e da cozinha seguem sintetizados no carregamento.
 ## Para trocar um som, troque o arquivo ou a lista em FILES; licenças em assets/audio/CREDITS.md.
 
-const SFX_DIR := "res://assets/audio/sfx/%s.wav"
+const SFX_DIR := "res://assets/audio/sfx/%s.wav"   ## nome com extensão (".mp3") = esse arquivo
 const FILES := {
 	# espada: whoosh no golpe, metal no acerto; montantes e cutelos usam a versão pesada
 	"sword_swing": ["sword_swing_1", "sword_swing_2", "sword_swing_3"],
 	"sword_swing_heavy": ["sword_swing_heavy_1", "sword_swing_heavy_2", "sword_swing_heavy_3"],
+	# maça (item com "sound": "mace"): deslocamento de ar pesado, sem o fio da lâmina
+	"mace_swing": ["mace_swing_1.mp3"],
 	# acerto: só a lâmina (genérico, slime), lâmina em carne (criaturas), carne + pancada (espada pesada)
 	"sword_hit": ["sword_hit_1", "sword_hit_2"],
 	"sword_hit_flesh": ["sword_hit_flesh_1", "sword_hit_flesh_2"],
@@ -121,6 +123,25 @@ func heavy_sword(weapon_id: String) -> bool:
 	return str(ItemDB.get_item(weapon_id).get("shape", "")) in ["great", "cleaver"]
 
 
+## Arma sem lâmina (maça): item com "sound": "mace".
+func blunt(weapon_id: String) -> bool:
+	return str(ItemDB.get_item(weapon_id).get("sound", "")) == "mace"
+
+
+## Som do golpe básico da arma corpo a corpo: a maça desloca ar pesado, sem o fio da lâmina.
+func melee_swing(weapon_id: String) -> String:
+	if blunt(weapon_id):
+		return "mace_swing"
+	return "sword_swing_heavy" if heavy_sword(weapon_id) else "sword_swing"
+
+
+## Som do acerto da arma corpo a corpo: a maça bate (pancada em carne, ou a pancada seca no slime).
+func melee_hit(weapon_id: String, flesh: bool) -> String:
+	if blunt(weapon_id):
+		return "sword_hit_heavy" if flesh else "hit"
+	return sword_hit(flesh, heavy_sword(weapon_id))
+
+
 func play(sound: String, pitch_var := 0.08, volume_db := 0.0) -> void:
 	if not streams.has(sound):
 		return
@@ -175,14 +196,18 @@ func _listener_pos() -> Variant:
 ## o último (o tom continua variando em play() por pitch_scale).
 func _from_files(files: Array) -> AudioStream:
 	if files.size() == 1:
-		return load(SFX_DIR % files[0])
+		return load(_path(files[0]))
 	var r := AudioStreamRandomizer.new()
 	r.playback_mode = AudioStreamRandomizer.PLAYBACK_RANDOM_NO_REPEATS
 	r.random_pitch = 1.0
 	r.random_volume_offset_db = 0.0
 	for f in files:
-		r.add_stream(-1, load(SFX_DIR % f))
+		r.add_stream(-1, load(_path(f)))
 	return r
+
+
+static func _path(f: String) -> String:
+	return SFX_DIR.get_base_dir().path_join(f) if f.get_extension() != "" else SFX_DIR % f
 
 
 func _gen(dur: float, f: Callable) -> AudioStreamWAV:

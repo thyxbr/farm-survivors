@@ -106,5 +106,34 @@
 			"suporte": 5
 		},
 		"emblem": "healer"
+	},
+	"tank": {
+		"name": "Tank",
+		"weapon_class": "sword",
+		"starter_weapon": "tank_mace",
+		"starter_offhand": "wooden_shield",
+		"weapon_label": "Maça e escudo",
+		"attr": "str",
+		"desc": "Maça e escudo na linha de frente: segura a horda e protege o grupo.",
+		"color": {
+			"$c": [
+				0.5,
+				0.62,
+				0.78,
+				1.0
+			]
+		},
+		"lore": "Os tanks de Valdoria guardam o portão da vila nas noites de horda. Não correm nem recuam: erguem o escudo, chamam os monstros para si e deixam que o grupo trabalhe atrás deles. A maça não é rápida, mas cada pancada lembra a horda de quem manda na muralha.",
+		"role": "Corpo a corpo",
+		"style": "Proteção",
+		"difficulty": 1,
+		"profile": {
+			"dano": 2,
+			"resistencia": 5,
+			"alcance": 1,
+			"mobilidade": 2,
+			"suporte": 3
+		},
+		"emblem": "tank"
 	}
 }

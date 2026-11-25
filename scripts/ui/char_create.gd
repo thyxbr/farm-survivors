@@ -99,6 +99,7 @@ func _ready() -> void:
 	for id in CharRules.CLASS_IDS:
 		if wc != "" and CharRules.class_weapon(Balance.tables, id) == wc:
 			start_cls = id
+			break
 	var start_body := Game.body if Game.body in ["m", "f", "d"] else "m"
 	# capturas: `res://scenes/char_create.tscn -- --class=healer --body=f --hair=f_marias --shot=x.png`
 	for a in OS.get_cmdline_user_args():
@@ -433,11 +434,17 @@ func select_class(id: String) -> void:
 	_diff_chip.visible = int(d.get("difficulty", 0)) > 0
 	_lore.text = str(d.get("lore", d.get("desc", "")))
 	var starter := str(d.get("starter_weapon", ""))
-	_weapon.text = "%s · escala com %s · começa com %s" % [ItemDB.CLASS_NAMES.get(wc, wc),
-		ATTR_NAMES.get(str(d.get("attr", "")), "?"), ItemDB.get_item(starter).get("name", starter)]
+	var start_off := str(d.get("starter_offhand", ""))
+	var kit_txt := str(ItemDB.get_item(starter).get("name", starter))
+	if start_off != "":
+		kit_txt += " e " + str(ItemDB.get_item(start_off).get("name", start_off))
+	_weapon.text = "%s · escala com %s · começa com %s" % [str(d.get("weapon_label", ItemDB.CLASS_NAMES.get(wc, wc))),
+		ATTR_NAMES.get(str(d.get("attr", "")), "?"), kit_txt]
 	_fill_stats(d.get("profile", {}), col)
-	skill_strip.show_kit(wc)
-	preview.show_weapon(starter)
+	# com escudo de início (Tank) a barra já mostra o kit do escudo, o que ele terá no jogo
+	var shield_kit := start_off != "" and str(ItemDB.get_item(start_off).get("needs", "")) == "sword"
+	skill_strip.show_kit(wc, "shield" if shield_kit else "")
+	preview.show_weapon(starter, start_off)
 
 
 func select_body(b: String) -> void:
@@ -465,10 +472,10 @@ func select_hair(h: String) -> void:
 		preview.show_hair(h)
 
 
-## Nomes das habilidades do kit mostrado (na ordem da barra).
+## Nomes das habilidades do kit mostrado (na ordem da barra; com o escudo do Tank, o kit do escudo).
 func kit_names() -> Array:
 	var out := []
-	for ab in ItemDB.kit(CharRules.class_weapon(Balance.tables, cls)):
+	for ab in skill_strip.kit_ids():
 		out.append(str(ItemDB.ABILITIES[ab].name))
 	return out
 

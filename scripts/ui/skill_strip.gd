@@ -34,11 +34,17 @@ func _init() -> void:
 
 
 ## Mostra o kit da classe de arma `weapon_class` ("sword", "bow", "staff", "scepter").
-func show_kit(weapon_class: String) -> void:
+## Ids das habilidades mostradas, na ordem da barra.
+func kit_ids() -> Array[String]:
+	return _ids
+
+
+## `offhand` é o tipo da mão secundária ("shield", "two_handed"; "" = nenhuma), como em ItemDB.kit.
+func show_kit(weapon_class: String, offhand := "") -> void:
 	for s in slots:
 		s.queue_free()
 	slots.clear()
-	_ids = ItemDB.kit(weapon_class)
+	_ids = ItemDB.kit(weapon_class, offhand)
 	for i in _ids.size():
 		var a: Dictionary = ItemDB.ABILITIES[_ids[i]]
 		var s := ItemSlot.new(SLOT)

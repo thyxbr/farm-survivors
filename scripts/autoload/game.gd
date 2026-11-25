@@ -1381,6 +1381,7 @@ static func harness_class(args: PackedStringArray) -> Array:
 		for id in CharRules.CLASS_IDS:
 			if CharRules.class_weapon(Balance.tables, id) == wc:
 				cls = id
+				break   # espada: o guerreiro (o tank também usa espada, mas vem depois)
 	if cls == "" and harness:
 		cls = "warrior"
 	return [cls, bd, hr if HairStyles.valid(bd, hr) else ""]

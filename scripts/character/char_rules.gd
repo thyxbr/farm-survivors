@@ -14,7 +14,7 @@ extends RefCounted
 const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back", "pickaxe", "axe"]
 const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 ## Classes de personagem fixas (tabela "classes"); a classe define a arma inicial e o tipo de arma.
-const CLASS_IDS := ["warrior", "archer", "mage", "healer"]
+const CLASS_IDS := ["warrior", "archer", "mage", "healer", "tank"]
 
 const C_GOLD := Color(1, 0.85, 0.3)
 const C_BAD := Color(1, 0.5, 0.5)
@@ -94,12 +94,16 @@ static func class_weapon(bt: BalanceTables, cls: String) -> String:
 	return weapon_class(bt, str(c.get("starter_weapon", "")))
 
 
-## Nome da classe de personagem que usa um tipo de arma ("Arqueiro" para "bow"); sem classe, o nome da arma.
+## Nome das classes de personagem que usam um tipo de arma ("Arqueiro" para "bow", "Guerreiro ou Tank" para
+## "sword"); sem classe, o nome da arma.
 static func class_of_weapon_name(bt: BalanceTables, wclass: String) -> String:
+	var names := PackedStringArray()
 	for cls in CLASS_IDS:
 		if class_weapon(bt, cls) == wclass:
-			return str(bt.get_table("classes")[cls].get("name", cls))
-	return str(CLASS_NAMES.get(wclass, wclass)).to_lower()
+			names.append(str(bt.get_table("classes")[cls].get("name", cls)))
+	if names.is_empty():
+		return str(CLASS_NAMES.get(wclass, wclass)).to_lower()
+	return " ou ".join(names)
 
 
 static func rarity_of(bt: BalanceTables, id: String) -> String:
@@ -534,7 +538,8 @@ static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> S
 
 ## Escolha única da classe, do corpo ("m"/"f"/"d" = anão) e do penteado (HairStyles; "" = padrão do corpo) na criação.
 ## A arma passa a ser do tipo da classe: fica a que já serve, senão a melhor que o personagem tem, senão a arma
-## inicial da classe.
+## inicial da classe. Classe com "starter_offhand" (o Tank e o escudo) ganha essa peça na mão secundária quando a
+## mão está vazia e a arma não é de duas mãos.
 static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String, hair := "") -> Dictionary:
 	if s.char_class != "":
 		return _fail("ja_tem_classe")
@@ -563,6 +568,9 @@ static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: Str
 	if off != "" and (two_handed(bt, str(s.equipment.get("weapon", ""))) or (_item(bt, off).has("needs") and _item(bt, off).needs != wclass)):
 		add_item(s, bt, off, 1)
 		s.equipment.offhand = ""
+	var start_off := str(def.get("starter_offhand", ""))
+	if start_off != "" and str(s.equipment.get("offhand", "")) == "" and not two_handed(bt, str(s.equipment.get("weapon", ""))) 			and str(_item(bt, start_off).get("needs", "")) == wclass:
+		s.equipment.offhand = start_off
 	return _ok([{"t": "class", "class": cls, "body": body, "hair": s.hair},
 		_notify("Você agora é %s!" % def.name, def.get("color", Color.WHITE))])
 

@@ -413,6 +413,24 @@
 		"model": "w_azure_edge",
 		"desc": "Lâmina leve de aço com fio azul-celeste. A primeira espada de todo aventureiro de Valdoria."
 	},
+	"tank_mace": {
+		"name": "Maça do Bastião",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "common",
+		"level": 1,
+		"damage": 8,
+		"price": 20,
+		"color": {
+			"$c": [0.62, 0.64, 0.68, 1.0]
+		},
+		"model": "w_tank_mace",
+		"sound": "mace",
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Cabeça de ferro com cravos e caveira, cabo de couro trançado. A primeira arma de quem segura a linha."
+	},
 	"thorn_root": {
 		"name": "Espinho da Raiz",
 		"type": "weapon",
