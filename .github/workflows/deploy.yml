@@ -4,13 +4,24 @@
 # numera a versão nova (commit "Versão X [skip ci]" no main), publica o cliente Windows no GitHub Releases
 # (só quando o jogo mudou desde a última release; é de lá que o auto update do jogo baixa) e dispara o deploy do servidor no Easypanel.
 # O link de deploy fica no secret EASYPANEL_DEPLOY_URL (Settings → Secrets and variables → Actions).
+#
+# PROTEÇÃO DA TRANSIÇÃO PARA O ROGUELITE (branch pivot-roguelite):
+# - Push e PR na pivot-roguelite rodam os testes, mas NUNCA publicam nada: export (versão + commit no main),
+#   boot-check, release, deploy e verify só rodam com github.ref == refs/heads/main (export e deploy têm a
+#   trava explícita; boot-check, release e verify dependem do export e pulam junto).
+# - Na pivot-roguelite, os testes de gameplay de mundo aberto e de rede (smoke, vila, multiplayer) não
+#   bloqueiam (continue-on-error): rodam e aparecem no relatório, mas o fluxo vai mudar. Importação,
+#   unitários e testes de modelos continuam bloqueando. No main tudo bloqueia como antes.
+# - O grupo de concurrency usa o nome da branch: um push na pivot-roguelite não cancela uma execução do main.
+# Para desfazer (ao voltar a publicar a partir do main, ou ao mergear o pivô): tire pivot-roguelite dos gatilhos
+# e das expressões continue-on-error; as travas `github.ref == 'refs/heads/main'` podem ficar (no main não mudam nada).
 name: Testes e deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, pivot-roguelite]
   pull_request:
-    branches: [main]
+    branches: [main, pivot-roguelite]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -22,7 +33,8 @@ on:
 # um deploy por vez; um push novo cancela o anterior que ainda estiver rodando
 # (em PR o grupo é o do PR: um push novo no PR cancela só os testes antigos daquele PR)
 concurrency:
-  group: deploy-${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
+  # (push: o nome da branch, então no main continua "deploy-main" e a pivot-roguelite tem o grupo dela)
+  group: deploy-${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -94,6 +106,7 @@ jobs:
       # a metade do tempo; a parte sistemas roda _test_sistemas logo depois do kit de teste
       - name: Teste de gameplay (smoke test, ${{ matrix.suite }})
         if: matrix.suite == 'mundo' || matrix.suite == 'sistemas'
+        continue-on-error: ${{ github.ref_name == 'pivot-roguelite' || github.base_ref == 'pivot-roguelite' }}   # pivô: não bloqueia
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest --smoke-part=${{ matrix.suite }}
 
       - name: Teste do modelo do ferreiro (esqueleto e clipes)
@@ -112,12 +125,14 @@ jobs:
       # eventos de Natal e a tela de carregamento
       - name: Teste da vila (solo)
         if: matrix.suite == 'rapidos'
+        continue-on-error: ${{ github.ref_name == 'pivot-roguelite' || github.base_ref == 'pivot-roguelite' }}   # pivô: não bloqueia
         run: timeout 300 godot --headless --path . res://scenes/world.tscn -- --vilatest
 
       # servidor com banco novo (arquivo temporário), API HTTP de login numa porta própria e --test
       # (ouro e Ecos de teste do net_test); os clientes criam conta via --auth-url
       - name: Teste de multiplayer (servidor + 2 clientes)
         if: matrix.suite == 'multiplayer'
+        continue-on-error: ${{ github.ref_name == 'pivot-roguelite' || github.base_ref == 'pivot-roguelite' }}   # pivô: não bloqueia
         run: |
           db=$(mktemp --suffix=.db); rm -f "$db"
           godot --headless --path . -- --server --port=7790 --http-port=8790 --db="$db" --test --clock-offset=2500 > server.log 2>&1 &
@@ -139,7 +154,8 @@ jobs:
   export:
     name: Exportar cliente Windows
     needs: test
-    if: github.event_name != 'pull_request'   # PR só testa; boot-check, release e verify pulam junto
+    # PR só testa, e só o main publica (a pivot-roguelite só testa); boot-check, release e verify pulam junto
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 90   # inclui a espera pela aprovação manual da assinatura
     permissions:
@@ -376,7 +392,8 @@ jobs:
   deploy:
     name: Deploy no Easypanel
     needs: [test, boot-check, release]
-    if: github.event_name != 'pull_request'
+    # segunda trava: só o main dispara o deploy do servidor (a pivot-roguelite nunca)
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
