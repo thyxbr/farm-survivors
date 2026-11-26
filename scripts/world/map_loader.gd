@@ -6,8 +6,10 @@ extends RefCounted
 ## (MapDecor), NPC/ponto de jogo (MapEntity, pela fábrica do mundo), entradas de monstro (EnemySpawn, só onde
 ## o mundo cria monstros), landmarks e áreas do capim. Lado do jogo: pode citar autoload.
 
-## Monta o mapa `map_id` dentro do mundo `w` e devolve a raiz (Map_<id>).
-static func build(w: Node3D, map_id: String) -> MapRoot:
+## Monta o mapa `map_id` dentro do mundo `w` e devolve a raiz (Map_<id>). `spawn_list`: onde pôr os pontos de
+## monstro (padrão: w.spawns no vale, w.region_spawns nos outros); a expedição passa a lista dela, porque monta o
+## mapa depois do mundo pronto e cria os próprios monstros (sem volta).
+static func build(w: Node3D, map_id: String, spawn_list = null) -> MapRoot:
 	var root := MapData.load_root(map_id) as MapRoot
 	if root == null:
 		push_error("MapLoader: cena do mapa %s não existe (%s)" % [map_id, MapData.scene_path(map_id)])
@@ -44,7 +46,7 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 					w.add_child(e)
 		elif n is EnemySpawn:
 			if w.has_server_enemies() and not n.boss:
-				var list: Array = w.spawns if map_id == "vila" else w.region_spawns
+				var list: Array = spawn_list if spawn_list is Array else (w.spawns if map_id == "vila" else w.region_spawns)
 				# região com nome: nível 0 tira a faixa dela; a densidade multiplica a quantidade
 				var rt: Dictionary = Balance.tables.get_table("regions")
 				var area := Regions.area_at(n.global_position)
@@ -52,7 +54,8 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 				var count := Regions.spawn_count(rt, area, n.count)
 				# dungeon: o ponto tem entradas até o teto da população (DungeonRules); as acima da base só
 				# nascem com mais jogadores dentro. O chefe volta em minutos (progression.json "dungeons").
-				var dungeon := Regions.is_dungeon(map_id)
+				# a expedição segue as mesmas regras de população e de chefe das dungeons
+				var dungeon := Regions.is_dungeon(map_id) or ExpeditionDefs.is_map(map_id)
 				var base := count
 				var boss_kind: bool = Balance.tables.get_table("enemies").get(n.kind, {}).get("boss", false) or n.chief
 				if dungeon and boss_kind:
@@ -89,7 +92,8 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 			(sparse if n.sparse else keep).append([Vector2(c.x, c.z), n.radius])
 		elif n is MapDungeon:
 			(n as MapDungeon).build_game()
-			_boss_portals(w, root)
+			if not ExpeditionDefs.is_map(map_id):   # na expedição a saída do chefe é do modo da expedição
+				_boss_portals(w, root)
 		elif n is MapRiver:
 			(n as MapRiver).build_game()
 			keep.append_array((n as MapRiver).grass_discs(Vector2(o.x, o.z)))

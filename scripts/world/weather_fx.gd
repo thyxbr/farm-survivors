@@ -910,7 +910,7 @@ func _apply(delta: float) -> void:
 		_trees_done = true
 		_setup_trees(get_parent(), {})
 	var cam := get_viewport().get_camera_3d()
-	var region := Regions.region_at(cam.global_position) if cam != null else "vila"
+	var region := ExpeditionDefs.ambience_at(cam.global_position) if cam != null else "vila"
 	if region != _region:
 		_region = region
 		_bio = BiomeRules.atmo(region)

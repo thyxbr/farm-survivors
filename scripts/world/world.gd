@@ -79,6 +79,8 @@ const CRAFTING_STATION := preload("res://scripts/world/crafting_station.gd")
 const DUNGEON_DOOR := preload("res://scripts/world/dungeon_door.gd")
 const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
 const WORLD_ATLAS_UI := preload("res://scripts/ui/world_atlas_ui.gd")
+const EXPEDITION := preload("res://scripts/expedition/expedition_mode.gd")
+const EXPEDITION_PORTAL := preload("res://scripts/expedition/expedition_portal.gd")
 
 ## Meia largura do vale (os testes conferem que a Arena fica fora dele).
 const MAP_HALF := 125.0
@@ -108,6 +110,8 @@ var modal: Control = null
 var dock: WindowDock
 var boss: Enemy = null
 var survival: Node3D = null
+## Expedição roguelite em andamento (scripts/expedition/expedition_mode.gd); null na Guilda.
+var expedition: Node3D = null
 var chat: CanvasLayer = null
 ## Cartões de título dos episódios da história (StoryCard).
 var story_card: StoryCard = null
@@ -196,6 +200,8 @@ func _ready() -> void:
 	player.spawn_point = VILLAGE_SPAWN + Vector3(0, 0.2, 0)
 	add_child(player)
 	player.died.connect(_on_player_died)
+	if ExpeditionDefs.is_inside(player.global_position):
+		player.global_position = player.spawn_point   # lugar salvo dentro de uma expedição (desmontada): volta à vila
 
 	hud = HUD.new()
 	hud.player = player
@@ -232,10 +238,14 @@ func _ready() -> void:
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
 	Hub.enter()   # solo: base e recordes do save local (online o servidor manda no _client_ready)
+	_add_expedition_portal()
 	if staged:
 		process_mode = Node.PROCESS_MODE_INHERIT
 		Loading.set_progress(1.0)
 	built = true
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--expedition="):   # atalho de teste: entra direto na expedição
+			start_expedition.call_deferred(a.trim_prefix("--expedition="))
 
 
 func _exit_tree() -> void:
@@ -480,6 +490,51 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.round_time = round_time
 	add_child(survival)
 	Sfx.play("portal", 0.0, -3.0)
+
+
+# ================================================================ expedição roguelite (Guilda -> expedição -> Guilda)
+## Começa a expedição `id` (ExpeditionDefs): o mapa dela é montado à parte e desmontado na volta à Guilda.
+## Solo por enquanto (online, os monstros são do servidor). false (com aviso) quando não pode.
+func start_expedition(id: String) -> bool:
+	var why := ""
+	if Network.is_online():
+		why = "Expedições ainda são só no modo solo."
+	elif player == null or player.dead:
+		why = "Não dá para sair em expedição agora."
+	elif expedition != null or survival != null:
+		why = "Você já está numa expedição ou desafio."
+	elif not ExpeditionDefs.has(id):
+		why = "Expedição desconhecida: %s" % id
+	if why != "":
+		Game.notify.emit(why, Color(1, 0.6, 0.5))
+		return false
+	var ex := EXPEDITION.new()
+	if not ex.setup(self, player, id):
+		ex.free()
+		Game.notify.emit("A expedição %s está com a definição quebrada." % id, Color(1, 0.4, 0.4))
+		return false
+	add_child(ex)
+	expedition = ex
+	if not ex.begin():
+		expedition = null
+		ex.queue_free()
+		Game.notify.emit("Não foi possível montar a expedição %s." % id, Color(1, 0.4, 0.4))
+		return false
+	Sfx.play("portal", 0.0, -3.0)
+	return true
+
+
+## Portal provisório da expedição na vila, no lugar do portal da Horda (desligada). Só no solo; a seleção de
+## expedição da Guilda vai substituí-lo.
+func _add_expedition_portal() -> void:
+	if Network.is_online() or Game.HORDE_ENABLED:
+		return
+	var p := EXPEDITION_PORTAL.new()
+	p.action = "enter"
+	p.expedition_id = "pantano"
+	p.name = "ExpeditionPortal"
+	add_child(p)
+	p.global_position = PORTAL_POS
 
 
 ## Multiplayer (servidor): cria a partida do grupo (rodadas, spawn e abates ficam aqui).
@@ -753,7 +808,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(4)
 	elif event.is_action_pressed("bestiary"):
 		_open_menu(5)
-	elif event.is_action_pressed("world_map") and survival == null:
+	elif event.is_action_pressed("world_map") and survival == null and expedition == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
 		open_world_map(WORLD_MAP_UI.TAB_PARTY)
@@ -839,7 +894,7 @@ func _play_intro() -> void:
 	while is_inside_tree() and Loading.covering and waited < 30.0:
 		await get_tree().process_frame
 		waited += get_process_delta_time()
-	if not is_inside_tree() or modal != null or survival != null or player == null:
+	if not is_inside_tree() or modal != null or survival != null or expedition != null or player == null:
 		return
 	var cut := ArrivalCutscene.new()
 	cut.world = self
@@ -1077,6 +1132,9 @@ func _on_player_died() -> void:
 	if survival != null:
 		survival.on_player_died()
 		return
+	if expedition != null:
+		expedition.on_player_died()   # a expedição leva de volta à Guilda (sem a tela de morte)
+		return
 	await get_tree().create_timer(1.8).timeout
 	dock.close_all()
 	if modal != null:
@@ -1230,6 +1288,8 @@ func travel_block_reason(region: String, mode: String) -> String:
 		return "Não dá para viajar agora."
 	if not Regions.ORDER.has(region):
 		return "Não há viagem para lá."
+	if expedition != null:
+		return "Não dá para viajar durante uma expedição. Volte à Guilda primeiro."
 	var here := Regions.region_at(player.global_position)
 	if Regions.is_dungeon(here):
 		return "Não dá para viajar de dentro de uma dungeon. Saia dela primeiro."

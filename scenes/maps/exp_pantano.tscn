@@ -1,0 +1,159 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_root.gd" id="1_ex"]
+[ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="7_ex"]
+[ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="8_ex"]
+[ext_resource type="Script" path="res://scripts/map/map_dungeon.gd" id="9_ex"]
+[ext_resource type="Script" path="res://scripts/map/map_dungeon_room.gd" id="10_ex"]
+[ext_resource type="Script" path="res://scripts/map/map_dungeon_path.gd" id="11_ex"]
+[ext_resource type="Script" path="res://scripts/map/map_waypoint.gd" id="12_ex"]
+
+[node name="ExpedicaoPantano" type="Node3D"]
+script = ExtResource("1_ex")
+map_id = "exp_pantano"
+has_ground = false
+half = 70
+border_height = 0.0
+grass_density = 0.0
+grass_plants = 0.0
+
+[node name="Dungeon" type="Node3D" parent="."]
+script = ExtResource("9_ex")
+theme = "raizes"
+seed = 3
+
+[node name="Salas" type="Node3D" parent="Dungeon"]
+
+[node name="Entrada" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 58)
+script = ExtResource("10_ex")
+size = Vector2(12, 10)
+height = 5.5
+
+[node name="Encruzilhada" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 32)
+script = ExtResource("10_ex")
+size = Vector2(14, 12)
+height = 6
+round = true
+
+[node name="Clareira Funda" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4)
+script = ExtResource("10_ex")
+size = Vector2(20, 14)
+height = 8
+
+[node name="Salão do Portão" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -22)
+script = ExtResource("10_ex")
+size = Vector2(22, 12)
+height = 12
+hall = true
+
+[node name="Trono da Rainha" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -46)
+script = ExtResource("10_ex")
+size = Vector2(44, 36)
+height = 14
+boss = true
+pillars = true
+
+[node name="Corredores" type="Node3D" parent="Dungeon"]
+
+[node name="Corredor 1" type="Node3D" parent="Dungeon/Corredores"]
+script = ExtResource("11_ex")
+width = 6.4
+height = 5.2
+
+[node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 54)
+script = ExtResource("12_ex")
+
+[node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Corredor 1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 36)
+script = ExtResource("12_ex")
+
+[node name="Corredor 2" type="Node3D" parent="Dungeon/Corredores"]
+script = ExtResource("11_ex")
+width = 6.4
+height = 5.2
+
+[node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 27)
+script = ExtResource("12_ex")
+
+[node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Corredor 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+script = ExtResource("12_ex")
+
+[node name="Corredor 3" type="Node3D" parent="Dungeon/Corredores"]
+script = ExtResource("11_ex")
+width = 6.4
+height = 5.2
+
+[node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -9)
+script = ExtResource("12_ex")
+
+[node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Corredor 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -18)
+script = ExtResource("12_ex")
+
+[node name="Lugares" type="Node3D" parent="."]
+
+[node name="arrive" type="Node3D" parent="Lugares"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0.3, 56)
+script = ExtResource("8_ex")
+id = "arrive"
+follow_ground = false
+
+[node name="exit" type="Node3D" parent="Lugares"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0, 59)
+script = ExtResource("8_ex")
+id = "exit"
+follow_ground = false
+
+[node name="Monstros" type="Node3D" parent="."]
+
+[node name="Encruzilhada slime_veloz" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 30)
+script = ExtResource("7_ex")
+kind = "slime_veloz"
+count = 3
+radius = 3.0
+respawn = 150.0
+follow_ground = false
+level = 16
+level_max = 17
+
+[node name="Clareira slime_explosivo" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, -4)
+script = ExtResource("7_ex")
+kind = "slime_explosivo"
+count = 3
+radius = 3.0
+respawn = 150.0
+follow_ground = false
+level = 17
+level_max = 19
+
+[node name="Clareira goblin_xama" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -5)
+script = ExtResource("7_ex")
+kind = "goblin_xama"
+count = 2
+radius = 2.0
+respawn = 150.0
+follow_ground = false
+level = 17
+level_max = 19
+
+[node name="chefe espinheira" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -48)
+script = ExtResource("7_ex")
+kind = "espinheira"
+respawn = 600.0
+follow_ground = false
+level = 19
+level_max = 20
+chief = true

@@ -1518,6 +1518,10 @@ func _ready() -> void:
 		await _test_sistemas()
 		_finish()
 		return
+	if _part() == "expedicao":
+		await _test_expedicao()
+		_finish()
+		return
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -1606,7 +1610,8 @@ func _ready() -> void:
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
 	var n_guards := get_tree().get_nodes_in_group("npc").filter(func(n: Node) -> bool: return n is VillageGuard).size()
 	# a feira e as oficinas da vila do sul: 3 feirantes + o artesão, 4 moradores que passeiam e a mesa de alquimia
-	var n_portal := 1 if Game.HORDE_ENABLED else 0   # o portal da Horda só existe com ela ligada
+	# o portal da Horda só existe com ela ligada; desligada, o portal da expedição (só no solo) fica no lugar dele
+	var n_portal := 1 if Game.HORDE_ENABLED or not Network.is_online() else 0
 	check(n_inter == 6 + n_portal + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards + 4 + 4 + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancadas de couraria e alquimia + feirantes, artesão e moradores + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
@@ -2551,11 +2556,120 @@ func _test_sistemas() -> void:
 	await _test_gold_goblin_world()
 	if _part() == "" and Game.HORDE_ENABLED:
 		await _test_survival()
+	await _test_expedicao()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
 
 
-## Parte pedida com --smoke-part=<mundo|sistemas|horda>; "" = o teste inteiro.
+## Expedição roguelite (Guilda -> Pântano Sussurrante -> Guilda): o mapa só existe durante a expedição, a run anda
+## pelas salas do grafo, os monstros não voltam, e abandono, derrota e vitória levam de volta à Guilda com tudo
+## desmontado (sem multa de ouro, sem tela de morte).
+func _test_expedicao() -> void:
+	var exp_alive := func() -> int:
+		var n := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if ExpeditionDefs.is_inside(e.global_position):
+				n += 1
+		return n
+	var hub_portal: Node = world.get_node_or_null("ExpeditionPortal")
+	check(hub_portal != null and hub_portal.is_in_group("interactable")
+		and hub_portal.interact_prompt().contains("Pântano Sussurrante"), "portal da expedição na vila (Hub)")
+	check(not world.maps.has("exp_pantano") and world.get_node_or_null("Map_exp_pantano") == null,
+		"a expedição não fica montada junto com o Hub")
+	if hub_portal == null:
+		return
+	player.global_position = world.HORDE_RETURN
+	await wait(0.2)
+
+	# --- 1) entra pelo portal e abandona pela saída da Entrada
+	hub_portal.interact(player)
+	await wait(1.4)
+	var ex = world.expedition
+	check(ex != null and world.maps.has("exp_pantano") and world.get_node_or_null("Map_exp_pantano") != null,
+		"Hub -> expedição: o mapa foi montado à parte")
+	if ex == null:
+		return
+	var run: ExpeditionRun = ex.run
+	check(not world.start_expedition("pantano"), "não começa outra expedição por cima")
+	check(ExpeditionDefs.is_inside(player.global_position) and player.global_position.distance_to(ex.arrive_point) < 2.0,
+		"jogador chegou na Entrada da expedição")
+	check(run.is_active() and run.current_room == "Entrada" and run.progress() == 0.0, "run ativa na Entrada, progresso 0")
+	check(Game.run_mods.active, "durante a expedição a posição não é salva (run_mods ativo)")
+	check(world.travel_block_reason("vila", "map") != "", "sem viagem paga durante a expedição")
+	await wait(0.6)
+	check(player.is_on_floor() and player.global_position.y > -1.0, "jogador em pé no chão da expedição (colisão)")
+	check(int(exp_alive.call()) >= 6 and ex.alive_in("Trono da Rainha") == 1 and ex.alive_in("Entrada") == 0,
+		"monstros nas salas de luta e um chefe (%d)" % int(exp_alive.call()))
+	check(ex.exit_portal != null and ex.exit_portal.interact_prompt() == "Voltar à Guilda", "saída para a Guilda na Entrada")
+	ex.exit_portal.interact(player)
+	await wait(1.2)
+	check(world.expedition == null and run.phase == ExpeditionRun.RETURNED and run.outcome == ExpeditionRun.ABANDON,
+		"abandono: run encerrada e de volta à Guilda")
+	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0, "expedição -> Hub: na frente do portal da vila")
+	check(not world.maps.has("exp_pantano") and world.get_node_or_null("Map_exp_pantano") == null
+		and int(exp_alive.call()) == 0 and not world.landmarks.has("exp_pantano:arrive"),
+		"mapa, monstros e registros da expedição desmontados")
+	check(not Game.run_mods.active, "run_mods desligado na volta")
+
+	# --- 2) derrota: cai lá dentro e volta à Guilda com vida cheia, sem multa nem tela de morte
+	var gold0 := Game.gold
+	check(world.start_expedition("pantano"), "entra de novo")
+	await wait(1.4)
+	ex = world.expedition
+	run = ex.run
+	player._die()
+	await wait(0.3)
+	check(run.outcome == ExpeditionRun.DEFEAT, "cair na expedição é derrota")
+	await wait(2.2)
+	check(not player.dead and world.expedition == null and run.phase == ExpeditionRun.RETURNED,
+		"derrota: revive e volta à Guilda")
+	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0 and is_equal_approx(Game.hp, Game.max_hp()),
+		"derrota: na vila com a vida cheia")
+	check(Game.gold == gold0 and world.modal == null and not get_tree().paused, "derrota: sem multa de ouro nem tela de morte")
+	check(int(exp_alive.call()) == 0, "derrota: monstros da expedição desmontados")
+
+	# --- 3) vitória: atravessa as salas na ordem do grafo, limpa cada uma e derruba o chefe
+	check(world.start_expedition("pantano"), "entra pela terceira vez")
+	await wait(1.4)
+	ex = world.expedition
+	run = ex.run
+	player.invuln = 999.0
+	var route := ["Encruzilhada", "Clareira Funda", "Salão do Portão", "Trono da Rainha"]
+	for room in route:
+		var r: MapDungeonRoom = ex.rooms[room]
+		player.global_position = r.global_position + Vector3(0, 0.5, 4.0)
+		player.velocity = Vector3.ZERO
+		await wait(0.5)
+		check(run.current_room == room, "sala atual: %s" % room)
+		var fight := ExpeditionDefs.needs_clear(run.def, room)
+		if fight:
+			check(ex.alive_in(room) > 0 and not run.is_cleared(room), "%s: com monstros, ainda não limpa" % room)
+		for e in ex.entries:
+			if e.room == room and is_instance_valid(e.node) and not e.node.dead:
+				e.node.take_damage(999999.0, e.node.global_position + Vector3.FORWARD, false)
+		await wait(0.5)
+		for e in ex.entries:   # quem resistiu ao golpe (fase, escudo) sai na marra
+			if e.room == room and is_instance_valid(e.node) and not e.node.dead:
+				e.node._die()
+		await wait(0.3)
+		check(run.is_cleared(room) or not fight, "%s limpa (progresso %d%%)" % [room, roundi(run.progress() * 100.0)])
+	check(run.outcome == ExpeditionRun.VICTORY and run.phase == ExpeditionRun.ENDED, "chefe caído: vitória")
+	check(is_equal_approx(run.progress(), 1.0) and run.visited.size() == 5, "todas as salas visitadas e limpas")
+	var vp: Node = ex.victory_portal
+	check(vp != null and is_instance_valid(vp) and vp.is_in_group("interactable"), "portal dourado de volta na sala do chefe")
+	await wait(1.0)
+	check(int(exp_alive.call()) == 0 or run.phase == ExpeditionRun.ENDED, "ninguém renasce depois da vitória")
+	if vp != null:
+		vp.interact(player)
+	await wait(1.2)
+	player.invuln = 0.0
+	check(world.expedition == null and run.phase == ExpeditionRun.RETURNED and run.outcome == ExpeditionRun.VICTORY,
+		"vitória: de volta à Guilda")
+	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0 and int(exp_alive.call()) == 0
+		and world.get_node_or_null("Map_exp_pantano") == null, "vitória: na vila, expedição desmontada")
+
+
+## Parte pedida com --smoke-part=<mundo|sistemas|horda|expedicao>; "" = o teste inteiro.
 func _part() -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--smoke-part="):

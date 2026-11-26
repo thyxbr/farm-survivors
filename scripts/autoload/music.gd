@@ -130,7 +130,7 @@ func _map_changed() -> bool:
 	var region := ""
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player != null and player.is_inside_tree():
-		region = Regions.region_at(player.global_position)
+		region = ExpeditionDefs.ambience_at(player.global_position)
 	var changed := root != _last_scene or region != _last_region
 	_last_scene = root
 	_last_region = region
@@ -146,7 +146,7 @@ func context() -> Dictionary:
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player != null and player.is_inside_tree():
 		ctx.pos = player.global_position
-		ctx.region = Regions.region_at(player.global_position)
+		ctx.region = ExpeditionDefs.ambience_at(player.global_position)
 		ctx.dead = bool(player.get("dead"))
 		_boss_near = _boss_in_range(player.global_position, BOSS_LEAVE if _boss_near else BOSS_ENTER)
 	else:

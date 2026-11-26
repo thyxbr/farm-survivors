@@ -28,7 +28,9 @@ func _ready() -> void:
 		v.add_child(_title("Menu" if Network.is_online() else "Pausado", UITheme.GOLD))
 		v.add_child(UITheme.button("Continuar", _close))
 		if Game.run_mods.active:
-			v.add_child(UITheme.button("Abandonar desafio", _abandon))
+			var w = get_tree().current_scene
+			var in_expedition: bool = w != null and w.get("expedition") != null
+			v.add_child(UITheme.button("Abandonar expedição" if in_expedition else "Abandonar desafio", _abandon))
 		else:
 			v.add_child(UITheme.button("Salvar jogo", _save))
 		if not Network.is_online():
@@ -119,6 +121,8 @@ func _abandon() -> void:
 	var w = get_tree().current_scene
 	if w and w.get("survival") != null:
 		w.survival.end_run("quit")
+	elif w and w.get("expedition") != null:
+		w.expedition.request_return()
 	_close()
 
 

@@ -13,9 +13,12 @@ const SCENES := {
 	"dg_pico": "res://scenes/maps/dg_pico.tscn",
 	"dg_final": "res://scenes/maps/dg_final.tscn",
 	"arena": "res://scenes/maps/arena.tscn",
+	# expedições do modo roguelite (ExpeditionDefs): montadas só durante a expedição, desmontadas na volta
+	"exp_pantano": "res://scenes/maps/exp_pantano.tscn",
 }
-## Centro dos mapas que não são regiões de viagem (Regions): a Arena da Horda, longe ao norte de Valdoria.
-const EXTRA_ORIGINS := {"arena": Vector3(0, 0, -1000)}
+## Centro dos mapas que não são regiões de viagem (Regions): a Arena da Horda, longe ao norte de Valdoria, e as
+## expedições, longe de tudo (a mais de 650 m, o alcance da câmera, de qualquer outro mapa).
+const EXTRA_ORIGINS := {"arena": Vector3(0, 0, -1000), "exp_pantano": Vector3(-1600, 0, 1600)}
 const ENEMIES_JSON := "res://data/balance/enemies.json"
 
 ## Troca a cena de um mapa (map_id -> caminho); só para testes.

@@ -9,7 +9,7 @@ const WORLD_NODES := "res://data/balance/world_nodes.json"
 const REGIONS := "res://data/balance/regions.json"
 ## Landmarks que cada mapa precisa ter uma vez.
 const REQUIRED := {"vila": ["camp", "ruins", "farm", "nest", "orchard", "village_spawn", "portal", "horde_return",
-	"pond", "coach", "arrive"], "arena": []}
+	"pond", "coach", "arrive"], "arena": [], "exp_pantano": ["arrive", "exit"]}
 const REQUIRED_REGION := ["coach", "arrive"]
 ## NPCs que o vale precisa ter uma vez (MapEntity com esse kind): a Mira e a Pip.
 const UNIQUE_NPCS := ["merchant", "alchemist"]
