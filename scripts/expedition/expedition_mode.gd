@@ -14,11 +14,16 @@ extends Node3D
 ##   abandono — o portal da entrada (ou "Abandonar" no menu de pausa).
 ##   derrota  — o jogador cai: volta à Guilda com a vida cheia (sem a perda de ouro da morte comum).
 ## O ouro, o XP e o saque dos monstros seguem as regras normais do jogo (Econ), sem mudança.
+##
+## Melhorias temporárias (ExpeditionUpgrades): limpar uma sala com "reward" abre a escolha de 1 de 3
+## (expedition_reward_ui.gd, modal: o jogo para até escolher). O que vale é o ExpeditionRun.modifiers;
+## _sync_mods refaz Game.run_mods a partir dele (nunca soma por cima), e a volta à Guilda zera run_mods.
 
 signal finished(summary: Dictionary)
 
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const PORTAL := preload("res://scripts/expedition/expedition_portal.gd")
+const REWARD_UI := preload("res://scripts/ui/expedition_reward_ui.gd")
 ## Igual ao world.DUNGEON_LEASH: em corredor o monstro larga o jogador a 24 m de casa.
 const LEASH := 24.0
 const DEATH_DELAY := 1.8
@@ -45,6 +50,10 @@ var _built: Array = []
 var _scan := 0.0
 var _returning := false
 var _rng := RandomNumberGenerator.new()
+## Sorteio das melhorias (semente da run, separado do dos monstros).
+var _reward_rng := RandomNumberGenerator.new()
+## Tela da escolha de melhoria aberta agora (null = nenhuma).
+var reward_ui: Control = null
 
 
 ## Prepara a expedição `id`. false se ela não existe ou a definição está quebrada.
@@ -83,6 +92,7 @@ func begin() -> bool:
 	run.players = 1   # solo; no coop, quantos entraram (DungeonRules.population usa)
 	_rng.randomize()
 	run.run_seed = _rng.seed
+	_reward_rng.seed = hash(run.run_seed)
 	_spawn_all()
 	arrive_point = world.landmarks.get(map_id + ":arrive", MapData.origin(map_id))
 	exit_portal = _portal("exit", "", world.landmarks.get(map_id + ":exit", arrive_point + Vector3(0, 0, 4)))
@@ -134,6 +144,9 @@ func _process(delta: float) -> void:
 	if run == null or not run.is_active() or player == null:
 		return
 	run.tick(delta)
+	# escolha pendente sem tela (alguém fechou a janela por fora): reabre com as mesmas opções
+	if run.has_pending_reward() and not _reward_open() and not player.dead:
+		_open_reward_ui()
 	_scan -= delta
 	if _scan > 0.0:
 		return
@@ -172,6 +185,82 @@ func _check_room(room: String) -> void:
 	elif had_fight:
 		Game.notify.emit("Sala limpa: %s (%d%% da expedição)" % [room, roundi(run.progress() * 100.0)],
 			Color(0.6, 1.0, 0.6))
+		_offer_next_reward.call_deferred()   # fora do sinal de morte do monstro
+
+
+# ================================================================ melhorias temporárias
+## Abre a escolha da próxima sala limpa que ainda deve recompensa (uma por vez; as outras esperam a vez).
+func _offer_next_reward() -> void:
+	if _returning or not run.is_active() or run.has_pending_reward() or player == null or player.dead:
+		return
+	for room in run.rooms_awaiting_reward():
+		var choices := ExpeditionUpgrades.roll(_reward_rng, run.modifiers)
+		if run.offer_reward(room, choices):
+			_open_reward_ui()
+			return
+
+
+func _reward_open() -> bool:
+	return reward_ui != null and is_instance_valid(reward_ui) and not reward_ui.is_queued_for_deletion()
+
+
+## Tela modal da escolha (pausa o jogo como as cartas da Horda). Fecha o que estiver aberto antes.
+func _open_reward_ui() -> void:
+	if _reward_open() or not run.has_pending_reward():
+		return
+	if world.modal != null:
+		world.close_ui()
+	var ui: Control = REWARD_UI.new()
+	ui.expedition = self
+	ui.room = str(run.pending_reward.room)
+	ui.choices = (run.pending_reward.choices as Array).duplicate()
+	ui.taken = run.modifiers.duplicate()
+	reward_ui = ui
+	world._open_modal(ui)
+	Sfx.play("levelup", 0.0)
+
+
+## Chamado pela tela: aplica a melhoria escolhida. false se a escolha não vale (já escolhida, fora da run...).
+func choose_reward(upgrade: String) -> bool:
+	if _returning or not run.choose_reward(upgrade):
+		return false
+	_sync_mods()
+	Sfx.play("pickup", 0.0)
+	Game.notify.emit("Melhoria: %s (%s)" % [ExpeditionUpgrades.display_name(upgrade),
+		ExpeditionUpgrades.info(upgrade).desc], Color(0.85, 0.75, 1.0))
+	_offer_next_reward.call_deferred()
+	return true
+
+
+## Refaz Game.run_mods a partir das melhorias da run (padrão + soma). A vida máxima que sobe vem cheia.
+func _sync_mods() -> void:
+	var old_max := Game.max_hp()
+	var mods := ExpeditionUpgrades.apply_to(_base_run_mods(), run.modifiers)
+	for k in mods:
+		Game.run_mods[k] = mods[k]
+	Game.run_mods.active = true
+	var new_max := Game.max_hp()
+	if new_max > old_max:
+		Game.hp += new_max - old_max
+	Game.hp = minf(Game.hp, new_max)
+	Game.stats_changed.emit()
+
+
+static func _base_run_mods() -> Dictionary:
+	var keep := Game.run_mods
+	Game.reset_run_mods()
+	var base := Game.run_mods
+	Game.run_mods = keep
+	return base
+
+
+func _close_reward_ui() -> void:
+	if _reward_open():
+		if world.modal == reward_ui:
+			world.close_ui()
+		else:
+			reward_ui.queue_free()
+	reward_ui = null
 
 
 func _on_victory(room: String) -> void:
@@ -240,7 +329,10 @@ func _return_to_hub() -> void:
 		return
 	_returning = true
 	world.expedition = null   # daqui em diante a morte e o menu voltam ao normal
-	Game.reset_run_mods()
+	_close_reward_ui()        # a escolha não sobrevive à volta (a run já descartou a pendente)
+	Game.reset_run_mods()     # melhorias temporárias saem aqui; a vida não passa do máximo sem elas
+	Game.hp = minf(Game.hp, Game.max_hp())
+	Game.stats_changed.emit()
 	var hub: Vector3 = world.HORDE_RETURN   # na frente do portal da expedição, na vila
 	if player.dead:
 		player.revive(hub)

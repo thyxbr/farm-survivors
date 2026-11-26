@@ -533,6 +533,9 @@ func reset_run_mods() -> void:
 		"active": false, "damage": 1.0, "max_hp": 1.0, "max_hp_flat": 0.0, "speed": 1.0,
 		"defense": 0.0, "regen": 0.0, "crit": 0.0, "cooldown": 1.0, "area": 1.0, "magnet": 1.0,
 		"xp": 1.0, "gold": 1.0, "lifesteal": 0.0,
+		# fração a menos na recarga das habilidades (melhorias da expedição, ExpeditionUpgrades); a "cooldown"
+		# acima é o multiplicador das armas automáticas da Horda
+		"cdr": 0.0,
 	}
 
 
@@ -698,7 +701,9 @@ func crit_chance() -> float:
 
 func cooldown_mult() -> float:
 	# buff e talento "cooldown" são frações negativas (o mod("cooldown") das cartas da Horda é outra conta)
-	return clampf(1.0 - gear("cdr") + float(buff_mods.get("cooldown", 0.0)) + float(talent_mods.get("cooldown", 0.0)), 0.4, 1.0)
+	# run_mods "cdr": melhorias temporárias da expedição (0 fora dela)
+	return clampf(1.0 - gear("cdr") - float(run_mods.get("cdr", 0.0)) + float(buff_mods.get("cooldown", 0.0))
+		+ float(talent_mods.get("cooldown", 0.0)), 0.4, 1.0)
 
 
 ## Recarga final de uma habilidade. Se ela dá um buff próprio, a recarga nunca fica abaixo da duração do

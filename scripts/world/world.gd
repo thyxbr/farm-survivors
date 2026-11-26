@@ -81,6 +81,7 @@ const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
 const WORLD_ATLAS_UI := preload("res://scripts/ui/world_atlas_ui.gd")
 const EXPEDITION := preload("res://scripts/expedition/expedition_mode.gd")
 const EXPEDITION_PORTAL := preload("res://scripts/expedition/expedition_portal.gd")
+const EXPEDITION_SELECT_UI := preload("res://scripts/ui/expedition_select_ui.gd")
 
 ## Meia largura do vale (os testes conferem que a Arena fica fora dele).
 const MAP_HALF := 125.0
@@ -524,8 +525,27 @@ func start_expedition(id: String) -> bool:
 	return true
 
 
-## Portal provisório da expedição na vila, no lugar do portal da Horda (desligada). Só no solo; a seleção de
-## expedição da Guilda vai substituí-lo.
+## Quadro de Expedições da Guilda (expedition_select_ui.gd): a seleção de expedição, com `preselect` marcada.
+## Começar uma expedição lá dentro passa por start_expedition. false (com aviso) quando não pode abrir.
+func open_expedition_board(preselect := "") -> bool:
+	var why := ""
+	if Network.is_online():
+		why = "Expedições ainda são só no modo solo."
+	elif player == null or player.dead or expedition != null or survival != null:
+		why = "O quadro de expedições não está disponível agora."
+	elif modal != null:
+		return false
+	if why != "":
+		Game.notify.emit(why, Color(1, 0.6, 0.5))
+		return false
+	var ui: Control = EXPEDITION_SELECT_UI.new()
+	ui.world = self
+	ui.selected = preselect
+	_open_modal(ui)
+	return true
+
+
+## Portal das expedições na vila, no lugar do portal da Horda (desligada): abre o Quadro de Expedições. Só no solo.
 func _add_expedition_portal() -> void:
 	if Network.is_online() or Game.HORDE_ENABLED:
 		return

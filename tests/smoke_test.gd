@@ -2573,22 +2573,68 @@ func _test_expedicao() -> void:
 		return n
 	var hub_portal: Node = world.get_node_or_null("ExpeditionPortal")
 	check(hub_portal != null and hub_portal.is_in_group("interactable")
-		and hub_portal.interact_prompt().contains("Pântano Sussurrante"), "portal da expedição na vila (Hub)")
+		and hub_portal.interact_prompt() == "Expedições da Guilda", "portal das expedições na vila (Hub)")
 	check(not world.maps.has("exp_pantano") and world.get_node_or_null("Map_exp_pantano") == null,
 		"a expedição não fica montada junto com o Hub")
 	if hub_portal == null:
 		return
 	player.global_position = world.HORDE_RETURN
 	await wait(0.2)
+	# números do personagem no Hub, sem melhoria nenhuma (as melhorias da expedição não podem sobrar)
+	var hub_stats := func() -> Dictionary:
+		return {"damage": Game.damage_mult(), "max_hp": Game.max_hp(), "defense": Game.defense(),
+			"speed": Game.speed_multiplier(), "cd": Game.cooldown_mult()}
+	var same_stats := func(a: Dictionary, b: Dictionary) -> bool:
+		for k in a:
+			if absf(float(a[k]) - float(b[k])) > 0.0001:
+				return false
+		return true
+	# run_mods sem bônus nenhum (o "active" é conferido à parte: ele fica ligado durante qualquer run)
+	var default_mods := func() -> bool:
+		var keep := Game.run_mods.duplicate()
+		Game.reset_run_mods()
+		Game.run_mods.active = keep.get("active", false)
+		var ok: bool = keep == Game.run_mods
+		Game.run_mods = keep
+		return ok
+	var stats0: Dictionary = hub_stats.call()
+	check(bool(default_mods.call()) and is_equal_approx(float(Game.run_mods.get("cdr", -1.0)), 0.0),
+		"no Hub: run_mods padrão, sem redução de recarga da expedição")
 
-	# --- 1) entra pelo portal e abandona pela saída da Entrada
+	# --- 0) seleção de expedição da Guilda: o portal abre o quadro; Esc fecha sem começar nada
 	hub_portal.interact(player)
+	await wait(0.2)
+	var board: Control = world.modal
+	check(board != null and board.get_script() == world.EXPEDITION_SELECT_UI and get_tree().paused,
+		"portal abre o Quadro de Expedições (jogo pausado)")
+	if board == null or board.get_script() != world.EXPEDITION_SELECT_UI:
+		return
+	check(board.selected == "pantano" and board._list.get_child_count() == ExpeditionDefs.ids().size(),
+		"quadro lista as expedições e já marca o Pântano Sussurrante")
+	var lines: Array = board.details_lines("pantano")
+	var text := " ".join(lines.map(func(l: Array) -> String: return str(l[0])))
+	check(text.contains("Pântano Sussurrante") and text.contains("Rank C") and text.contains("Espinheira")
+		and text.contains("Bênçãos no caminho: 2"), "ficha da expedição: nome, rank, chefe e bênçãos")
+	board._close()
+	await wait(0.2)
+	check(world.modal == null and not get_tree().paused and world.expedition == null,
+		"fechar o quadro não começa expedição nenhuma")
+
+	# --- 1) entra pelo quadro e abandona pela saída da Entrada
+	hub_portal.interact(player)
+	await wait(0.2)
+	board = world.modal
+	if board == null or board.get_script() != world.EXPEDITION_SELECT_UI:
+		check(false, "quadro reabre")
+		return
+	board.start_selected()
 	await wait(1.4)
 	var ex = world.expedition
 	check(ex != null and world.maps.has("exp_pantano") and world.get_node_or_null("Map_exp_pantano") != null,
-		"Hub -> expedição: o mapa foi montado à parte")
+		"Quadro -> expedição: o mapa foi montado à parte")
 	if ex == null:
 		return
+	check(world.modal == null and not get_tree().paused, "o quadro fechou ao partir")
 	var run: ExpeditionRun = ex.run
 	check(not world.start_expedition("pantano"), "não começa outra expedição por cima")
 	check(ExpeditionDefs.is_inside(player.global_position) and player.global_position.distance_to(ex.arrive_point) < 2.0,
@@ -2601,10 +2647,26 @@ func _test_expedicao() -> void:
 	check(int(exp_alive.call()) >= 6 and ex.alive_in("Trono da Rainha") == 1 and ex.alive_in("Entrada") == 0,
 		"monstros nas salas de luta e um chefe (%d)" % int(exp_alive.call()))
 	check(ex.exit_portal != null and ex.exit_portal.interact_prompt() == "Voltar à Guilda", "saída para a Guilda na Entrada")
+	# cada melhoria mexe no número que diz: aplica todas pelo estado da run e confere no personagem
+	var before: Dictionary = hub_stats.call()
+	run.modifiers = {"furia": 1, "seiva": 1, "casca": 1, "nevoa": 1, "sussurro": 1}
+	ex._sync_mods()
+	var after: Dictionary = hub_stats.call()
+	check(is_equal_approx(after.damage, before.damage + 0.12), "Fúria do Pântano: +12%% de dano (%.2f -> %.2f)" % [before.damage, after.damage])
+	check(after.max_hp > before.max_hp * 1.14 and is_equal_approx(Game.hp, minf(Game.hp, after.max_hp)),
+		"Seiva Vital: vida máxima +15%% (%d -> %d)" % [before.max_hp, after.max_hp])
+	check(after.defense >= before.defense + 4.99, "Casca de Raiz: +5 de defesa (%.1f -> %.1f)" % [before.defense, after.defense])
+	check(is_equal_approx(after.speed, before.speed * 1.08), "Passos de Névoa: +8%% de velocidade")
+	check(after.cd < before.cd - 0.079 or is_equal_approx(after.cd, 0.4), "Foco Sussurrante: -8%% de recarga (%.2f -> %.2f)" % [before.cd, after.cd])
+	ex._sync_mods()
+	check(same_stats.call(after, hub_stats.call()), "refazer os bônus não acumula por cima")
 	ex.exit_portal.interact(player)
 	await wait(1.2)
 	check(world.expedition == null and run.phase == ExpeditionRun.RETURNED and run.outcome == ExpeditionRun.ABANDON,
 		"abandono: run encerrada e de volta à Guilda")
+	check(bool(default_mods.call()) and same_stats.call(stats0, hub_stats.call()),
+		"abandono: melhorias removidas (run_mods padrão, números do Hub)")
+	check(Game.hp <= Game.max_hp() + 0.01, "abandono: a vida não fica acima do máximo sem a Seiva")
 	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0, "expedição -> Hub: na frente do portal da vila")
 	check(not world.maps.has("exp_pantano") and world.get_node_or_null("Map_exp_pantano") == null
 		and int(exp_alive.call()) == 0 and not world.landmarks.has("exp_pantano:arrive"),
@@ -2617,6 +2679,10 @@ func _test_expedicao() -> void:
 	await wait(1.4)
 	ex = world.expedition
 	run = ex.run
+	check(run.modifiers.is_empty() and bool(default_mods.call()), "run nova começa sem as melhorias da anterior")
+	run.modifiers = {"furia": 2}
+	ex._sync_mods()
+	check(Game.damage_mult() > stats0.damage + 0.2, "derrota: com melhoria ativa antes de cair")
 	player._die()
 	await wait(0.3)
 	check(run.outcome == ExpeditionRun.DEFEAT, "cair na expedição é derrota")
@@ -2627,6 +2693,7 @@ func _test_expedicao() -> void:
 		"derrota: na vila com a vida cheia")
 	check(Game.gold == gold0 and world.modal == null and not get_tree().paused, "derrota: sem multa de ouro nem tela de morte")
 	check(int(exp_alive.call()) == 0, "derrota: monstros da expedição desmontados")
+	check(bool(default_mods.call()) and same_stats.call(stats0, hub_stats.call()), "derrota: melhorias removidas")
 
 	# --- 3) vitória: atravessa as salas na ordem do grafo, limpa cada uma e derruba o chefe
 	check(world.start_expedition("pantano"), "entra pela terceira vez")
@@ -2653,7 +2720,13 @@ func _test_expedicao() -> void:
 				e.node._die()
 		await wait(0.3)
 		check(run.is_cleared(room) or not fight, "%s limpa (progresso %d%%)" % [room, roundi(run.progress() * 100.0)])
+		if ExpeditionDefs.grants_reward(run.def, room):
+			await _expedicao_reward(ex, room, hub_stats, same_stats)
+	check(run.modifiers.size() >= 1 and int(run.summary().rewards) == 2, "duas salas, duas bênçãos registradas na run")
+	check(Game.run_mods.active and not bool(default_mods.call()), "melhorias valendo até o chefe")
 	check(run.outcome == ExpeditionRun.VICTORY and run.phase == ExpeditionRun.ENDED, "chefe caído: vitória")
+	check(not run.has_pending_reward() and (ex.reward_ui == null or not is_instance_valid(ex.reward_ui)
+		or ex.reward_ui.is_queued_for_deletion()), "a sala do chefe não abre escolha")
 	check(is_equal_approx(run.progress(), 1.0) and run.visited.size() == 5, "todas as salas visitadas e limpas")
 	var vp: Node = ex.victory_portal
 	check(vp != null and is_instance_valid(vp) and vp.is_in_group("interactable"), "portal dourado de volta na sala do chefe")
@@ -2667,6 +2740,70 @@ func _test_expedicao() -> void:
 		"vitória: de volta à Guilda")
 	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0 and int(exp_alive.call()) == 0
 		and world.get_node_or_null("Map_exp_pantano") == null, "vitória: na vila, expedição desmontada")
+	# (os números do personagem não são comparados aqui: os abates da rota dão XP e podem subir o nível)
+	check(bool(default_mods.call()) and is_equal_approx(float(Game.run_mods.cdr), 0.0),
+		"vitória: melhorias removidas (run_mods padrão)")
+	check(world.modal == null and not get_tree().paused and not Game.run_mods.active,
+		"vitória: nenhuma tela de escolha aberta na Guilda e run_mods desligado")
+
+
+## Escolha de melhoria ao limpar `room`: tela obrigatória (pausa, Esc não fecha, fechar por fora reabre com as
+## mesmas opções), a escolha vale no personagem e a sala não dá uma segunda recompensa.
+func _expedicao_reward(ex: Node, room: String, hub_stats: Callable, same_stats: Callable) -> void:
+	var run: ExpeditionRun = ex.run
+	await wait(0.3)
+	var ui: Control = ex.reward_ui
+	check(run.has_pending_reward() and str(run.pending_reward.room) == room and ui != null and is_instance_valid(ui)
+		and world.modal == ui and get_tree().paused, "%s: limpa, a escolha de bênção abre e o combate para" % room)
+	if ui == null or not is_instance_valid(ui):
+		return
+	var choices: Array = (run.pending_reward.choices as Array).duplicate()
+	check(choices.size() == ExpeditionUpgrades.CHOICES and ui._cards.size() == choices.size(),
+		"%s: 3 opções diferentes na tela" % room)
+	check(not run.can_enter(str(ExpeditionDefs.next_of(run.def, room)[0])), "%s: não segue sem escolher" % room)
+	# Esc não fecha
+	var esc := InputEventAction.new()
+	esc.action = "pause"
+	esc.pressed = true
+	Input.parse_input_event(esc)
+	await wait(0.2)
+	check(is_instance_valid(ui) and not ui.is_queued_for_deletion() and world.modal == ui and get_tree().paused,
+		"%s: Esc não fecha a escolha (nem abre a pausa)" % room)
+	ui._lock = ui.LOCK   # como no instante em que a tela abre
+	check(not ui.pick(0) and not run.rewards.has(room), "%s: clique logo ao abrir não escolhe sem querer" % room)
+	# fechada por fora (outra janela, teleporte...): reabre com as mesmas opções, sem novo sorteio
+	world.close_ui()
+	await wait(0.3)
+	var ui2: Control = ex.reward_ui
+	check(ui2 != null and is_instance_valid(ui2) and ui2 != ui and world.modal == ui2 and get_tree().paused
+		and ui2.choices == choices and run.pending_reward.choices == choices,
+		"%s: escolha fechada por fora reabre com as mesmas opções" % room)
+	if ui2 == null or not is_instance_valid(ui2):
+		return
+	var before: Dictionary = hub_stats.call()
+	var pick := str(choices[1])
+	var had := int(run.modifiers.get(pick, 0))
+	check(ui2.pick(1, true), "%s: escolhe %s" % [room, ExpeditionUpgrades.display_name(pick)])
+	await wait(0.3)
+	check(int(run.modifiers.get(pick, 0)) == had + 1 and str(run.rewards.get(room, "")) == pick,
+		"%s: melhoria registrada no estado da run" % room)
+	check(not same_stats.call(before, hub_stats.call()), "%s: a melhoria mudou os números do personagem" % room)
+	var want := ExpeditionUpgrades.total_mods(run.modifiers)
+	var ok := true
+	for k in want:
+		var base := 1.0 if k in ["damage", "max_hp", "speed"] else 0.0
+		ok = ok and is_equal_approx(float(Game.run_mods[k]), base + float(want[k]))
+	check(ok and Game.run_mods.active, "%s: Game.run_mods = padrão + melhorias da run" % room)
+	check(world.modal == null and not get_tree().paused and not run.has_pending_reward(),
+		"%s: escolheu, a tela fecha e o jogo segue" % room)
+	# repetir não dá outra: nem reoferecer, nem limpar de novo, nem escolher de novo
+	var mods := run.modifiers.duplicate()
+	ex._offer_next_reward()
+	await wait(0.2)
+	check(not run.has_pending_reward() and (ex.reward_ui == null or not is_instance_valid(ex.reward_ui)
+		or ex.reward_ui.is_queued_for_deletion()) and not ex.choose_reward(pick) and not run.clear_room(room)
+		and run.modifiers == mods, "%s: a sala não recompensa duas vezes" % room)
+	check(ex.alive_in(room) == 0, "%s: os monstros não voltam" % room)
 
 
 ## Parte pedida com --smoke-part=<mundo|sistemas|horda|expedicao>; "" = o teste inteiro.

@@ -1,8 +1,8 @@
 extends Node3D
 ## Portal da expedição (o mesmo redemoinho das portas de dungeon, PortalVortex). [E] para usar.
-##   action "enter": na Guilda (vila); começa a expedição `expedition_id` (world.start_expedition).
+##   action "enter": na Guilda (vila); abre o Quadro de Expedições (world.open_expedition_board, a seleção de
+##                   expedição: expedition_select_ui.gd), de onde a expedição começa.
 ##   action "exit":  dentro da expedição; volta à Guilda (o modo da expedição decide se é abandono ou fim).
-## Mecanismo provisório: a seleção de expedição da Guilda vai substituir o portal de entrada.
 
 const RADIUS := 2.4
 const COLORS := {"enter": Color(0.4, 1.0, 0.45), "exit": Color(0.6, 0.5, 1.0), "victory": Color(1.0, 0.85, 0.4)}
@@ -27,7 +27,7 @@ func _ready() -> void:
 
 func interact_prompt() -> String:
 	if action == "enter":
-		return "Expedição: %s" % ExpeditionDefs.display_name(expedition_id)
+		return "Expedições da Guilda"
 	return "Voltar à Guilda"
 
 
@@ -36,8 +36,8 @@ func interact(_player: Node) -> void:
 	if world == null:
 		return
 	if action == "enter":
-		if world.has_method("start_expedition"):
-			world.start_expedition(expedition_id)
+		if world.has_method("open_expedition_board"):
+			world.open_expedition_board(expedition_id)
 	else:
 		var ex = world.get("expedition")
 		if ex != null:

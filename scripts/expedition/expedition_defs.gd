@@ -15,6 +15,13 @@ extends RefCounted
 const ROOM_KINDS := ["start", "combat", "elite", "reward", "event", "rest", "boss"]
 ## Tipos que precisam ser limpos (todos os monstros mortos) para contar no progresso.
 const CLEAR_KINDS := ["combat", "elite", "boss"]
+## Tipos de sala que podem dar uma melhoria temporária ao serem limpos ("reward": true na sala; ExpeditionUpgrades).
+## A sala de chefe não entra: limpá-la encerra a run.
+const REWARD_KINDS := ["combat", "elite"]
+
+## Ordem em que as expedições aparecem na seleção da Guilda (expedition_select_ui.gd). Bioma novo: entra em DATA
+## e aqui; sem mais nada a mudar na seleção.
+const ORDER := ["pantano"]
 
 const DATA := {
 	"pantano": {
@@ -22,13 +29,17 @@ const DATA := {
 		"map": "exp_pantano",    # MapData.SCENES / EXTRA_ORIGINS
 		"biome": "bosque",       # Regions.DATA: de onde vêm o tema, os monstros e a faixa de nível
 		"ambience": "dg_bosque", # clima, céu e música como dentro do Covil das Raízes (ambience_at)
-		"rank": "C",             # (futuro) seleção de expedição na Guilda
+		"rank": "C",             # dificuldade mostrada na seleção da Guilda
 		"half": 70.0,            # meia largura da cena (MapRoot.half)
+		# texto da seleção da Guilda
+		"desc": "Um brejo de névoa e raízes onde as vozes dos afogados guiam os incautos. "
+			+ "No coração do pântano, a Espinheira guarda o Trono da Rainha.",
+		"boss": "Espinheira",
 		"start": "Entrada",
 		"rooms": {
 			"Entrada": {"kind": "start", "next": ["Encruzilhada"]},
-			"Encruzilhada": {"kind": "combat", "next": ["Clareira Funda"]},
-			"Clareira Funda": {"kind": "combat", "next": ["Salão do Portão"]},
+			"Encruzilhada": {"kind": "combat", "reward": true, "next": ["Clareira Funda"]},
+			"Clareira Funda": {"kind": "combat", "reward": true, "next": ["Salão do Portão"]},
 			"Salão do Portão": {"kind": "rest", "next": ["Trono da Rainha"]},
 			"Trono da Rainha": {"kind": "boss", "next": []},
 		},
@@ -111,6 +122,25 @@ static func clear_rooms(def: Dictionary) -> Array:
 	return rooms(def).keys().filter(func(r: String) -> bool: return needs_clear(def, r))
 
 
+## Limpar `room` dá uma melhoria temporária (sala de luta comum/elite marcada com "reward": true).
+static func grants_reward(def: Dictionary, room: String) -> bool:
+	return bool(rooms(def).get(room, {}).get("reward", false)) and kind_of(def, room) in REWARD_KINDS
+
+
+## Salas que dão melhoria ao serem limpas.
+static func reward_rooms(def: Dictionary) -> Array:
+	return rooms(def).keys().filter(func(r: String) -> bool: return grants_reward(def, r))
+
+
+## Expedições na ordem da seleção da Guilda (só as que existem em DATA).
+static func ids() -> Array[String]:
+	var out: Array[String] = []
+	for id in ORDER:
+		if DATA.has(id):
+			out.append(id)
+	return out
+
+
 ## Salas alcançáveis a partir da chegada seguindo `next`.
 static func reachable(def: Dictionary) -> Dictionary:
 	var start := str(def.get("start", ""))
@@ -147,6 +177,8 @@ static func validate(def: Dictionary) -> PackedStringArray:
 			out.append("sala '%s' com tipo desconhecido '%s'" % [r, k])
 		if k == "boss":
 			bosses += 1
+		if bool(rs[r].get("reward", false)) and not k in REWARD_KINDS:
+			out.append("sala '%s' do tipo '%s' não pode dar recompensa" % [r, k])
 		for n in next_of(def, r):
 			if not rs.has(n):
 				out.append("sala '%s' leva a '%s', que não existe" % [r, n])
