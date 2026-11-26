@@ -2885,6 +2885,249 @@ func _test_expedicao() -> void:
 	await wait(0.2)
 	check(not Game.run_kit_on and Game.full_ability_kit() == hub_kit and Game.ability_kit() == hub_kit
 		and hud_slot_ids() == hub_bar, "vitória: as habilidades dos altares saem e o kit permanente volta (%s)" % [hud_slot_ids()])
+	await _expedicao_tank(default_mods)
+
+
+## Identidade do Tank na expedição (Fase E), no jogo de verdade: o personagem vira Tank (maça + escudo), entra no
+## Pântano e confere a passiva Linha de Frente contra monstros da expedição, o bloqueio com Guarda de Ferro, a Égide
+## Reforçada e os Estilhaços, as Correntes do Abismo, o Abalo Persistente, a Sede da Muralha, o Revide do Bastião,
+## o sorteio com bênção do Tank na recompensa e no Altar Ancestral, a tabela de dano recebido (comum, elite, chefe)
+## e a limpeza de tudo na volta (abandono e derrota). Volta para a classe e o equipamento de antes.
+func _expedicao_tank(default_mods: Callable) -> void:
+	var cls0 := Game.char_class
+	var weapon0: String = Game.equipment.get("weapon", "")
+	var off0: String = Game.equipment.get("offhand", "")
+	Econ.test_force_class("tank")
+	Game.add_item("tank_mace")
+	Game.add_item("wooden_shield")
+	equip_any("tank_mace")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield")
+	var shield_kit := ["sword_aegis", "sword_earthquake", "sword_taunt", "sword_hammer", "sword_rally"]
+	check(Game.char_class == "tank" and Game.equipment.weapon == "tank_mace" and Game.full_ability_kit() == shield_kit,
+		"Tank: maça + escudo, kit do escudo (%s)" % [Game.full_ability_kit()])
+	var hp_hub := Game.max_hp()
+	var def_hub := Game.defense()
+	var dmg_hub := Game.damage_mult()
+	player.global_position = world.HORDE_RETURN
+	await wait(0.2)
+	check(world.start_expedition("pantano"), "Tank entra na expedição")
+	await wait(1.4)
+	var ex = world.expedition
+	if ex == null:
+		check(false, "Tank: expedição montada")
+		return
+	var run: ExpeditionRun = ex.run
+	check(run.char_class == "tank" and is_equal_approx(float(Game.run_mods.crowd_guard), 0.04),
+		"Tank: passiva Linha de Frente ligada ao chegar (crowd_guard %.2f)" % float(Game.run_mods.crowd_guard))
+	check(Game.ability_kit().is_empty() and is_equal_approx(Game.max_hp(), hp_hub) and is_equal_approx(Game.defense(), def_hub)
+		and is_equal_approx(Game.damage_mult(), dmg_hub),
+		"Tank: a passiva não mexe em vida, defesa nem dano (só no dano recebido com monstros perto)")
+	player.invuln = 0.0
+	var me: Vector3 = player.global_position
+	var src: Vector3 = me + player.facing() * 2.0
+	# monstros da expedição em volta (parados: a conta do golpe é a deste teste)
+	var mobs: Array[Enemy] = []
+	for i in 5:
+		var en: Enemy = ex.ENEMY.new()
+		en.kind = "slime_veloz"
+		en.level = 3
+		en.hp_mult = 30.0   # aguenta as explosões e golpes do teste sem morrer
+		en.position = me + Vector3(cos(TAU * i / 5.0), 0.3, sin(TAU * i / 5.0)) * 2.2
+		world.add_child(en)
+		mobs.append(en)
+	await wait(0.2)
+	for en in mobs:
+		en.set_physics_process(false)
+		en.velocity = Vector3.ZERO
+	var hit_once := func(amount: float, from: Vector3) -> float:
+		player.invuln = 0.0
+		player._crowd_at = -10.0
+		var h0 := Game.hp
+		player.take_damage(amount, from)
+		return h0 - Game.hp
+	var dmt := Game.damage_taken_mult()
+	Game.hp = Game.max_hp()
+	var lost5: float = hit_once.call(40.0, src)
+	check(player.crowd_n == 5 and absf(lost5 - 40.0 * dmt * 0.80) < 0.6,
+		"Linha de Frente: 5 monstros perto, golpe de 40 tira %.1f (sem a passiva %.1f: -20%%)" % [lost5, 40.0 * dmt])
+	check(ex._identity_info().contains("Linha de Frente -20%"), "HUD da luta mostra a Linha de Frente (%s)" % ex._identity_info())
+	for i in 3:
+		mobs[i].position.y -= 50.0   # 3 saem de perto
+	Game.hp = Game.max_hp()
+	var lost2: float = hit_once.call(40.0, src)
+	check(player.crowd_n == 2 and absf(lost2 - 40.0 * dmt * 0.92) < 0.6, "Linha de Frente: 2 monstros perto, -8%% (%.1f)" % lost2)
+	for i in 3:
+		mobs[i].position.y += 50.0
+	# Muralha Viva x3 (build de defesa): 10% por monstro, teto de 40%
+	run.modifiers = {"muralha_viva": 3}
+	ex._sync_mods()
+	Game.hp = Game.max_hp()
+	var lost_wall: float = hit_once.call(40.0, src)
+	check(absf(lost_wall - 40.0 * dmt * 0.60) < 0.6, "Muralha Viva x3: 5 monstros cortam 40%% (teto) (%.1f)" % lost_wall)
+	# bloqueio com o escudo: Guarda de Ferro segura mais e gasta menos fôlego
+	run.modifiers = {}
+	ex._sync_mods()
+	var block_hit := func() -> Vector2:
+		player.invuln = 0.0
+		player._crowd_at = -10.0
+		player._block_chain = 0
+		Game.stamina = Game.max_stamina()
+		var s0 := Game.stamina
+		var h0 := Game.hp
+		player.blocking = true
+		player.take_damage(40.0, player.global_position + player.facing() * 2.0)
+		player.blocking = false
+		return Vector2(h0 - Game.hp, s0 - Game.stamina)
+	Game.hp = Game.max_hp()
+	var plain: Vector2 = block_hit.call()
+	run.modifiers = {"guarda_ferro": 2}
+	ex._sync_mods()
+	await wait(0.4)
+	Game.hp = Game.max_hp()
+	var iron: Vector2 = block_hit.call()
+	check(plain.y > 0.0 and iron.x < plain.x and iron.y < plain.y * 0.7,
+		"Guarda de Ferro x2: bloqueio passa %.1f (era %.1f) e gasta %.0f de fôlego (era %.0f)" % [iron.x, plain.x, iron.y, plain.y])
+	# Égide Reforçada + Estilhaços: integridade maior e a explosão devolve o que segurou
+	run.skills.assign(["sword_aegis", "sword_earthquake", "sword_taunt", "sword_hammer"])
+	Game.set_run_kit(run.skills)
+	check(Game.ability_kit() == ["sword_aegis", "sword_earthquake", "sword_taunt", "sword_hammer"], "Tank: kit da run do altar")
+	run.modifiers = {}
+	ex._sync_mods()
+	await wait(0.6)
+	player.cooldowns.sword_aegis = 0.0
+	player.cast("sword_aegis")
+	var mx0 := float(player.ability_data.aegis.max) if player.ability == "sword_aegis" else 0.0
+	player.end_ability()
+	await wait(0.3)
+	run.modifiers = {"egide_reforcada": 1, "estilhacos": 1}
+	ex._sync_mods()
+	player.cooldowns.sword_aegis = 0.0
+	player.cast("sword_aegis")
+	check(player.ability == "sword_aegis", "Égide começa com as bênçãos")
+	var st: Dictionary = player.ability_data.get("aegis", {})
+	var mx1 := float(st.get("max", 0.0))
+	check(mx0 > 0.0 and absf(mx1 - mx0 * 1.35) < 0.5, "Égide Reforçada: integridade %.0f -> %.0f (+35%%)" % [mx0, mx1])
+	await wait(0.8)
+	var hp_mobs := mobs.map(func(e: Enemy) -> float: return e.hp)
+	player.invuln = 0.0
+	player.take_damage(mx1 * 0.3 / (Game.damage_taken_mult() * player.crowd_damage_mult()), src)
+	var held := float(st.get("absorbed", 0.0))
+	player.end_ability()   # soltar a tecla: a Égide se desfaz e explode
+	await wait(0.1)
+	var burst_ok := true
+	for i in mobs.size():
+		burst_ok = burst_ok and (mobs[i].dead or float(hp_mobs[i]) - mobs[i].hp > held * 0.6 * 0.5)
+	check(held > 5.0 and burst_ok, "Estilhaços: a Égide segurou %.0f e a explosão feriu os 5 em volta" % held)
+	for e in mobs:
+		e.hp = e.max_hp
+	# Correntes do Abismo (controle): presos e provocados por mais tempo
+	run.modifiers = {"correntes": 1}
+	ex._sync_mods()
+	var cfg_t: DarkTauntConfig = DarkTauntAbilities.CONFIG
+	DarkTauntAbilities._on_captured(mobs[0], weakref(player))
+	check(absf(mobs[0].held_t - cfg_t.hold_time * 1.35) < 0.05 and absf(mobs[0].taunt_t - (cfg_t.hold_time + cfg_t.taunt_time) * 1.35) < 0.05,
+		"Correntes do Abismo: preso %.2f s (base %.2f) e provocado %.1f s" % [mobs[0].held_t, cfg_t.hold_time, mobs[0].taunt_t])
+	# Abalo Persistente (controle): +0,5 s de atordoamento no Terremoto e no Martelo
+	run.modifiers = {"abalo": 1}
+	ex._sync_mods()
+	mobs[1].stagger = 0.0
+	EarthquakeAbilities._on_hit(mobs[1], me)
+	check(mobs[1].stagger >= EarthquakeAbilities.CONFIG.stun_time + 0.49,
+		"Abalo Persistente: Terremoto atordoa %.2f s (base %.2f)" % [mobs[1].stagger, EarthquakeAbilities.CONFIG.stun_time])
+	mobs[2].stagger = 0.0
+	HammerAbilities._on_landed(me, [mobs[2]], weakref(player))
+	check(mobs[2].stagger >= HammerAbilities.CONFIG.stun_time + 0.49,
+		"Abalo Persistente: Martelo atordoa %.2f s (base %.2f)" % [mobs[2].stagger, HammerAbilities.CONFIG.stun_time])
+	# ataque: Revide (dano pela defesa) e Sede da Muralha (cura por abate)
+	run.modifiers = {}
+	ex._sync_mods()
+	var md0 := Game.melee_damage()
+	run.modifiers = {"revide": 2, "casca": 2}
+	ex._sync_mods()
+	var want_md := md0 / Game.mod("damage") * (Game.mod("damage") + Game.defense() * 0.02)
+	check(absf(Game.melee_damage() - want_md) < 0.01 and Game.melee_damage() > md0,
+		"Revide do Bastião x2 com Casca x2: dano %.1f -> %.1f (+2%% por defesa, %.0f de defesa)" % [md0, Game.melee_damage(), Game.defense()])
+	run.modifiers = {"sede": 1}
+	ex._sync_mods()
+	Game.hp = Game.max_hp() - 20.0
+	var h_kill := Game.hp
+	ex._on_enemy_died(mobs[3], {"room": "", "node": mobs[3]})
+	check(absf(Game.hp - (h_kill + 4.0)) < 0.01, "Sede da Muralha: abate cura 4 (%.0f -> %.0f)" % [h_kill, Game.hp])
+	# o sorteio da recompensa e do Altar Ancestral traz bênção do Tank (e respeita a habilidade pedida)
+	run.modifiers = {}
+	ex._sync_mods()
+	var rng := RandomNumberGenerator.new()
+	var all_tank := true
+	var gated := true
+	for s in 20:
+		rng.seed = s
+		var opts := ExpeditionUpgrades.roll(rng, run.modifiers, 3, run.roll_context())
+		all_tank = all_tank and ExpeditionUpgrades.class_of(opts[0]) == "tank"
+	var ctx_none := {"class": "tank", "skills": []}
+	for s in 30:
+		rng.seed = s
+		for id in ExpeditionUpgrades.roll(rng, {}, 3, ctx_none):
+			gated = gated and not (id in ["egide_reforcada", "estilhacos", "correntes", "abalo"])
+	check(all_tank and gated, "recompensa do Tank: 1ª opção é sempre do Tank, e as da Égide/Provocação/Terremoto só com elas")
+	rng.seed = 7
+	var evo := ExpeditionSkills.roll_evolution(rng, Game.full_ability_kit(), run.skills, run.modifiers, 3, run.roll_context())
+	check(evo.any(func(o) -> bool: return ExpeditionUpgrades.class_of(str(o)) == "tank") or evo.size() == 3,
+		"Altar Ancestral do Tank: opções válidas (%s)" % [evo])
+	for o in evo:
+		check(run.altar_option_valid("Altar Ancestral", str(o)) or ExpeditionSkills.option_kind(str(o)) == "skill",
+			"Altar Ancestral aceita %s" % o)
+	var card: Dictionary = preload("res://scripts/ui/skill_altar_ui.gd").card_info("guarda_ferro", {})
+	check(str(card.type) == "Bênção do Tank · Escudo", "carta do altar mostra o estilo (%s)" % card.type)
+	# tabela de dano recebido (o relatório da Fase E usa estes números)
+	var bt: BalanceTables = Balance.tables
+	var com := ExpeditionBalance.enemy_stats(bt, run.def, "sanguessuga_lodo", 3, "common")
+	var eli := ExpeditionBalance.enemy_stats(bt, run.def, "brejeiro", 4, "elite", false, true)
+	var bos := ExpeditionBalance.enemy_stats(bt, run.def, "espinheira", 5, "boss", true)
+	var hpm := Game.max_hp()
+	print("[smoke] Tank Nv %d: vida %.0f, defesa %.1f, dano recebido x%.2f, golpe %.1f" % [Game.level, hpm, Game.defense(),
+		Game.damage_taken_mult(), Game.melee_damage()])
+	for row in [["comum", com], ["elite", eli], ["chefe", bos]]:
+		var d := float(row[1].dmg) * Game.damage_taken_mult()
+		print("[smoke]   %s: %.1f por golpe -> %.0f golpes (sozinho) / %.0f golpes (5 em volta, -20%%) / %.0f (Muralha x3, -40%%)" % [
+			row[0], d, ceilf(hpm / maxf(d, 0.1)), ceilf(hpm / maxf(d * 0.8, 0.1)), ceilf(hpm / maxf(d * 0.6, 0.1))])
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# limpeza: abandono (com a build inteira) e derrota
+	run.modifiers = {"muralha_viva": 2, "guarda_ferro": 1, "estilhacos": 1, "correntes": 1, "revide": 1, "sede": 1}
+	ex._sync_mods()
+	ex.exit_portal.interact(player)
+	await wait(1.2)
+	check(world.expedition == null and bool(default_mods.call()) and not Game.run_kit_on
+		and is_equal_approx(Game.max_hp(), hp_hub) and is_equal_approx(Game.defense(), def_hub)
+		and is_equal_approx(Game.damage_mult(), dmg_hub),
+		"Tank, abandono: passiva e bênçãos do Tank removidas (run_mods padrão, números do Hub)")
+	player.invuln = 0.0
+	player._crowd_at = -10.0
+	check(is_equal_approx(player.crowd_damage_mult(), 1.0), "na Guilda a Linha de Frente não vale")
+	check(world.start_expedition("pantano"), "Tank entra de novo")
+	await wait(1.4)
+	ex = world.expedition
+	if ex != null:
+		check(ex.run.modifiers.is_empty() and is_equal_approx(float(Game.run_mods.crowd_guard), 0.04),
+			"run nova do Tank: só a passiva, nenhuma bênção da anterior")
+		ex.run.modifiers = {"muralha_viva": 1, "egide_reforcada": 1}
+		ex._sync_mods()
+		player._die()
+		await wait(2.6)
+		check(world.expedition == null and not player.dead and bool(default_mods.call()),
+			"Tank, derrota: passiva e bênçãos removidas na volta")
+	# volta ao personagem de antes
+	Econ.test_force_class(cls0)
+	if weapon0 != "":
+		equip_any(weapon0)
+	if off0 == "":
+		Game.unequip("offhand")
+	else:
+		equip_any(off0)
+	await wait(0.2)
+	check(Game.char_class == cls0 and Game.equipment.weapon == weapon0, "volta à classe e à arma de antes (%s)" % cls0)
 
 
 ## Altar da Deusa em `room` (já limpa, se for de luta): desperto com o [E], a escolha mostra até 3 habilidades do kit

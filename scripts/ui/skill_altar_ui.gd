@@ -172,7 +172,9 @@ static func card_info(id: String, taken: Dictionary) -> Dictionary:
 				"skill": str(inf.ability), "icon": str(inf.icon), "color": inf.color}
 		"boon":
 			var inf := ExpeditionUpgrades.info(id)
-			return {"kind": "boon", "type": "Bênção da expedição", "name": str(inf.name),
+			var style := ExpeditionUpgrades.style_text(id)   # bênção de classe: "Tank · Escudo"
+			return {"kind": "boon", "type": ("Bênção do %s" % style) if style != "" else "Bênção da expedição",
+				"name": str(inf.name),
 				"value": ExpeditionUpgrades.level_text(id, taken), "desc": str(inf.desc), "skill": "",
 				"icon": str(inf.get("icon", "")), "color": inf.get("color", UITheme.GOLD)}
 	var a: Dictionary = ItemDB.ABILITIES.get(id, {})

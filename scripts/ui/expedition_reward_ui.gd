@@ -115,6 +115,9 @@ func _build_cards(parent: Control) -> void:
 		var lvl_text := ExpeditionUpgrades.level_text(id, taken)
 		if stacks > 1:
 			lvl_text = "+%d  ·  " % stacks + lvl_text
+		var style := ExpeditionUpgrades.style_text(id)   # bênção de classe: "Tank · Escudo  ·  Nv 1/3"
+		if style != "":
+			lvl_text = style + "  ·  " + lvl_text
 		var lvl := UITheme.label(lvl_text, 16, UITheme.GOLD)
 		col.add_child(lvl)
 		var desc := UITheme.label(str(info.get("desc", "")), 17)

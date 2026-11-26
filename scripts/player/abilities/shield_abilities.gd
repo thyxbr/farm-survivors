@@ -31,6 +31,8 @@ static func use(player: Node, id: String) -> bool:
 	if id != ID:
 		return false
 	var max_i := AegisRules.max_integrity(CONFIG, Game.level, Game.defense())
+	# Égide Reforçada (bênção do Tank na expedição): run_mods "aegis_integrity" (0 fora dela)
+	max_i *= 1.0 + maxf(float(Game.run_mods.get("aegis_integrity", 0.0)), 0.0)
 	_begin(player, max_i)
 	Network.send_event(ID, player.global_position, Vector3(max_i, 0.0, 0.0))
 	Sfx.play("arcane_cast", 0.08, -4.0)
@@ -59,11 +61,38 @@ static func _on_end(player: Node, d: Dictionary) -> void:
 	var b = d.get("barrier")
 	if is_instance_valid(b):
 		b.finish()
+	if not player.remote:
+		_burst(player, float(d.aegis.get("absorbed", 0.0)))
 	if not player.remote and player.cooldowns.has(ID):
 		var sp: Dictionary = ItemDB.ABILITIES[ID]
 		var mult := BREAK_COOLDOWN_MULT if bool(d.aegis.get("broken", false)) else 1.0
 		player.cooldowns[ID] = Game.ability_cooldown(ID, float(sp.cooldown) * mult, Game.cooldown_mult(ID))
 		Game.stats_changed.emit()
+
+
+## Estilhaços da Égide (bênção do Tank na expedição, run_mods "aegis_burst"): ao acabar (soltar, esquivar ou
+## quebrar), a Égide devolve parte do que segurou em volta do herói, empurrando. Sem a bênção não faz nada.
+static func _burst(player: Node, absorbed: float) -> void:
+	var dmg := ExpeditionClasses.burst_damage(absorbed, float(Game.run_mods.get("aegis_burst", 0.0)))
+	if dmg <= 0.0 or player.dead or not player.is_inside_tree():
+		return
+	var c: Vector3 = player.global_position
+	var r2 := ExpeditionClasses.BURST_RADIUS * ExpeditionClasses.BURST_RADIUS
+	var hits := 0
+	for e in player.get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or bool(e.get("dead")) or not e.has_method("take_damage"):
+			continue
+		var dv: Vector3 = (e as Node3D).global_position - c
+		if dv.x * dv.x + dv.z * dv.z > r2 or absf(dv.y) > 3.0:
+			continue
+		e.take_damage(dmg, c, false, 0.0, 0.0, -ExpeditionClasses.BURST_PUSH, ElementRules.NEUTRAL)
+		Game.on_damage_dealt(dmg, float(e.get("max_hp")))
+		hits += 1
+	FX.burst(c + Vector3.UP * 1.0, Color(0.55, 0.85, 1.0), 26, 6.0, 0.12, 0.5, -3.0)
+	Sfx.play_at("frost_nova", c, 0.1, -4.0)
+	player.add_shake(0.25)
+	if hits > 0:
+		FX.damage_number(c + Vector3.UP * 2.6, "Estilhaços!", Color(0.6, 0.88, 1.0), 40)
 
 
 ## Passo de física: fica parado (CONFIG.walk_speed_mult = 0; > 0 deixa andar devagar), vira para a câmera e

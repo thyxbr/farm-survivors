@@ -150,6 +150,7 @@ func setup(w: Node, p: Player, id: String) -> bool:
 	run = ExpeditionRun.create(id)
 	if run == null:
 		return false
+	run.char_class = Game.char_class   # bênçãos e passiva da classe (ExpeditionClasses)
 	map_id = ExpeditionDefs.map_of(id)
 	name = "Expedition_" + id
 	return true
@@ -200,6 +201,8 @@ func begin() -> bool:
 	Game.run_mods.active = true
 	Game.begin_run_kit()   # só o ataque básico: as habilidades vêm dos altares
 	run.start()
+	_sync_mods()           # a passiva da classe (ExpeditionClasses) já vale desde a chegada
+	_announce_identity()
 	refresh_altars()
 	refresh_shrines()
 	world.close_ui()
@@ -773,6 +776,17 @@ func _banner(title: String, sub: String) -> void:
 		world.hud.region_banner.show_area(title, sub)
 
 
+## Aviso da passiva da classe na chegada (depois do letreiro do teleporte).
+func _announce_identity() -> void:
+	var p := ExpeditionClasses.passive(run.char_class)
+	if p.is_empty():
+		return
+	var text := "%s — %s" % [str(p.name), str(p.desc)]
+	get_tree().create_timer(FADE_WAIT + 2.5).timeout.connect(func() -> void:
+		if not _returning and run.is_active():
+			Game.notify.emit("Passiva da classe: " + text, Color(0.6, 0.78, 1.0)))
+
+
 ## Linha da luta no alto da tela (HUD): sala, onda e quantos faltam. Some fora de luta e na sala do chefe (lá a
 ## barra do chefe já diz tudo, e as duas juntas cobriam o alto da tela).
 func _update_hud() -> void:
@@ -790,7 +804,19 @@ func _update_hud() -> void:
 		var n := alive_in(room)
 		info = "%d inimigo%s restante%s" % [n, "" if n == 1 else "s", "" if n == 1 else "s"]
 	info += _encounter_info(room)
+	info += _identity_info()
 	world.hud.set_encounter(title, info)
+
+
+## Linha de Frente na linha da luta (Tank): " · Linha de Frente -12%" com inimigos perto; "" sem a passiva.
+func _identity_info() -> String:
+	var per := float(Game.run_mods.get("crowd_guard", 0.0))
+	if per <= 0.0 or player == null or player.dead:
+		return ""
+	var cut := 1.0 - ExpeditionClasses.crowd_mult(player.crowd_count(), per)
+	if cut <= 0.0:
+		return ""
+	return " · %s -%d%%" % [str(ExpeditionClasses.passive(run.char_class).get("name", "Linha de Frente")), roundi(cut * 100.0)]
 
 
 ## O que o encontro especial acrescenta à linha da luta no HUD ("" na luta tradicional).
@@ -820,7 +846,7 @@ func _offer_next_reward() -> void:
 	if _returning or not run.is_active() or run.has_pending_reward() or player == null or player.dead:
 		return
 	for room in run.rooms_awaiting_reward():
-		var choices := ExpeditionUpgrades.roll(_reward_rng, run.modifiers)
+		var choices := ExpeditionUpgrades.roll(_reward_rng, run.modifiers, ExpeditionUpgrades.CHOICES, run.roll_context())
 		if run.offer_reward(room, choices):
 			_open_reward_ui()
 			return
@@ -878,10 +904,12 @@ func choose_reward(upgrade: String) -> bool:
 	return true
 
 
-## Refaz Game.run_mods a partir das melhorias da run (padrão + soma). A vida máxima que sobe vem cheia.
+## Refaz Game.run_mods a partir das melhorias da run (padrão + passiva da classe + soma). A vida máxima que sobe
+## vem cheia.
 func _sync_mods() -> void:
 	var old_max := Game.max_hp()
-	var mods := ExpeditionUpgrades.apply_to(_base_run_mods(), run.modifiers, buff_times())
+	var base := ExpeditionClasses.apply_passive(_base_run_mods(), run.char_class)
+	var mods := ExpeditionUpgrades.apply_to(base, run.modifiers, buff_times())
 	mods.active = true
 	Game.run_mods = mods   # troca inteira: nenhuma chave por habilidade sobra de uma conta antiga
 	var new_max := Game.max_hp()
@@ -989,6 +1017,11 @@ func _on_world_child(n: Node) -> void:
 func _on_enemy_died(_en: Enemy, entry: Dictionary) -> void:
 	entry.node = null
 	var room := str(entry.get("room", ""))
+	# Sede da Muralha (bênção do Tank): cada abate cura (run_mods "lifesteal"; o foco do ritual não conta)
+	var heal := float(Game.run_mods.get("lifesteal", 0.0))
+	if heal > 0.0 and not bool(entry.get("focus", false)) and player != null and not player.dead and Game.hp > 0.0:
+		Game.hp = minf(Game.max_hp(), Game.hp + heal)
+		Game.stats_changed.emit()
 	if bool(entry.get("focus", false)):
 		_on_focus_broken(room)
 	elif bool(entry.get("leader", false)) and run.encounter_type(room) == ExpeditionEncounters.HUNT:
@@ -1050,7 +1083,8 @@ func open_altar(room: String) -> bool:
 	var choices: Array = run.altar_choices(room)
 	if choices.is_empty():
 		if evolve:
-			choices = ExpeditionSkills.roll_evolution(_altar_rng, Game.full_ability_kit(), run.skills, run.modifiers)
+			choices = ExpeditionSkills.roll_evolution(_altar_rng, Game.full_ability_kit(), run.skills, run.modifiers,
+				ExpeditionSkills.CHOICES, run.roll_context())
 		else:
 			choices = ExpeditionSkills.roll(_altar_rng, Game.full_ability_kit(), run.skills)
 	if not run.offer_altar(room, choices):
@@ -1176,7 +1210,7 @@ func use_shrine(room: String) -> bool:
 ## Bênção de uma sala sem luta (Câmara das Oferendas, Altar Ancestral sem habilidade): mesma escolha das salas
 ## limpas, aberta na hora.
 func _offer_room_reward(room: String) -> bool:
-	var choices := ExpeditionUpgrades.roll(_reward_rng, run.modifiers)
+	var choices := ExpeditionUpgrades.roll(_reward_rng, run.modifiers, ExpeditionUpgrades.CHOICES, run.roll_context())
 	if not run.offer_reward(room, choices):
 		Game.notify.emit("As oferendas já não têm o que dar: todas as bênçãos estão no máximo.", Color(0.8, 0.8, 0.7))
 		refresh_shrines()

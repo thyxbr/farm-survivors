@@ -70,6 +70,9 @@ const ABANDON := "abandon"
 
 var expedition_id := ""
 var def: Dictionary = {}
+## Classe do personagem (Game.char_class; "" = sem identidade): as bênçãos de classe (ExpeditionClasses) só valem
+## para ela. O modo da expedição põe aqui ao montar a run; nada é salvo.
+var char_class := ""
 var phase := IDLE
 var outcome := ""
 var current_room := ""
@@ -515,8 +518,18 @@ func altar_option_valid(room: String, id: String) -> bool:
 			return _evolves(room) and skills.has(ExpeditionUpgrades.ability_of(id)) \
 				and ExpeditionUpgrades.can_take(id, modifiers)
 		"boon":
-			return _evolves(room) and ExpeditionUpgrades.in_pool(id) and ExpeditionUpgrades.can_take(id, modifiers)
+			return _evolves(room) and boon_offerable(id) and ExpeditionUpgrades.can_take(id, modifiers)
 	return false
+
+
+## Bênção que pode sair num sorteio desta run: as comuns e as da classe do personagem (com a habilidade que ela pede).
+func boon_offerable(id: String) -> bool:
+	return ExpeditionUpgrades.in_pool(id) or ExpeditionUpgrades.in_class_pool(id, char_class, skills)
+
+
+## Contexto do sorteio das bênçãos (ExpeditionUpgrades.roll): a classe e as habilidades levadas.
+func roll_context() -> Dictionary:
+	return {"class": char_class, "skills": skills.duplicate()}
 
 
 func _evolves(room: String) -> bool:

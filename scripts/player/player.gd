@@ -723,7 +723,7 @@ func _take_blocked(amount: float, from_pos: Vector3) -> void:
 	invuln = 0.3
 	Game.add_fury(amount / Game.max_hp() * 15.0)
 	if amount >= 0.5:
-		var chip: float = max(1.0, amount * Game.damage_taken_mult())
+		var chip: float = max(1.0, amount * Game.damage_taken_mult() * crowd_damage_mult())
 		Game.hp -= chip
 		FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
 	Game.stats_changed.emit()
@@ -1770,6 +1770,44 @@ func apply_web(secs: float, roots := false) -> void:
 	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.8), Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
 
+## Linha de Frente (passiva do Tank na expedição, ExpeditionClasses; run_mods "crowd_guard", 0 fora dela):
+## multiplicador do dano recebido pelos inimigos vivos perto. A contagem fica guardada por CROWD_RECOUNT s (vários
+## golpes no mesmo instante não varrem o grupo de novo).
+const CROWD_RECOUNT := 0.1
+var crowd_n := 0
+var _crowd_at := -10.0
+
+
+func crowd_count() -> int:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _crowd_at < CROWD_RECOUNT:
+		return crowd_n
+	_crowd_at = now
+	var n := 0
+	var r2 := ExpeditionClasses.CROWD_RADIUS * ExpeditionClasses.CROWD_RADIUS
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or bool(e.get("dead")):
+			continue
+		var d: Vector3 = (e as Node3D).global_position - global_position
+		if d.x * d.x + d.z * d.z <= r2 and absf(d.y) < 3.0:
+			n += 1
+			if n >= ExpeditionClasses.CROWD_MAX:
+				break
+	crowd_n = n
+	return n
+
+
+func crowd_damage_mult() -> float:
+	var per := float(Game.run_mods.get("crowd_guard", 0.0))
+	if per <= 0.0:
+		return 1.0
+	var n := crowd_count()
+	if n >= ExpeditionClasses.CROWD_FX_MIN:
+		# faíscas de aço azuladas no golpe: a muralha segurando parte do tranco
+		FX.burst(global_position + Vector3.UP * 1.1, Color(0.55, 0.75, 1.0), 4 + 2 * n, 2.2, 0.07, 0.35)
+	return ExpeditionClasses.crowd_mult(n, per)
+
+
 func take_damage(amount: float, from_pos: Vector3) -> void:
 	if remote:
 		# no servidor, o golpe de um inimigo na réplica vira dano no PC do dono
@@ -1778,7 +1816,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
-	var final_dmg: float = max(1.0, amount * Game.damage_taken_mult())
+	var final_dmg: float = max(1.0, amount * Game.damage_taken_mult() * crowd_damage_mult())
 	# Égide Cristalina erguida: o escudo absorve primeiro (integridade própria); só o que sobra chega à vida
 	if ability == ShieldAbilities.ID:
 		final_dmg = ShieldAbilities.absorb(self, final_dmg, from_pos)
@@ -1790,7 +1828,10 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 	if Game.admin_mode():
 		return
 	if blocking and ShieldRules.in_front(global_position, facing(), from_pos):
-		var res := ShieldRules.resolve(amount, Game.stamina, _block_chain, ItemDB.get_item(Game.equipment.get("offhand", "")))
+		# Guarda de Ferro (bênção do Tank na expedição): o escudo segura mais e cansa menos (0 fora da expedição)
+		var shield_it := ExpeditionClasses.block_item(ItemDB.get_item(Game.equipment.get("offhand", "")),
+			float(Game.run_mods.get("block_power", 0.0)), float(Game.run_mods.get("block_guard", 0.0)))
+		var res := ShieldRules.resolve(amount, Game.stamina, _block_chain, shield_it)
 		Game.stamina = res.stamina
 		stamina_delay = 0.8
 		_block_since = 0.0

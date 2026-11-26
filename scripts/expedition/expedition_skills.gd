@@ -132,11 +132,13 @@ static func upgrade_pool(active: Array, taken: Dictionary) -> Array[String]:
 ## build: primeiro uma de cada categoria que tem opção (nova habilidade, melhoria, bênção), e as vagas que sobram
 ## saem das categorias que ainda têm opção, preferindo melhoria de uma habilidade ainda não sorteada. Nunca repete
 ## nem oferece algo inválido (já levada, ultimate, no máximo); [] só se não sobrar nada em categoria nenhuma.
+## `ctx` (opcional): o contexto da classe para as bênçãos (ExpeditionUpgrades.roll; ExpeditionRun.roll_context):
+## com ele, a bênção que sai é de preferência uma da classe.
 static func roll_evolution(rng: RandomNumberGenerator, full_kit: Array, owned: Array, taken: Dictionary,
-		n := CHOICES) -> Array[String]:
+		n := CHOICES, ctx := {}) -> Array[String]:
 	var news := _shuffled(rng, pool(full_kit, owned))
 	var ups := _shuffled(rng, upgrade_pool(active_kit(full_kit, owned), taken))
-	var boons := ExpeditionUpgrades.roll(rng, taken, n)
+	var boons := ExpeditionUpgrades.roll(rng, taken, n, ctx)
 	var out: Array[String] = []
 	for cat in [news, ups, boons]:
 		if out.size() < n and not (cat as Array).is_empty():

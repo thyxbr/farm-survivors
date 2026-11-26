@@ -540,6 +540,9 @@ func reset_run_mods() -> void:
 		# fração a menos na recarga das habilidades (melhorias da expedição, ExpeditionUpgrades); a "cooldown"
 		# acima é o multiplicador das armas automáticas da Horda
 		"cdr": 0.0,
+		# identidade das classes na expedição (ExpeditionClasses; bênçãos de classe e passivas); 0 = sem efeito
+		"crowd_guard": 0.0, "block_power": 0.0, "block_guard": 0.0, "aegis_integrity": 0.0, "aegis_burst": 0.0,
+		"taunt_time": 0.0, "stun_bonus": 0.0, "guard_dmg": 0.0,
 	}
 
 
@@ -668,7 +671,9 @@ func melee_damage() -> float:
 	var attrs := {}
 	for a in attributes:
 		attrs[a] = attr(a)
-	return CharRules.basic_damage(weapon_class(), attrs, weapon_damage(), gear("spell")) * mod("damage")
+	# run_mods "guard_dmg": Revide do Bastião (bênção do Tank na expedição), dano a mais por ponto de defesa
+	var guard := ExpeditionClasses.guard_damage_bonus(defense(), float(run_mods.get("guard_dmg", 0.0)))
+	return CharRules.basic_damage(weapon_class(), attrs, weapon_damage(), gear("spell")) * (mod("damage") + guard)
 
 
 func spell_power() -> float:

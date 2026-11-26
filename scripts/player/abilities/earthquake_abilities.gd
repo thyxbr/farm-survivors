@@ -128,7 +128,8 @@ static func _on_hit(e: Node, center: Vector3) -> void:
 	if not is_instance_valid(e) or e.dead:
 		return
 	var dmg := Game.melee_damage() * CONFIG.damage_mult * Game.ability_dmg_mult(ID)
-	e.take_damage(dmg, center, false, 0.0, CONFIG.stun_time)
+	# Abalo Persistente (bênção do Tank na expedição): run_mods "stun_bonus" = segundos a mais de atordoamento
+	e.take_damage(dmg, center, false, 0.0, CONFIG.stun_time + maxf(float(Game.run_mods.get("stun_bonus", 0.0)), 0.0))
 	Game.on_damage_dealt(dmg, e.max_hp)
 	var now := Time.get_ticks_msec()
 	if now - _last_hit_sfx >= HIT_SFX_GAP_MS:

@@ -118,4 +118,6 @@ static func _on_captured(enemy: Node3D, player_ref: WeakRef) -> void:
 		return
 	if not is_instance_valid(enemy) or enemy.get("dead") == true or not enemy.has_method("apply_taunt"):
 		return
-	enemy.apply_taunt(player, CONFIG.hold_time, CONFIG.taunt_time)
+	# Correntes do Abismo (bênção do Tank na expedição): run_mods "taunt_time" alonga a prisão e a provocação
+	var k := 1.0 + maxf(float(Game.run_mods.get("taunt_time", 0.0)), 0.0)
+	enemy.apply_taunt(player, CONFIG.hold_time * k, CONFIG.taunt_time * k)
