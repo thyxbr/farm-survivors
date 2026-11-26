@@ -22,6 +22,10 @@ var room := ""
 var choices: Array = []
 ## Melhorias que o jogador já tem nesta run ({id: acúmulos}), para o nível da carta.
 var taken := {}
+## Título e texto da tela ("" = os da sala purificada) e quantos acúmulos a escolha soma (2 = bênção de elite).
+var title_text := ""
+var subtitle_text := ""
+var stacks := 1
 var _cards: Array[Button] = []
 var _lock := LOCK
 var _hint: Label
@@ -35,11 +39,13 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 14)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	p.add_child(v)
-	var title := UITheme.outlined("Sala purificada: %s" % room, 32, UITheme.GOLD, 6)
+	var title := UITheme.outlined(title_text if title_text != "" else "Sala purificada: %s" % room, 32, UITheme.GOLD, 6)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(title)
-	var sub := UITheme.label("Os ecos do pântano oferecem uma bênção para esta expedição. Escolha uma  (1 · 2 · 3)",
-		17, UITheme.DIM)
+	var sub_text := subtitle_text if subtitle_text != "" else "Os ecos do pântano oferecem uma bênção para esta expedição."
+	if stacks > 1:
+		sub_text += "  A bênção vale em dobro (x%d)." % stacks
+	var sub := UITheme.label(sub_text + "  Escolha uma  (1 · 2 · 3)", 17, UITheme.GOLD if stacks > 1 else UITheme.DIM)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(sub)
 	_build_cards(v)
@@ -106,7 +112,10 @@ func _build_cards(parent: Control) -> void:
 		var name_l := UITheme.label(str(info.get("name", id)), 21, c.lightened(0.25))
 		name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		titles.add_child(name_l)
-		var lvl := UITheme.label(ExpeditionUpgrades.level_text(id, taken), 16, UITheme.GOLD)
+		var lvl_text := ExpeditionUpgrades.level_text(id, taken)
+		if stacks > 1:
+			lvl_text = "+%d  ·  " % stacks + lvl_text
+		var lvl := UITheme.label(lvl_text, 16, UITheme.GOLD)
 		col.add_child(lvl)
 		var desc := UITheme.label(str(info.get("desc", "")), 17)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -828,16 +828,18 @@ func _update_overlay(s: Dictionary, delta: float) -> void:
 	if need and not _overlay_on:
 		_overlay_on = true
 		_scan(get_parent())
+		# sem tipo: o modelo pode ter sido liberado (mapa da expedição desmontado) e atribuir instância liberada
+		# a uma variável tipada já é erro, antes do is_instance_valid
 		for id in _overlaid:
-			var g: GeometryInstance3D = _overlaid[id]
+			var g = _overlaid[id]
 			if is_instance_valid(g):
-				g.material_overlay = _overlay
+				(g as GeometryInstance3D).material_overlay = _overlay
 	elif not need and _overlay_on:
 		_overlay_on = false
 		for id in _overlaid:
-			var g: GeometryInstance3D = _overlaid[id]
-			if is_instance_valid(g) and g.material_overlay == _overlay:
-				g.material_overlay = null
+			var g = _overlaid[id]
+			if is_instance_valid(g) and (g as GeometryInstance3D).material_overlay == _overlay:
+				(g as GeometryInstance3D).material_overlay = null
 	if _overlay_on:
 		# props que nasceram depois (plantas da horta, construções) também ganham a camada
 		_rescan -= delta

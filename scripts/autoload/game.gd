@@ -437,6 +437,7 @@ func _setup_input() -> void:
 ## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e começa na vila com um novo.
 func start_new_game() -> void:
 	reset_run_mods()
+	end_run_kit()
 	Econ.reset_solo()
 	spawn_position = null
 	get_tree().paused = false
@@ -449,6 +450,7 @@ func continue_game() -> bool:
 		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
 		return false
 	reset_run_mods()
+	end_run_kit()
 	get_tree().paused = false
 	go_to_world()
 	return true
@@ -503,6 +505,7 @@ func go_to_menu() -> void:
 		if p is Player and is_instance_valid(p) and not p.dead and not run_mods.get("active", false):
 			Econ.report_vitals(p.global_position, p.model.rotation.y)
 	reset_run_mods()
+	end_run_kit()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Loading.go(MENU_SCENE)
@@ -516,6 +519,7 @@ func go_to_char_select() -> void:
 		return
 	Network.autosave()
 	reset_run_mods()
+	end_run_kit()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if not Network.rejoin():
@@ -836,12 +840,63 @@ func ability_implemented(id: String) -> bool:
 
 
 func knows_ability(id: String) -> bool:
+	if run_kit_on:
+		return run_kit.has(id)   # na expedição quem libera é o altar, não o nível
 	return level >= ItemDB.ABILITIES[id].level
 
 
-## Habilidades da arma equipada (slots 1..5, em ordem).
+## Habilidades que valem agora: fora da expedição, o kit da arma equipada (slots 1..6, em ordem); dentro dela, só
+## as levadas dos altares que a arma de agora ainda usa, na ordem em que foram escolhidas (ExpeditionSkills).
 func ability_kit() -> Array[String]:
+	var full := full_ability_kit()
+	if not run_kit_on:
+		return full
+	return ExpeditionSkills.active_kit(full, run_kit)
+
+
+## Kit permanente da arma equipada (classe + arma + mão secundária), ignorando o kit da expedição. É dele que os
+## altares tiram as opções (só oferecem o que o personagem pode usar).
+func full_ability_kit() -> Array[String]:
 	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class), offhand_kind())
+
+
+## Tecla (1..6) da habilidade na posição `index` do `kit` (o que ability_kit() devolveu): fora da expedição a do
+## ItemDB; na expedição a ordem do kit (a primeira levada é a 1, a segunda a 2...).
+func kit_slot(kit: Array, index: int) -> int:
+	if run_kit_on:
+		return index + 1
+	return int(ItemDB.ABILITIES[kit[index]].slot)
+
+
+# ---------------------------------------------------------------- kit temporário da expedição (roguelite)
+## Ligado durante uma expedição: o personagem só tem o ataque básico mais as habilidades levadas dos altares
+## (run_kit). O kit permanente, o nível e o save não mudam; end_run_kit devolve tudo ao normal.
+var run_kit_on := false
+var run_kit: Array[String] = []
+
+
+## Começa uma expedição: kit vazio (só o ataque básico).
+func begin_run_kit() -> void:
+	run_kit_on = true
+	run_kit = []
+	kit_changed.emit()
+
+
+## Espelha o kit da run (ExpeditionRun.skills) depois de uma escolha de altar.
+func set_run_kit(ids: Array) -> void:
+	if not run_kit_on:
+		return
+	run_kit.assign(ids)
+	kit_changed.emit()
+
+
+## Fim da expedição (vitória, derrota, abandono, saída para o menu): volta o kit permanente.
+func end_run_kit() -> void:
+	if not run_kit_on and run_kit.is_empty():
+		return
+	run_kit_on = false
+	run_kit = []
+	kit_changed.emit()
 
 
 ## Tipo da mão secundária que muda o kit: "shield" com uma espada E um escudo nas mãos; "two_handed" com a montante
@@ -1496,6 +1551,8 @@ func apply_events(events: Array) -> void:
 			continue
 		match e.get("t", ""):
 			"notify":
+				if run_kit_on and e.has("ability"):
+					continue   # na expedição subir de nível não dá habilidade (quem dá é o altar)
 				notify.emit(str(e.get("text", "")), e.get("color", Color.WHITE))
 			"level_up":
 				hp = max_hp()

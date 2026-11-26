@@ -2598,6 +2598,11 @@ func _test_expedicao() -> void:
 		Game.run_mods = keep
 		return ok
 	var stats0: Dictionary = hub_stats.call()
+	# kit permanente do Hub (a expedição não pode mexer nele) e o que a barra mostra nele
+	var hub_kit: Array[String] = Game.ability_kit()
+	var hub_bar: Array[String] = hud_slot_ids()
+	check(not Game.run_kit_on and not hub_kit.is_empty() and not hub_bar.is_empty(),
+		"no Hub: kit permanente da arma na barra (kit %s, barra %s)" % [hub_kit, hub_bar])
 	check(bool(default_mods.call()) and is_equal_approx(float(Game.run_mods.get("cdr", -1.0)), 0.0),
 		"no Hub: run_mods padrão, sem redução de recarga da expedição")
 
@@ -2614,7 +2619,9 @@ func _test_expedicao() -> void:
 	var lines: Array = board.details_lines("pantano")
 	var text := " ".join(lines.map(func(l: Array) -> String: return str(l[0])))
 	check(text.contains("Pântano Sussurrante") and text.contains("Rank C") and text.contains("Espinheira")
-		and text.contains("Bênçãos no caminho: 2"), "ficha da expedição: nome, rank, chefe e bênçãos")
+		and text.contains("Etapas: 13") and text.contains("Bênçãos no caminho: %d"
+		% ExpeditionDefs.reward_rooms(ExpeditionDefs.get_def("pantano")).size()),
+		"ficha da expedição: nome, rank, chefe, 13 etapas e bênçãos (%s)" % text)
 	board._close()
 	await wait(0.2)
 	check(world.modal == null and not get_tree().paused and world.expedition == null,
@@ -2644,9 +2651,43 @@ func _test_expedicao() -> void:
 	check(world.travel_block_reason("vila", "map") != "", "sem viagem paga durante a expedição")
 	await wait(0.6)
 	check(player.is_on_floor() and player.global_position.y > -1.0, "jogador em pé no chão da expedição (colisão)")
-	check(int(exp_alive.call()) >= 6 and ex.alive_in("Trono da Rainha") == 1 and ex.alive_in("Entrada") == 0,
-		"monstros nas salas de luta e um chefe (%d)" % int(exp_alive.call()))
+	# as salas por ondas só geram monstro quando o jogador entra: na chegada, só o chefe existe
+	check(int(exp_alive.call()) == 1 and ex.alive_in("Trono da Rainha") == 1 and ex.alive_in("Encruzilhada") == 0
+		and ex.alive_in("Clareira Funda") == 0, "na chegada só o chefe existe; as ondas esperam (%d)" % int(exp_alive.call()))
+	var bars: Array = ex.barriers.get("Encruzilhada", [])
+	check(bars.size() >= 2 and ex.barriers.get("Clareira Funda", []).size() >= 2
+		and ex.barriers.get("Trono da Rainha", []).size() >= 1 and not ex.barriers.has("Entrada"),
+		"barreiras nas bocas das salas de luta e no portão do chefe (%d na Encruzilhada)" % bars.size())
+	check(bars.all(func(b) -> bool: return not b.locked), "barreiras abertas antes da luta")
 	check(ex.exit_portal != null and ex.exit_portal.interact_prompt() == "Voltar à Guilda", "saída para a Guilda na Entrada")
+	# kit da run: só o ataque básico, sem espaço de habilidade na barra; o kit permanente segue intacto por baixo
+	await wait(0.2)
+	check(Game.run_kit_on and Game.ability_kit().is_empty() and Game.full_ability_kit() == hub_kit,
+		"expedição começa só com o ataque básico (kit permanente intacto: %s)" % [Game.full_ability_kit()])
+	var bar_on := func() -> Array:
+		var out := []
+		for n in range(1, ItemDB.SLOT_COUNT + 1):
+			if world.hud.slots["slot_%d" % n].visible:
+				out.append(n)
+		return out
+	check((bar_on.call() as Array).is_empty() and world.hud.slots.attack.visible,
+		"HUD da expedição: só o ataque básico, nenhum espaço de habilidade vazio (%s)" % [bar_on.call()])
+	var cds_before: Dictionary = player.cooldowns.duplicate()
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
+		player.use_slot(n)
+	await wait(0.1)
+	check(player.ability == "" and player.cooldowns == cds_before and not Game.knows_ability(hub_kit[0]),
+		"teclas 1-6 não fazem nada sem habilidade da run")
+	check(ex.altars.has("Altar da Deusa") and ex.altars.has("Altar Ancestral"), "os dois altares da Deusa no Pântano")
+	var alt0: Node = ex.altars.get("Altar da Deusa")
+	check(alt0 != null and alt0.state == alt0.DORMANT and not alt0.is_in_group("interactable"),
+		"altar da Deusa dorme até a sala ser visitada (sem [E])")
+	check(not ex.open_altar("Altar da Deusa") and world.modal == null, "altar dormindo não abre a escolha")
+	check(ex.shrines.has("Santuário Abandonado") and ex.shrines.has("Câmara das Oferendas")
+		and ex.shrines.has("Refúgio das Raízes") and ex.shrines.size() == 3, "santuários do evento, da recompensa e do descanso")
+	var sh0: Node = ex.shrines.get("Santuário Abandonado")
+	check(sh0 != null and not ex.use_shrine("Santuário Abandonado") and world.modal == null,
+		"santuário de sala não visitada não responde")
 	await _expedicao_balance(ex)
 	# cada melhoria mexe no número que diz: aplica todas pelo estado da run e confere no personagem
 	var before: Dictionary = hub_stats.call()
@@ -2673,6 +2714,9 @@ func _test_expedicao() -> void:
 		and int(exp_alive.call()) == 0 and not world.landmarks.has("exp_pantano:arrive"),
 		"mapa, monstros e registros da expedição desmontados")
 	check(not Game.run_mods.active, "run_mods desligado na volta")
+	await wait(0.2)
+	check(not Game.run_kit_on and Game.ability_kit() == hub_kit and hud_slot_ids() == hub_bar
+		and not world.hud.slots.attack.visible, "abandono: kit permanente de volta na barra (%s)" % [hud_slot_ids()])
 
 	# --- 2) derrota: cai lá dentro e volta à Guilda com vida cheia, sem multa nem tela de morte
 	var gold0 := Game.gold
@@ -2681,6 +2725,10 @@ func _test_expedicao() -> void:
 	ex = world.expedition
 	run = ex.run
 	check(run.modifiers.is_empty() and bool(default_mods.call()), "run nova começa sem as melhorias da anterior")
+	# uma habilidade da run antes de cair: não pode sobrar na Guilda
+	run.skills.append(hub_kit[0])
+	Game.set_run_kit(run.skills)
+	check(Game.ability_kit() == [hub_kit[0]], "derrota: com uma habilidade da run antes de cair")
 	run.modifiers = {"furia": 2}
 	ex._sync_mods()
 	check(Game.damage_mult() > stats0.damage + 0.2, "derrota: com melhoria ativa antes de cair")
@@ -2695,6 +2743,7 @@ func _test_expedicao() -> void:
 	check(Game.gold == gold0 and world.modal == null and not get_tree().paused, "derrota: sem multa de ouro nem tela de morte")
 	check(int(exp_alive.call()) == 0, "derrota: monstros da expedição desmontados")
 	check(bool(default_mods.call()) and same_stats.call(stats0, hub_stats.call()), "derrota: melhorias removidas")
+	check(not Game.run_kit_on and Game.ability_kit() == hub_kit, "derrota: kit da run limpo, kit permanente de volta")
 
 	# --- 3) vitória: atravessa as salas na ordem do grafo, limpa cada uma e derruba o chefe
 	check(world.start_expedition("pantano"), "entra pela terceira vez")
@@ -2702,33 +2751,81 @@ func _test_expedicao() -> void:
 	ex = world.expedition
 	run = ex.run
 	player.invuln = 999.0
-	var route := ["Encruzilhada", "Clareira Funda", "Salão do Portão", "Trono da Rainha"]
+	var route: Array = ExpeditionDefs.route(run.def).slice(1)   # as 13 etapas depois da Entrada
+	check(route.size() == 13, "13 etapas até o chefe (%d)" % route.size())
+	var prev_room := "Entrada"
 	for room in route:
 		var r: MapDungeonRoom = ex.rooms[room]
-		player.global_position = r.global_position + Vector3(0, 0.5, 4.0)
+		var mouths: Array = ex.barriers.get(room, [])
+		if room != "Trono da Rainha" and not mouths.is_empty():
+			# na boca da sala ainda não tranca: a cerca só sobe com o jogador lá dentro (espaço para a câmera)
+			var from: Vector3 = (ex.rooms[prev_room] as Node3D).global_position
+			var m: Node3D = mouths[0]
+			for b in mouths:
+				if b.global_position.distance_to(from) < m.global_position.distance_to(from):
+					m = b   # a boca por onde se chega (a mais perto da sala anterior)
+			player.global_position = m.global_position + m.inward * 1.5 + Vector3.UP * 0.5
+			player.velocity = Vector3.ZERO
+			await wait(0.5)
+			check(run.current_room == room and not run.is_locked() and ex.alive_in(room) == 0,
+				"%s: na boca da sala ainda não tranca nem gera onda" % room)
+		player.global_position = r.global_position + Vector3(0, 0.5, 0.0)
 		player.velocity = Vector3.ZERO
 		await wait(0.5)
 		check(run.current_room == room, "sala atual: %s" % room)
 		var fight := ExpeditionDefs.needs_clear(run.def, room)
 		if fight:
-			check(ex.alive_in(room) > 0 and not run.is_cleared(room), "%s: com monstros, ainda não limpa" % room)
-		for e in ex.entries:
-			if e.room == room and is_instance_valid(e.node) and not e.node.dead:
-				e.node.take_damage(999999.0, e.node.global_position + Vector3.FORWARD, false)
-		await wait(0.5)
-		for e in ex.entries:   # quem resistiu ao golpe (fase, escudo) sai na marra
-			if e.room == room and is_instance_valid(e.node) and not e.node.dead:
-				e.node._die()
-		await wait(0.3)
+			check(not run.is_cleared(room), "%s: ainda não limpa" % room)
+			await _expedicao_waves(ex, room)
+		else:
+			check(not run.is_locked() and ex.barriers.get(room, []).is_empty(), "%s: sala sem luta não tranca" % room)
+			await wait(0.3)
 		check(run.is_cleared(room) or not fight, "%s limpa (progresso %d%%)" % [room, roundi(run.progress() * 100.0)])
-		if ExpeditionDefs.grants_reward(run.def, room):
+		if ExpeditionDefs.reward_on_clear(run.def, room):
 			await _expedicao_reward(ex, room, hub_stats, same_stats)
-	check(run.modifiers.size() >= 1 and int(run.summary().rewards) == 2, "duas salas, duas bênçãos registradas na run")
+			await wait(0.3)
+			check(not world.hud.encounter_panel.visible, "%s: fora de luta a linha de ondas some do HUD" % room)
+		if ExpeditionDefs.has_altar(run.def, room):
+			await _expedicao_altar(ex, room)
+		match ExpeditionDefs.kind_of(run.def, room):
+			"event":
+				await _expedicao_event(ex, room, hub_stats)
+			"reward":
+				await _expedicao_offering(ex, room, hub_stats, same_stats)
+			"rest":
+				await _expedicao_rest(ex, room)
+		prev_room = room
+		if room == "Clareira Funda":
+			# voltar a uma sala já limpa: nada tranca, nenhuma onda, nenhuma bênção nova
+			var n_entries: int = ex.entries.size()
+			var n_rewards: int = run.rewards.size()
+			var enc: MapDungeonRoom = ex.rooms["Encruzilhada"]
+			player.global_position = enc.global_position + Vector3(0, 0.5, 2.0)
+			player.velocity = Vector3.ZERO
+			await wait(1.6)
+			check(run.current_room == "Encruzilhada" and not run.is_locked() and ex.wave_pending == ""
+				and ex.alive_in("Encruzilhada") == 0 and ex.entries.size() == n_entries,
+				"voltar à Encruzilhada limpa: sem tranca e sem monstro novo")
+			check(not run.has_pending_reward() and run.rewards.size() == n_rewards and world.modal == null,
+				"voltar à sala limpa não dá bênção de novo")
+			check((ex.barriers["Encruzilhada"] as Array).all(func(b) -> bool: return not b.locked),
+				"barreiras da sala limpa continuam abertas")
+			player.global_position = r.global_position + Vector3(0, 0.5, 2.0)
+			player.velocity = Vector3.ZERO
+			await wait(0.5)
+			check(run.current_room == "Clareira Funda" and not run.is_locked(), "volta à Clareira sem trancar de novo")
+	var want_rewards := ExpeditionDefs.reward_rooms(run.def).filter(func(rr: String) -> bool:
+		return ExpeditionDefs.kind_of(run.def, rr) != "altar" or str(run.altars_used.get(rr, "-")) == "").size()
+	check(run.modifiers.size() >= 1 and int(run.summary().rewards) == want_rewards,
+		"bênçãos registradas na run: %d (quer %d)" % [int(run.summary().rewards), want_rewards])
+	check(run.shrines_used.has("Santuário Abandonado") and run.shrines_used.get("Refúgio das Raízes", "") == "rest",
+		"evento e descanso registrados na run (%s)" % [run.shrines_used])
 	check(Game.run_mods.active and not bool(default_mods.call()), "melhorias valendo até o chefe")
 	check(run.outcome == ExpeditionRun.VICTORY and run.phase == ExpeditionRun.ENDED, "chefe caído: vitória")
 	check(not run.has_pending_reward() and (ex.reward_ui == null or not is_instance_valid(ex.reward_ui)
 		or ex.reward_ui.is_queued_for_deletion()), "a sala do chefe não abre escolha")
-	check(is_equal_approx(run.progress(), 1.0) and run.visited.size() == 5, "todas as salas visitadas e limpas")
+	check(is_equal_approx(run.progress(), 1.0) and run.visited.size() == ExpeditionDefs.rooms(run.def).size(),
+		"todas as %d salas visitadas e limpas" % run.visited.size())
 	var vp: Node = ex.victory_portal
 	check(vp != null and is_instance_valid(vp) and vp.is_in_group("interactable"), "portal dourado de volta na sala do chefe")
 	await wait(1.0)
@@ -2746,6 +2843,106 @@ func _test_expedicao() -> void:
 		"vitória: melhorias removidas (run_mods padrão)")
 	check(world.modal == null and not get_tree().paused and not Game.run_mods.active,
 		"vitória: nenhuma tela de escolha aberta na Guilda e run_mods desligado")
+	check(run.skills.size() == ExpeditionDefs.altar_rooms(run.def).size(), "vitória: uma habilidade por altar na run (%s)" % [run.skills])
+	await wait(0.2)
+	check(not Game.run_kit_on and Game.full_ability_kit() == hub_kit and Game.ability_kit() == hub_kit
+		and hud_slot_ids() == hub_bar, "vitória: as habilidades dos altares saem e o kit permanente volta (%s)" % [hud_slot_ids()])
+
+
+## Altar da Deusa em `room` (já limpa, se for de luta): desperto com o [E], a escolha mostra até 3 habilidades do kit
+## do personagem (sem ultimate, sem repetir as levadas), Esc fecha guardando as opções, escolher põe a habilidade
+## na próxima tecla da barra, ela funciona de verdade (gasta recarga, acerta um monstro) e o altar não serve de novo.
+func _expedicao_altar(ex: Node, room: String) -> void:
+	var run: ExpeditionRun = ex.run
+	var altar: Node3D = ex.altars.get(room)
+	check(altar != null and is_instance_valid(altar), "%s: altar montado" % room)
+	if altar == null:
+		return
+	await wait(0.3)
+	check(altar.state == altar.READY and altar.is_in_group("interactable"), "%s: altar desperto (%s)" % [room, altar.state])
+	# chega perto: aparece o [E] do altar
+	var front: Vector3 = altar.global_position + (ex.rooms[room].global_position - altar.global_position).normalized() * 1.6
+	player.global_position = Vector3(front.x, altar.global_position.y + 0.5, front.z)
+	player.velocity = Vector3.ZERO
+	await wait(0.4)
+	check(player.interact_target == altar and world.hud.prompt_box.visible
+		and world.hud.prompt.text.contains("Altar da Deusa"), "%s: perto do altar aparece a interação [E]" % room)
+	var kit_before: Array[String] = Game.ability_kit()
+	altar.interact(player)
+	await wait(0.2)
+	var ui: Control = ex.altar_ui
+	check(ui != null and is_instance_valid(ui) and world.modal == ui and get_tree().paused,
+		"%s: [E] abre a escolha do altar (jogo pausado)" % room)
+	if ui == null or not is_instance_valid(ui):
+		return
+	var choices: Array = ui.choices.duplicate()
+	var full := Game.full_ability_kit()
+	var want := mini(ExpeditionSkills.CHOICES, ExpeditionSkills.pool(full, run.skills).size())
+	check(choices.size() == want and ui._cards.size() == want, "%s: %d opções na tela (%s)" % [room, want, choices])
+	var fits := true
+	for id in choices:
+		if not full.has(id) or bool(ItemDB.ABILITIES[id].ultimate) or run.skills.has(id):
+			fits = false
+	check(fits, "%s: só habilidades do kit do personagem, sem ultimate nem repetidas" % room)
+	# Esc: fecha sem gastar; reabrir mostra as mesmas
+	ui._close()
+	await wait(0.2)
+	check(world.modal == null and not get_tree().paused and altar.state == altar.READY and not run.is_altar_used(room),
+		"%s: fechar sem escolher não gasta o altar" % room)
+	altar.interact(player)
+	await wait(0.2)
+	ui = ex.altar_ui
+	check(ui != null and is_instance_valid(ui) and ui.choices == choices, "%s: reabrir mostra as mesmas opções" % room)
+	if ui == null or not is_instance_valid(ui):
+		return
+	var pick := str(choices[0])
+	check(ui.pick(0, true), "%s: escolhe %s" % [room, ItemDB.ABILITIES[pick].name])
+	await wait(0.3)
+	var kit := Game.ability_kit()
+	check(kit.size() == kit_before.size() + 1 and kit[kit.size() - 1] == pick and run.skills.has(pick),
+		"%s: a habilidade entra no kit da run (%s)" % [room, kit])
+	var key := kit.size()
+	var slot: ItemSlot = world.hud.slots["slot_%d" % key]
+	check(slot.visible and slot.icon_kind == str(ItemDB.ABILITIES[pick].icon)
+		and (key == ItemDB.SLOT_COUNT or not world.hud.slots["slot_%d" % (key + 1)].visible),
+		"%s: a barra ganha um espaço, na tecla %d" % [room, key])
+	check(altar.state == altar.USED and not altar.is_in_group("interactable") and not ex.open_altar(room)
+		and world.modal == null and not get_tree().paused, "%s: altar gasto, não serve de novo" % room)
+	check(not ItemDB.ABILITIES.has(pick) or Game.knows_ability(pick), "%s: o altar libera a habilidade mesmo abaixo do nível" % room)
+	# usa de verdade: um monstro de teste na frente, a tecla nova, e a recarga e o dano saem pelo sistema de sempre
+	Game.mp = Game.max_mp()
+	Game.fury = 0.0
+	player.cooldowns[pick] = 0.0
+	await wait(0.6)   # a pausa da tela acabou; nada de ataque em andamento
+	var dummy: Enemy = Enemy.new()
+	dummy.kind = "slime_veloz"
+	dummy.level = 1
+	dummy.hp_mult = 50.0
+	world.add_child(dummy)
+	# olhando para -Z (o caminho da expedição), com o monstro a 2,5 m na frente (como no teste do Golpe Sísmico)
+	player.model.rotation.y = PI
+	player.velocity = Vector3.ZERO
+	dummy.global_position = player.global_position + Vector3(0, 0, -2.5)
+	await wait(0.3)
+	player.model.rotation.y = PI
+	dummy.global_position = player.global_position + Vector3(0, 0, -2.5)
+	var hp0: float = dummy.hp
+	player.use_slot(key)
+	var started: bool = player.ability != "" or player.cooldowns[pick] > 0.0 or player.area_armed == pick
+	if player.area_armed == pick:
+		player.confirm_area()
+	for i in 30:
+		await wait(0.1)
+		if is_instance_valid(dummy) and dummy.hp < hp0:
+			break
+	check(started and player.cooldowns[pick] > 0.0, "%s: a tecla %d usa %s (recarga %.1f s)" % [room, key, pick, player.cooldowns[pick]])
+	var buff: bool = ItemDB.BUFFS.has(pick) or ItemDB.BUFFS.has("sword_fury" if pick == "sword_fury_great" else pick)
+	check(buff or (is_instance_valid(dummy) and dummy.hp < hp0) or not is_instance_valid(dummy) or dummy.dead,
+		"%s: %s acerta o monstro na frente (%.0f -> %.0f)" % [room, pick, hp0, dummy.hp if is_instance_valid(dummy) else -1.0])
+	if is_instance_valid(dummy):
+		dummy.queue_free()
+	await wait(1.5)
+	player.cooldowns[pick] = 0.0
 
 
 ## Balanceamento da expedição nos monstros de verdade (Enemy no mundo): nível da sala, vida e dano iguais à conta
@@ -2765,9 +2962,10 @@ func _expedicao_balance(ex: Node) -> void:
 		if en == null or not is_instance_valid(en):
 			continue
 		var lv := ExpeditionBalance.level_range(def, str(e.room), 0, 0)
-		var role := ExpeditionBalance.role_of(bool(e.get("boss", false)) or en.chief)
+		var role := ExpeditionBalance.role_of(bool(e.get("boss", false)) or en.chief, bool(e.get("summoned", false)),
+			bool(e.get("leader", false)))
 		ok_level = ok_level and en.level >= lv.x and en.level <= lv.y and str(en.get_meta(ex.TUNED, "")) == role
-		var want := ExpeditionBalance.enemy_stats(bt, def, en.kind, en.level, role, en.chief)
+		var want := ExpeditionBalance.enemy_stats(bt, def, en.kind, en.level, role, en.chief, en.elite)
 		if absf(en.max_hp - want.hp) > 0.01 or absf(float(en.data.damage) * en.dmg_mult - want.dmg) > 0.01:
 			ok_stats = false
 			worst = "%s Nv %d: vida %.1f (quer %.1f), dano %.1f (quer %.1f)" % [en.kind, en.level, en.max_hp, want.hp,
@@ -2832,6 +3030,91 @@ func _expedicao_balance(ex: Node) -> void:
 	await wait(0.1)
 
 
+## Luta trancada da sala `room` (o jogador acabou de entrar): tranca e barreiras, HUD da onda, nenhuma saída
+## (nem pelo grafo, nem pela barreira, nem passando por fora dela), cada onda só depois da anterior cair e a última
+## soltando tudo.
+func _expedicao_waves(ex: Node, room: String) -> void:
+	var run: ExpeditionRun = ex.run
+	var total := run.wave_total(room)
+	var boss := ExpeditionDefs.kind_of(run.def, room) == "boss"
+	check(run.is_locked() and run.locked_room == room and run.current_wave(room) == 1,
+		"%s: entrar tranca a sala na onda 1/%d" % [room, total])
+	var bars: Array = ex.barriers.get(room, [])
+	await wait(0.6)   # a barreira sobe
+	check(not bars.is_empty() and bars.all(func(b) -> bool: return b.locked and not b._shape.disabled),
+		"%s: %d barreira(s) fechada(s) com colisão" % [room, bars.size()])
+	var hud = world.hud
+	if boss:   # na sala do chefe a barra dele diz tudo: a linha das ondas não aparece por cima
+		check(not hud.encounter_panel.visible and hud.boss_panel.visible,
+			"%s: só a barra do chefe no alto da tela" % room)
+	else:
+		check(hud.encounter_panel.visible and hud.encounter_title.text.contains("Onda 1/%d" % total),
+			"%s: HUD mostra '%s'" % [room, hud.encounter_title.text])
+	# o grafo não deixa sair: nem para a frente, nem para trás
+	var ok_graph := true
+	for other in ExpeditionDefs.rooms(run.def):
+		if other != room:
+			ok_graph = ok_graph and not run.can_enter(other)
+	check(ok_graph, "%s: trancada, a run não aceita nenhuma outra sala" % room)
+	# a barreira bloqueia de verdade (raio da camada das paredes de dentro para fora da sala)
+	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+	var ok_ray := true
+	for b in bars:
+		var from: Vector3 = b.global_position + b.inward * 1.5 + Vector3.UP
+		var q := PhysicsRayQueryParameters3D.create(from, b.global_position - b.inward * 1.5 + Vector3.UP,
+			MapRiver.WALL_LAYER)
+		var hit: Dictionary = space.intersect_ray(q)
+		ok_ray = ok_ray and not hit.is_empty() and hit.collider == b
+	check(ok_ray, "%s: as barreiras bloqueiam a passagem (colisão do jogador)" % room)
+	# passar por fora da barreira (passo rápido, teleporte) devolve para dentro
+	if not bars.is_empty():
+		var b: Node3D = bars[0]
+		player.global_position = b.global_position - b.inward * 3.0 + Vector3.UP * 0.5
+		player.velocity = Vector3.ZERO
+		await wait(0.5)
+		check(ex.room_at(player.global_position) == room and run.current_room == room and run.is_locked(),
+			"%s: quem passa por fora da barreira volta para dentro da sala" % room)
+	for w in range(1, total + 1):
+		var t := 0.0
+		while ex.wave_pending == room and t < 5.0:
+			await wait(0.2)
+			t += 0.2
+		var want := ExpeditionDefs.wave_size(run.def, room, w - 1) if ExpeditionDefs.has_waves(run.def, room) else 1
+		check(run.current_wave(room) == w and ex.alive_in(room) == want,
+			"%s: onda %d/%d nasceu com %d monstro(s) (quer %d)" % [room, w, total, ex.alive_in(room), want])
+		if w == 1 and room == "Encruzilhada":
+			await _expedicao_balance(ex)   # monstros das ondas com o nível e o balanceamento da sala
+		await wait(0.3)
+		if not boss:
+			check(hud.encounter_title.text.contains("Onda %d/%d" % [w, total])
+				and hud.encounter_info.text.begins_with("%d inimigo" % ex.alive_in(room)),
+				"%s: HUD '%s — %s'" % [room, hud.encounter_title.text, hud.encounter_info.text])
+		var later: int = ex.entries.size()
+		if ExpeditionDefs.kind_of(run.def, room) == "elite" and w == total:
+			await _expedicao_leader(ex, room)
+			later = ex.entries.size()
+		await _expedicao_kill(ex, room)
+		if w < total:
+			check(run.is_locked() and run.current_wave(room) == w + 1 and not run.is_cleared(room)
+				and bars.all(func(b) -> bool: return b.locked), "%s: onda %d caiu, a %d vem e a sala segue trancada" % [room, w, w + 1])
+			check(ex.entries.size() == later, "%s: a próxima onda só nasce depois do aviso" % room)
+	check(not run.is_locked() and run.is_cleared(room), "%s: a última onda caiu e a sala foi liberada" % room)
+	await wait(0.6)
+	check(bars.all(func(b) -> bool: return not b.locked and b._shape.disabled), "%s: barreiras abertas" % room)
+
+
+## Derruba todos os monstros vivos da sala (quem resiste ao golpe — fase, escudo — sai na marra).
+func _expedicao_kill(ex: Node, room: String) -> void:
+	for e in ex.entries:
+		if e.room == room and is_instance_valid(e.node) and not e.node.dead:
+			e.node.take_damage(999999.0, e.node.global_position + Vector3.FORWARD, false)
+	await wait(0.5)
+	for e in ex.entries:
+		if e.room == room and is_instance_valid(e.node) and not e.node.dead:
+			e.node._die()
+	await wait(0.3)
+
+
 ## Escolha de melhoria ao limpar `room`: tela obrigatória (pausa, Esc não fecha, fechar por fora reabre com as
 ## mesmas opções), a escolha vale no personagem e a sala não dá uma segunda recompensa.
 func _expedicao_reward(ex: Node, room: String, hub_stats: Callable, same_stats: Callable) -> void:
@@ -2868,10 +3151,13 @@ func _expedicao_reward(ex: Node, room: String, hub_stats: Callable, same_stats: 
 	var before: Dictionary = hub_stats.call()
 	var pick := str(choices[1])
 	var had := int(run.modifiers.get(pick, 0))
+	var stacks := run.pending_stacks()
+	check(stacks == ExpeditionDefs.reward_stacks(run.def, room) and ui2.stacks == stacks,
+		"%s: bênção x%d na tela" % [room, stacks])
 	check(ui2.pick(1, true), "%s: escolhe %s" % [room, ExpeditionUpgrades.display_name(pick)])
 	await wait(0.3)
-	check(int(run.modifiers.get(pick, 0)) == had + 1 and str(run.rewards.get(room, "")) == pick,
-		"%s: melhoria registrada no estado da run" % room)
+	check(int(run.modifiers.get(pick, 0)) == mini(had + stacks, ExpeditionUpgrades.MAX_STACKS)
+		and str(run.rewards.get(room, "")) == pick, "%s: melhoria registrada no estado da run (x%d)" % [room, stacks])
 	check(not same_stats.call(before, hub_stats.call()), "%s: a melhoria mudou os números do personagem" % room)
 	var want := ExpeditionUpgrades.total_mods(run.modifiers)
 	var ok := true
@@ -2889,6 +3175,131 @@ func _expedicao_reward(ex: Node, room: String, hub_stats: Callable, same_stats: 
 		or ex.reward_ui.is_queued_for_deletion()) and not ex.choose_reward(pick) and not run.clear_room(room)
 		and run.modifiers == mods, "%s: a sala não recompensa duas vezes" % room)
 	check(ex.alive_in(room) == 0, "%s: os monstros não voltam" % room)
+
+
+## O líder da sala de elite (última onda): nome, elite, papel e barra no alto; abaixo da metade da vida chama os
+## reforços (uma vez), que também contam para liberar a sala.
+func _expedicao_leader(ex: Node, room: String) -> void:
+	var run: ExpeditionRun = ex.run
+	var info := ExpeditionDefs.leader_of(run.def, room)
+	var leader: Enemy = null
+	for e in ex.entries:
+		if e.room == room and bool(e.get("leader", false)) and is_instance_valid(e.node):
+			leader = e.node
+	check(leader != null, "%s: o líder nasceu na última onda" % room)
+	if leader == null:
+		return
+	var common := ExpeditionBalance.enemy_stats(Balance.tables, run.def, leader.kind, leader.level, "common")
+	check(leader.elite and str(leader.get_meta(ex.TUNED, "")) == "elite" and leader.display_name.contains(str(info.name))
+		and leader.max_hp > common.hp * 1.5, "%s: %s é elite com nome e muito mais vida (%.0f x %.0f)"
+		% [room, leader.display_name, leader.max_hp, common.hp])
+	check(leader.level <= ExpeditionBalance.max_level(run.def), "%s: o líder não passa do nível máximo da expedição" % room)
+	check(world.hud.boss == leader, "%s: a barra do alto da tela é a do líder" % room)
+	var alive0: int = ex.alive_in(room)
+	var want := 0
+	for g in info.get("call", []):
+		want += int(g.count)
+	leader.hp = leader.max_hp * (float(info.get("call_at", 0.5)) - 0.05)
+	await wait(0.5)
+	check(ex.alive_in(room) == alive0 + want, "%s: abaixo da metade o líder chama %d reforços (%d -> %d)"
+		% [room, want, alive0, ex.alive_in(room)])
+	var after: int = ex.alive_in(room)
+	leader.hp = leader.max_hp * 0.1
+	await wait(0.5)
+	check(ex.alive_in(room) == after, "%s: os reforços vêm uma vez só" % room)
+
+
+## Santuário Abandonado: [E] abre o evento, Esc fecha sem gastar, oferecer sangue custa vida e dá o Pacto de Sangue
+## (mais dano no personagem), e o santuário não serve de novo.
+func _expedicao_event(ex: Node, room: String, hub_stats: Callable) -> void:
+	var run: ExpeditionRun = ex.run
+	var sh: Node3D = ex.shrines.get(room)
+	check(sh != null and sh.state == sh.READY and sh.is_in_group("interactable"), "%s: santuário aceso" % room)
+	if sh == null:
+		return
+	var front: Vector3 = sh.global_position + (ex.rooms[room].global_position - sh.global_position).normalized() * 1.8
+	player.global_position = Vector3(front.x, sh.global_position.y + 0.5, front.z)
+	player.velocity = Vector3.ZERO
+	await wait(0.4)
+	check(player.interact_target == sh and world.hud.prompt.text.contains("Santuário"), "%s: [E] no santuário" % room)
+	sh.interact(player)
+	await wait(0.2)
+	var ui: Control = ex.event_ui
+	check(ui != null and is_instance_valid(ui) and world.modal == ui and get_tree().paused
+		and ui._buttons.size() == ExpeditionEvents.options("santuario").size(), "%s: a escolha do evento abre" % room)
+	if ui == null or not is_instance_valid(ui):
+		return
+	ui._close()
+	await wait(0.2)
+	check(world.modal == null and sh.state == sh.READY and not run.is_shrine_used(room), "%s: Esc não gasta o evento" % room)
+	Game.hp = Game.max_hp()
+	var hp0 := Game.hp
+	var dmg0: float = hub_stats.call().damage
+	sh.interact(player)
+	await wait(0.2)
+	ui = ex.event_ui
+	if ui == null or not is_instance_valid(ui):
+		check(false, "%s: o evento reabre" % room)
+		return
+	check(ui.pick(0, true), "%s: oferece sangue" % room)
+	await wait(0.3)
+	check(Game.hp < hp0 - 1.0 and Game.hp >= 1.0, "%s: a oferenda custou vida (%.0f -> %.0f)" % [room, hp0, Game.hp])
+	check(int(run.modifiers.get("pacto_sangue", 0)) == 1 and hub_stats.call().damage > dmg0 + 0.2,
+		"%s: Pacto de Sangue: dano %.2f -> %.2f" % [room, dmg0, hub_stats.call().damage])
+	check(sh.state == sh.USED and not sh.is_in_group("interactable") and not ex.use_shrine(room)
+		and world.modal == null and not get_tree().paused, "%s: o santuário não serve de novo" % room)
+	Game.hp = Game.max_hp()
+
+
+## Câmara das Oferendas: o baú abre a escolha de bênção (a mesma tela das salas limpas), uma vez só.
+func _expedicao_offering(ex: Node, room: String, hub_stats: Callable, same_stats: Callable) -> void:
+	var run: ExpeditionRun = ex.run
+	var sh: Node3D = ex.shrines.get(room)
+	check(sh != null and sh.state == sh.READY and not run.has_pending_reward(), "%s: baú das oferendas fechado e aceso" % room)
+	if sh == null:
+		return
+	var before: Dictionary = hub_stats.call()
+	sh.interact(player)
+	await wait(0.3)
+	var ui: Control = ex.reward_ui
+	check(ui != null and is_instance_valid(ui) and world.modal == ui and str(run.pending_reward.get("room", "")) == room
+		and ui.title_text == room, "%s: o baú abre a escolha de bênção" % room)
+	if ui == null or not is_instance_valid(ui):
+		return
+	check(ui.pick(0, true), "%s: escolhe a bênção" % room)
+	await wait(0.3)
+	check(run.rewards.has(room) and not same_stats.call(before, hub_stats.call()) and world.modal == null,
+		"%s: a bênção vale no personagem" % room)
+	check(sh.state == sh.USED and not ex.use_shrine(room) and not run.has_pending_reward(), "%s: o baú se esvazia" % room)
+
+
+## Refúgio das Raízes: com vida cheia a fonte espera; ferido, cura metade da vida máxima, uma vez só, sem mexer
+## na vida máxima.
+func _expedicao_rest(ex: Node, room: String) -> void:
+	var run: ExpeditionRun = ex.run
+	var sh: Node3D = ex.shrines.get(room)
+	if not ExpeditionDefs.has_shrine(run.def, room):
+		check(sh == null and ExpeditionDefs.heal_of(run.def, room) == 0.0, "%s: sala de passagem, sem fonte" % room)
+		return
+	check(sh != null and sh.state == sh.READY, "%s: fonte acesa" % room)
+	if sh == null:
+		return
+	var top := Game.max_hp()
+	Game.hp = top
+	check(not ex.use_shrine(room) and not run.is_shrine_used(room), "%s: com a vida cheia a fonte não se gasta" % room)
+	Game.hp = top * 0.2
+	sh.interact(player)
+	await wait(0.3)
+	var want := minf(top, top * 0.2 + top * ExpeditionDefs.heal_of(run.def, room))
+	check(absf(Game.hp - want) < 1.0 and is_equal_approx(Game.max_hp(), top),
+		"%s: cura %.0f de vida (%.0f de %.0f), sem mudar a vida máxima" % [room, Game.hp - top * 0.2, Game.hp, top])
+	var hp1 := Game.hp
+	Game.hp = top * 0.2
+	sh.interact(player)
+	await wait(0.2)
+	check(Game.hp < top * 0.2 + 2.0 and sh.state == sh.USED and run.is_shrine_used(room),
+		"%s: a fonte cura uma vez só" % room)
+	Game.hp = maxf(hp1, top)
 
 
 ## Parte pedida com --smoke-part=<mundo|sistemas|horda|expedicao>; "" = o teste inteiro.

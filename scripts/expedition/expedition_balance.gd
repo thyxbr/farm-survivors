@@ -6,20 +6,23 @@ extends RefCounted
 ## categoria (progression.json) como no MMO. A expedição só decide duas coisas, e só para os monstros dela:
 ##   1. o NÍVEL de quem nasce em cada sala ("level": [mín, máx] na sala do ExpeditionDefs), no lugar do nível
 ##      escrito na cena;
-##   2. um multiplicador de vida e de dano por papel ("balance" do ExpeditionDefs: common, minion, boss), que o
+##   2. um multiplicador de vida e de dano por papel ("balance" do ExpeditionDefs: common, elite, minion, boss), que o
 ##      modo da expedição põe em Enemy.hp_mult / dmg_mult antes do monstro entrar no mundo — o mesmo caminho que o
 ##      Desafio da Horda usa (survival_mode.gd). O Enemy._ready multiplica isso pela curva e pela categoria.
 ## Nada aqui muda enemies.json, progression.json, o Enemy nem os monstros fora da expedição.
 ##
 ## Para subir a dificuldade das próximas expedições basta subir os níveis das salas e/ou os multiplicadores.
 
-const ROLES := ["common", "minion", "boss"]
+const ROLES := ["common", "elite", "minion", "boss"]
 
 
-## Papel do monstro na expedição: chefe da sala de chefe, lacaio (nasceu durante a luta) ou comum.
-static func role_of(is_boss: bool, summoned := false) -> String:
+## Papel do monstro na expedição: chefe da sala de chefe, líder de elite (sala de elite), lacaio (nasceu durante a
+## luta) ou comum.
+static func role_of(is_boss: bool, summoned := false, leader := false) -> String:
 	if is_boss:
 		return "boss"
+	if leader:
+		return "elite"
 	return "minion" if summoned else "common"
 
 
@@ -49,15 +52,17 @@ static func mults(def: Dictionary, role: String) -> Dictionary:
 
 ## Vida máxima e dano base ({"hp", "dmg"}) que um monstro `kind` de nível `level` terá na expedição: a mesma conta
 ## do Enemy._ready (dado do enemies.json x curva de nível x categoria) vezes o multiplicador do papel. Monstro
-## comum (não elite). O "dmg" é o `data.damage * dmg_mult`; cada golpe ainda multiplica pelo próprio fator.
+## comum, ou de elite com `elite` (o bônus de elite do progression.json, como no Enemy._ready). O "dmg" é o
+## `data.damage * dmg_mult`; cada golpe ainda multiplica pelo próprio fator.
 static func enemy_stats(bt: BalanceTables, def: Dictionary, kind: String, level: int, role: String,
-		chief := false) -> Dictionary:
+		chief := false, elite := false) -> Dictionary:
 	var t: Dictionary = bt.get_table("enemies").get(kind, {})
 	var lm := ProgressionRules.enemy_mults(bt, kind, level)
 	var rk := ProgressionRules.rank_mults(bt, kind, chief) if level > 0 else {"hp": 1.0, "dmg": 1.0}
 	var em := mults(def, role)
-	return {"hp": float(t.get("hp", 0.0)) * float(lm.hp) * float(rk.hp) * float(em.hp),
-		"dmg": float(t.get("damage", 0.0)) * float(lm.dmg) * float(rk.dmg) * float(em.dmg)}
+	var el: Dictionary = bt.get_table("progression").get("elite", {}) if elite and level > 0 else {}
+	return {"hp": float(t.get("hp", 0.0)) * float(lm.hp) * float(rk.hp) * float(em.hp) * float(el.get("hp", 1.0)),
+		"dmg": float(t.get("damage", 0.0)) * float(lm.dmg) * float(rk.dmg) * float(em.dmg) * float(el.get("dmg", 1.0))}
 
 
 ## Problemas do balanceamento da expedição ([] = ok): faixas de nível válidas só em salas de luta, papéis

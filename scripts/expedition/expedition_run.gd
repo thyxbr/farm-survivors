@@ -15,12 +15,35 @@ extends RefCounted
 ## pendente (offer_reward, com as opções já sorteadas); enquanto ela está pendente a run não deixa ir a outra sala.
 ## choose_reward grava a melhoria em `modifiers` ({id: acúmulos}) e marca a sala em `rewards`: cada sala dá no
 ## máximo uma recompensa, por mais que a escolha seja reaberta. O fim da run descarta a escolha pendente.
+##
+## Encontros (ondas): start_encounter tranca a run na sala de luta (`locked_room`: can_enter só aceita ela) e
+## começa a onda 1; advance_wave passa para a próxima; clear_room só aceita a sala depois da última onda e
+## destranca. Uma sala começa o encontro uma vez só: limpa, nunca mais tranca nem gera onda.
+##
+## Altares (kit temporário, ExpeditionSkills): a run começa sem habilidade (`skills` vazio: só o ataque básico).
+## offer_altar abre a escolha do altar da sala (opções já sorteadas, guardadas por altar em `pending_altar`: fechar
+## a tela e voltar mostra as mesmas, sem sortear de novo); choose_skill põe a habilidade em `skills` e gasta o altar
+## (`altars_used`): cada altar serve uma vez só. A escolha de altar não prende o jogador na sala. O fim da run
+## descarta as escolhas pendentes; `skills` morre com a run (nada é salvo no personagem).
+##
+## Santuários (salas de evento, recompensa e descanso; run_shrine.gd): cada um serve uma vez por run
+## (`shrines_used`: sala -> o que foi feito). choose_event aplica a escolha do evento (ExpeditionEvents: a bênção de
+## evento vai para `modifiers`; o custo em vida quem cobra é o modo); rest devolve quanto da vida curar. A sala de
+## recompensa usa a mesma escolha de bênção das salas de luta (offer_reward), só que pelo santuário. A bênção de
+## uma sala de elite soma mais de um acúmulo (ExpeditionDefs.reward_stacks).
 
 signal phase_changed(phase: String)
 signal room_entered(room: String)
 signal room_cleared(room: String)
+signal wave_started(room: String, wave: int, total: int)
+signal room_locked(room: String)
+signal room_unlocked(room: String)
 signal reward_offered(room: String, choices: Array)
 signal reward_chosen(room: String, upgrade: String)
+signal altar_offered(room: String, choices: Array)
+signal skill_chosen(room: String, skill: String)
+signal event_chosen(room: String, option: String)
+signal rested(room: String, fraction: float)
 
 const IDLE := "idle"
 const ACTIVE := "active"
@@ -49,6 +72,19 @@ var modifiers := {}
 var rewards := {}
 ## Escolha em aberto: {"room": sala, "choices": [ids]}; vazio = nenhuma.
 var pending_reward := {}
+## Sala trancada pelo encontro em andamento ("" = nenhuma): ninguém sai dela até a última onda cair.
+var locked_room := ""
+## Onda atual de cada sala que já começou o encontro: sala -> número da onda (1 = a primeira).
+var waves := {}
+## Habilidades levadas dos altares nesta run (ids de ItemDB.ABILITIES), na ordem em que foram escolhidas: a ordem
+## das teclas 1, 2, 3... da barra durante a expedição.
+var skills: Array[String] = []
+## Altares já usados: sala -> habilidade escolhida.
+var altars_used := {}
+## Opções já sorteadas de cada altar ainda não usado: sala -> [ids] (o altar mostra sempre as mesmas).
+var pending_altar := {}
+## Santuários já usados: sala -> o que foi feito (id da opção do evento, "rest").
+var shrines_used := {}
 
 
 ## Nova run para a expedição `id` (null se a expedição não existe ou a definição está quebrada).
@@ -86,6 +122,8 @@ func can_enter(room: String) -> bool:
 		return false
 	if current_room == "":
 		return room == str(def.start)
+	if is_locked():
+		return room == locked_room    # luta em andamento: as passagens estão fechadas
 	if has_pending_reward():
 		return room == current_room   # escolha a melhoria antes de seguir
 	return room == current_room or visited.has(room) or ExpeditionDefs.next_of(def, current_room).has(room)
@@ -109,7 +147,12 @@ func enter_room(room: String) -> bool:
 func clear_room(room: String) -> bool:
 	if not is_active() or not visited.has(room) or cleared.has(room):
 		return false
+	if waves.has(room) and int(waves[room]) < wave_total(room):
+		return false   # ainda há onda por vir
 	cleared[room] = true
+	if locked_room == room:
+		locked_room = ""
+		room_unlocked.emit(room)
 	room_cleared.emit(room)
 	if ExpeditionDefs.kind_of(def, room) == "boss":
 		finish(VICTORY)
@@ -132,6 +175,55 @@ func progress() -> float:
 	return float(n) / need.size()
 
 
+# ================================================================ encontros (ondas e salas trancadas)
+## Há uma sala trancada por luta agora.
+func is_locked() -> bool:
+	return locked_room != ""
+
+
+## Quantas ondas a luta de `room` tem (0 = sala sem luta).
+func wave_total(room: String) -> int:
+	return ExpeditionDefs.wave_count(def, room)
+
+
+## Onda em que `room` está (1 = a primeira; 0 = o encontro ainda não começou ou a sala não tem luta).
+func current_wave(room: String) -> int:
+	return int(waves.get(room, 0))
+
+
+## Depois da onda atual ainda vem outra.
+func has_next_wave(room: String) -> bool:
+	return waves.has(room) and current_wave(room) < wave_total(room)
+
+
+## `room` pode começar a luta agora: run ativa, é a sala atual, precisa ser limpa, não está limpa e o encontro
+## dela nunca começou (sala limpa não volta a ter onda).
+func can_start_encounter(room: String) -> bool:
+	return is_active() and room == current_room and ExpeditionDefs.needs_clear(def, room) \
+		and not cleared.has(room) and not waves.has(room) and not is_locked()
+
+
+## Tranca a sala atual e começa a onda 1. false se não pode (ver can_start_encounter).
+func start_encounter(room: String) -> bool:
+	if not can_start_encounter(room):
+		return false
+	locked_room = room
+	waves[room] = 1
+	room_locked.emit(room)
+	wave_started.emit(room, 1, wave_total(room))
+	return true
+
+
+## A onda atual de `room` caiu inteira e vem outra: passa para ela. false se não há luta trancada nessa sala ou
+## se a atual já era a última (aí quem chama limpa a sala com clear_room).
+func advance_wave(room: String) -> bool:
+	if not is_active() or locked_room != room or cleared.has(room) or not has_next_wave(room):
+		return false
+	waves[room] = current_wave(room) + 1
+	wave_started.emit(room, current_wave(room), wave_total(room))
+	return true
+
+
 # ================================================================ recompensas (melhorias temporárias)
 ## Há uma melhoria esperando ser escolhida.
 func has_pending_reward() -> bool:
@@ -146,15 +238,18 @@ func is_rewarded(room: String) -> bool:
 ## `room` pode oferecer a recompensa agora: run ativa, sala de recompensa já limpa, ainda não recompensada e
 ## nenhuma outra escolha em aberto.
 func can_offer_reward(room: String) -> bool:
-	return is_active() and cleared.has(room) and ExpeditionDefs.grants_reward(def, room) \
-		and not is_rewarded(room) and not has_pending_reward()
+	if not is_active() or not ExpeditionDefs.grants_reward(def, room) or is_rewarded(room) or has_pending_reward():
+		return false
+	# sala de luta: depois de limpa; sala sem luta (recompensa, altar): depois de visitada
+	return cleared.has(room) if ExpeditionDefs.needs_clear(def, room) else visited.has(room)
 
 
-## Salas limpas que dão recompensa e ainda não deram (na ordem em que foram visitadas).
+## Salas de luta limpas que dão recompensa e ainda não deram (na ordem em que foram visitadas). As salas sem luta
+## (recompensa, altar) não entram: a bênção delas sai pelo santuário/altar.
 func rooms_awaiting_reward() -> Array[String]:
 	var out: Array[String] = []
 	for r in visited:
-		if cleared.has(r) and ExpeditionDefs.grants_reward(def, r) and not is_rewarded(r):
+		if cleared.has(r) and ExpeditionDefs.reward_on_clear(def, r) and not is_rewarded(r):
 			out.append(r)
 	return out
 
@@ -171,7 +266,7 @@ func offer_reward(room: String, choices: Array) -> bool:
 	if valid.is_empty():
 		rewards[room] = ""
 		return false
-	pending_reward = {"room": room, "choices": valid}
+	pending_reward = {"room": room, "choices": valid, "stacks": ExpeditionDefs.reward_stacks(def, room)}
 	reward_offered.emit(room, valid)
 	return true
 
@@ -182,10 +277,143 @@ func choose_reward(upgrade: String) -> bool:
 	if not is_active() or not has_pending_reward() or not (pending_reward.choices as Array).has(upgrade):
 		return false
 	var room := str(pending_reward.room)
+	var stacks := int(pending_reward.get("stacks", 1))
 	pending_reward = {}
 	rewards[room] = upgrade
-	modifiers[upgrade] = int(modifiers.get(upgrade, 0)) + 1
+	add_modifier(upgrade, stacks)
 	reward_chosen.emit(room, upgrade)
+	return true
+
+
+## Acúmulos que a escolha pendente soma (1 = normal; 2 = bênção de elite; 0 = nenhuma escolha aberta).
+func pending_stacks() -> int:
+	return int(pending_reward.get("stacks", 1)) if has_pending_reward() else 0
+
+
+## Soma `stacks` acúmulos de `upgrade` em `modifiers`, sem passar do máximo (ExpeditionUpgrades.MAX_STACKS).
+## Devolve quantos entraram de fato.
+func add_modifier(upgrade: String, stacks := 1) -> int:
+	if not ExpeditionUpgrades.has(upgrade):
+		return 0
+	var now := int(modifiers.get(upgrade, 0))
+	var n := clampi(stacks, 0, ExpeditionUpgrades.MAX_STACKS - now)
+	if n > 0:
+		modifiers[upgrade] = now + n
+	return n
+
+
+# ================================================================ santuários (evento, recompensa, descanso)
+## O santuário de `room` pode ser usado agora: run ativa, sala com santuário, visitada, nada trancado nem escolha
+## em aberto, e ainda não usado (na sala de recompensa: a bênção dela ainda não saiu).
+func shrine_ready(room: String) -> bool:
+	if not is_active() or not ExpeditionDefs.has_shrine(def, room) or not visited.has(room):
+		return false
+	if is_locked() or has_pending_reward():
+		return false
+	return not is_shrine_used(room)
+
+
+## O santuário de `room` já foi usado (na sala de recompensa: a bênção dela já saiu ou está na tela).
+func is_shrine_used(room: String) -> bool:
+	if ExpeditionDefs.kind_of(def, room) == "reward":
+		return is_rewarded(room)
+	return shrines_used.has(room)
+
+
+## O jogador escolheu `option` no evento de `room`: a bênção da opção (se houver) entra em `modifiers` e o
+## santuário fica gasto. Devolve a opção (ExpeditionEvents) para o modo cobrar o custo; {} se não vale.
+func choose_event(room: String, option: String) -> Dictionary:
+	if not shrine_ready(room):
+		return {}
+	var o := ExpeditionEvents.option(ExpeditionDefs.event_of(def, room), option)
+	if o.is_empty():
+		return {}
+	shrines_used[room] = option
+	var up := str(o.get("upgrade", ""))
+	if up != "":
+		add_modifier(up, 1)
+	event_chosen.emit(room, option)
+	return o
+
+
+## Descanso em `room`: gasta o santuário e devolve a fração da vida máxima a curar (0 = não pode descansar).
+func rest(room: String) -> float:
+	var f := ExpeditionDefs.heal_of(def, room)
+	if f <= 0.0 or not shrine_ready(room):
+		return 0.0
+	shrines_used[room] = "rest"
+	rested.emit(room, f)
+	return f
+
+
+# ================================================================ altares (kit temporário de habilidades)
+## O altar de `room` já foi usado.
+func is_altar_used(room: String) -> bool:
+	return altars_used.has(room)
+
+
+## O altar de `room` está desperto: run ativa, sala com altar, já visitada, não usado e (sala de luta) já limpa.
+func altar_ready(room: String) -> bool:
+	if not is_active() or not ExpeditionDefs.has_altar(def, room) or altars_used.has(room) or not visited.has(room):
+		return false
+	return not ExpeditionDefs.altar_needs_clear(def, room) or cleared.has(room)
+
+
+## O altar de `room` já sorteou opções (e elas ainda não foram usadas).
+func has_altar_offer(room: String) -> bool:
+	return not altar_choices(room).is_empty()
+
+
+## Abre a escolha do altar de `room` com as opções `choices` (ids já sorteados, ExpeditionSkills.roll). Se o altar
+## já tinha opções guardadas (a tela foi fechada sem escolher), ficam as dele e `choices` é ignorado: não há como
+## sortear de novo. false se o altar não está desperto ou se não há opção válida.
+func offer_altar(room: String, choices: Array) -> bool:
+	if not altar_ready(room):
+		return false
+	if has_altar_offer(room):
+		return true
+	var valid: Array[String] = []
+	for c in choices:
+		var id := str(c)
+		if ExpeditionSkills.can_offer(id) and not skills.has(id) and not valid.has(id):
+			valid.append(id)
+	if valid.is_empty():
+		return false
+	pending_altar[room] = valid
+	altar_offered.emit(room, valid)
+	return true
+
+
+## Opções guardadas do altar de `room` que ainda valem (sem as que o jogador já levou em outro altar); [] = nenhuma.
+func altar_choices(room: String) -> Array:
+	var out: Array = []
+	if not altar_ready(room):
+		return out
+	for id in pending_altar.get(room, []):
+		if not skills.has(id):
+			out.append(id)
+	return out
+
+
+## O jogador levou `skill` do altar de `room`: entra no kit da run e o altar fica gasto. false (e nada muda) se o
+## altar não tem escolha em aberto, a run acabou ou a habilidade não estava entre as opções.
+func choose_skill(room: String, skill: String) -> bool:
+	if not is_active() or not altar_choices(room).has(skill):
+		return false
+	pending_altar.erase(room)
+	altars_used[room] = skill
+	skills.append(skill)
+	skill_chosen.emit(room, skill)
+	return true
+
+
+## O altar de `room` não tem mais habilidade para ensinar: fica gasto sem habilidade (o modo oferece a bênção da
+## sala no lugar, se ela tiver). false se o altar não estava desperto.
+func spend_altar(room: String) -> bool:
+	if not altar_ready(room):
+		return false
+	pending_altar.erase(room)
+	altars_used[room] = ""
 	return true
 
 
@@ -194,6 +422,8 @@ func finish(result: String) -> bool:
 	if not is_active() or not result in [VICTORY, DEFEAT, ABANDON]:
 		return false
 	pending_reward = {}   # a escolha que ficou aberta morre com a run
+	pending_altar = {}
+	locked_room = ""      # e a sala trancada também
 	outcome = result
 	_set_phase(ENDED)
 	return true
@@ -225,7 +455,8 @@ func summary() -> Dictionary:
 	return {"expedition": expedition_id, "phase": phase, "outcome": outcome, "room": current_room,
 		"rooms_cleared": cleared.size(), "rooms_to_clear": ExpeditionDefs.clear_rooms(def).size(),
 		"rooms_visited": visited.size(), "progress": progress(), "elapsed": elapsed,
-		"modifiers": modifiers.duplicate(), "rewards": rewards.size()}
+		"modifiers": modifiers.duplicate(), "rewards": rewards.size(), "skills": skills.duplicate(),
+		"shrines": shrines_used.duplicate()}
 
 
 func _set_phase(p: String) -> void:

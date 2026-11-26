@@ -8,7 +8,7 @@ const BRANCHED := {
 	"rooms": {
 		"A": {"kind": "start", "next": ["B", "C"]},
 		"B": {"kind": "combat", "next": ["D"]},
-		"C": {"kind": "reward", "next": ["D"]},
+		"C": {"kind": "reward", "reward": true, "shrine": {"at": [0, 0]}, "next": ["D"]},
 		"D": {"kind": "boss", "next": []},
 	},
 }
@@ -158,3 +158,135 @@ func test_is_inside_matches_the_map_origin() -> void:
 	for id in Regions.ALL:
 		T.eq(ExpeditionDefs.ambience_at(MapData.origin(id)), Regions.region_at(MapData.origin(id)),
 			"fora: %s igual ao region_at" % id)
+
+
+# ================================================================ encontros por ondas e salas trancadas
+## Rota com uma sala de duas ondas e recompensa, um descanso e o chefe (onda única, a da cena).
+const WAVED := {
+	"name": "Ondas", "map": "x", "start": "A",
+	"rooms": {
+		"A": {"kind": "start", "next": ["B"]},
+		"B": {"kind": "combat", "reward": true, "next": ["C"], "waves": [
+			[{"kind": "slime", "count": 2}],
+			[{"kind": "slime", "count": 1}, {"kind": "goblin", "count": 2}],
+		]},
+		"C": {"kind": "rest", "next": ["D"]},
+		"D": {"kind": "boss", "next": []},
+	},
+}
+
+
+func test_wave_data() -> void:
+	T.eq(ExpeditionDefs.wave_count(WAVED, "B"), 2, "B tem duas ondas")
+	T.eq(ExpeditionDefs.wave_count(WAVED, "D"), 1, "chefe sem waves: uma onda (a da cena)")
+	T.eq(ExpeditionDefs.wave_count(WAVED, "C"), 0, "descanso sem luta")
+	T.ok(ExpeditionDefs.has_waves(WAVED, "B") and not ExpeditionDefs.has_waves(WAVED, "D"), "quem nasce por ondas")
+	T.eq(ExpeditionDefs.wave_size(WAVED, "B", 0), 2, "onda 1: 2 monstros")
+	T.eq(ExpeditionDefs.wave_size(WAVED, "B", 1), 3, "onda 2: 3 monstros")
+	T.eq(ExpeditionDefs.wave_groups(WAVED, "B", 2), [], "não há onda 3")
+	T.eq(ExpeditionDefs.validate(WAVED).size(), 0, "definição com ondas válida")
+	var bad := WAVED.duplicate(true)
+	bad.rooms.C["waves"] = [[{"kind": "slime", "count": 1}]]
+	bad.rooms.B.waves = [[], [{"kind": "", "count": 1}], [{"kind": "slime", "count": 0}]]
+	var p := ExpeditionDefs.validate(bad)
+	T.ok(p.size() >= 4, "pega onda em sala sem luta, onda vazia, sem tipo e com contagem 0 (%d)" % p.size())
+
+
+func test_pantano_has_escalating_waves() -> void:
+	var d := ExpeditionDefs.get_def("pantano")
+	var multi := 0
+	var last_total := 0
+	for room in ["Encruzilhada", "Raízes Corrompidas", "Clareira Funda", "Pântano Corrompido"]:
+		var n := ExpeditionDefs.wave_count(d, room)
+		if n > 1:
+			multi += 1
+		var total := 0
+		for i in n:
+			var s := ExpeditionDefs.wave_size(d, room, i)
+			T.ok(s >= 1 and s <= 5, "%s onda %d com %d monstros (nenhuma onda é um bando enorme)" % [room, i + 1, s])
+			total += s
+		T.ok(total > last_total, "%s mais pesada que a sala anterior (%d > %d)" % [room, total, last_total])
+		last_total = total
+	T.ok(multi >= 4, "todas as salas de luta comuns têm mais de uma onda")
+	T.ok(ExpeditionDefs.wave_count(d, "Clareira Funda") > ExpeditionDefs.wave_count(d, "Encruzilhada"),
+		"a segunda sala tem mais ondas que a primeira")
+	T.eq(ExpeditionDefs.wave_count(d, "Trono da Rainha"), 1, "o chefe continua sendo a luta da cena")
+
+
+func test_encounter_locks_until_last_wave() -> void:
+	var r := _run(WAVED)
+	var ev: Array = []
+	r.wave_started.connect(func(room: String, w: int, t: int) -> void: ev.append("%s %d/%d" % [room, w, t]))
+	r.room_locked.connect(func(room: String) -> void: ev.append("tranca " + room))
+	r.room_unlocked.connect(func(room: String) -> void: ev.append("solta " + room))
+	r.start()
+	T.ok(not r.can_start_encounter("B"), "não começa luta de sala onde o jogador não está")
+	T.ok(not r.start_encounter("A"), "a chegada não tem luta")
+	r.enter_room("B")
+	T.ok(not r.is_locked() and r.current_wave("B") == 0, "entrar não tranca sozinho (quem tranca é o modo)")
+	T.ok(r.start_encounter("B"), "começa a luta de B")
+	T.ok(r.is_locked() and r.locked_room == "B" and r.current_wave("B") == 1, "B trancada na onda 1")
+	T.ok(not r.start_encounter("B"), "não recomeça a luta")
+	T.ok(not r.can_enter("C") and not r.enter_room("C"), "trancada: não segue para a próxima sala")
+	T.ok(not r.can_enter("A") and not r.enter_room("A"), "trancada: não volta para a anterior")
+	T.ok(r.can_enter("B"), "trancada: só a própria sala")
+	T.ok(not r.clear_room("B"), "não limpa com onda por vir")
+	T.ok(r.has_next_wave("B") and r.advance_wave("B"), "onda 1 caiu: vem a 2")
+	T.eq(r.current_wave("B"), 2, "na onda 2")
+	T.ok(not r.has_next_wave("B") and not r.advance_wave("B"), "a 2 é a última")
+	T.ok(r.is_locked(), "ainda trancada até limpar")
+	T.ok(r.clear_room("B"), "última onda caiu: limpa")
+	T.ok(not r.is_locked() and r.can_enter("C"), "solta: pode seguir")
+	T.eq(ev, ["tranca B", "B 1/2", "B 2/2", "solta B"], "sinais na ordem")
+	# voltar à sala limpa: nada tranca, nenhuma onda nova
+	r.enter_room("A")
+	r.enter_room("B")
+	T.ok(not r.can_start_encounter("B") and not r.start_encounter("B") and not r.advance_wave("B"),
+		"sala limpa não tranca nem gera onda de novo")
+	T.ok(not r.clear_room("B"), "nem limpa (e recompensa) duas vezes")
+
+
+func test_reward_waits_for_last_wave_and_happens_once() -> void:
+	var r := _run(WAVED)
+	r.start()
+	r.enter_room("B")
+	r.start_encounter("B")
+	T.ok(not r.can_offer_reward("B"), "sem bênção no meio da luta")
+	r.advance_wave("B")
+	r.clear_room("B")
+	T.eq(r.rooms_awaiting_reward(), ["B"], "limpa: a bênção espera")
+	T.ok(r.offer_reward("B", ["furia", "seiva", "casca"]), "oferece")
+	T.ok(r.choose_reward("seiva"), "escolhe")
+	T.ok(not r.offer_reward("B", ["furia"]) and r.rooms_awaiting_reward().is_empty(), "uma bênção por sala")
+	T.eq(r.modifiers, {"seiva": 1}, "uma melhoria só")
+
+
+func test_boss_room_locks_and_victory_unlocks() -> void:
+	var r := _run(WAVED)
+	r.start()
+	r.enter_room("B")
+	r.start_encounter("B")
+	r.advance_wave("B")
+	r.clear_room("B")
+	r.offer_reward("B", ["furia"])
+	r.choose_reward("furia")
+	r.enter_room("C")
+	T.ok(not r.start_encounter("C"), "descanso não tranca")
+	r.enter_room("D")
+	T.ok(r.start_encounter("D") and r.wave_total("D") == 1, "chefe: tranca com uma onda")
+	T.ok(not r.can_enter("C"), "não foge do chefe pela sala de descanso")
+	T.ok(r.clear_room("D") and r.outcome == ExpeditionRun.VICTORY, "chefe caído: vitória")
+	T.ok(not r.is_locked(), "vitória solta a sala")
+
+
+func test_end_of_run_releases_the_lock() -> void:
+	var r := _run(WAVED)
+	r.start()
+	r.enter_room("B")
+	r.start_encounter("B")
+	T.ok(r.fail() and not r.is_locked(), "cair no meio da luta solta a tranca")
+	var a := _run(WAVED)
+	a.start()
+	a.enter_room("B")
+	a.start_encounter("B")
+	T.ok(a.abandon() and not a.is_locked() and not a.advance_wave("B"), "abandonar solta e não gera onda")

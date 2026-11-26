@@ -88,13 +88,20 @@ static func details_lines(id: String) -> Array:
 	var d := ExpeditionDefs.get_def(id)
 	var fights := ExpeditionDefs.clear_rooms(d).filter(
 		func(r: String) -> bool: return ExpeditionDefs.kind_of(d, r) != "boss").size()
+	var count := func(kind: String) -> int:
+		return ExpeditionDefs.rooms(d).keys().filter(func(r: String) -> bool: return ExpeditionDefs.kind_of(d, r) == kind).size()
+	var elites: int = count.call("elite")
 	var out: Array = []
 	out.append([ExpeditionDefs.display_name(id), 26, UITheme.GOLD])
 	out.append(["Rank %s   ·   Expedição solo" % str(d.get("rank", "?")), 16, UITheme.TEXT])
 	if str(d.get("desc", "")) != "":
 		out.append([str(d.desc), 16, UITheme.DIM])
-	out.append(["Salas: %d  (%d de combate)" % [ExpeditionDefs.rooms(d).size(), fights], 16, UITheme.TEXT])
-	out.append(["Bênçãos no caminho: %d  (escolha 1 de %d ao limpar a sala)" % [ExpeditionDefs.reward_rooms(d).size(),
+	out.append(["Etapas: %d  (%d de combate, %d de elite)" % [ExpeditionDefs.route(d).size() - 1, fights - elites, elites],
+		16, UITheme.TEXT])
+	out.append(["Altares: %d  ·  Eventos: %d  ·  Descanso: %d" % [ExpeditionDefs.altar_rooms(d).size(), count.call("event"),
+		ExpeditionDefs.shrine_rooms(d).filter(func(r: String) -> bool: return ExpeditionDefs.heal_of(d, r) > 0.0).size()],
+		16, UITheme.TEXT])
+	out.append(["Bênçãos no caminho: %d  (escolha 1 de %d)" % [ExpeditionDefs.reward_rooms(d).size(),
 		ExpeditionUpgrades.CHOICES], 16, UITheme.TEXT])
 	out.append(["Chefe: %s" % str(d.get("boss", "?")), 16, Color(1, 0.6, 0.45)])
 	out.append(["Cair ou abandonar leva de volta à Guilda, sem multa de ouro.", 14, UITheme.DIM])

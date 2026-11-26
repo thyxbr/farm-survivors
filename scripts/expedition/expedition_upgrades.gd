@@ -18,7 +18,8 @@ const CHOICES := 3
 ## Chaves de Game.run_mods que as melhorias podem somar (validate confere).
 const RUN_MOD_KEYS := ["damage", "max_hp", "defense", "speed", "cdr"]
 
-## icon: desenho do SkillIcon (mesmos ids das passivas da Horda); color: cor da carta.
+## icon: desenho do SkillIcon (mesmos ids das passivas da Horda); color: cor da carta. "pool": false = não sai no
+## sorteio das bênçãos (só vem de um evento: ExpeditionEvents), mas soma e some igual às outras.
 const DATA := {
 	"furia": {
 		"name": "Fúria do Pântano",
@@ -50,6 +51,19 @@ const DATA := {
 		"add": {"cdr": 0.08},
 		"icon": "celeridade", "color": Color(0.75, 0.6, 1.0),
 	},
+	# só do Santuário Abandonado (ExpeditionEvents "santuario")
+	"pacto_sangue": {
+		"name": "Pacto de Sangue",
+		"desc": "+25% de dano em ataques e habilidades.",
+		"add": {"damage": 0.25},
+		"icon": "poder", "color": Color(0.85, 0.15, 0.2), "pool": false,
+	},
+	"veu_deusa": {
+		"name": "Véu da Deusa",
+		"desc": "+8 de defesa: a Deusa amortece cada golpe.",
+		"add": {"defense": 8.0},
+		"icon": "armadura", "color": Color(0.6, 0.9, 1.0), "pool": false,
+	},
 }
 
 
@@ -70,12 +84,17 @@ static func can_take(id: String, taken: Dictionary) -> bool:
 	return has(id) and int(taken.get(id, 0)) < MAX_STACKS
 
 
-## Sorteia até `n` melhorias diferentes que ainda não chegaram ao máximo. Com o mesmo `rng` (mesma semente)
+## Entra no sorteio das bênçãos (as de evento, "pool": false, não).
+static func in_pool(id: String) -> bool:
+	return has(id) and bool(DATA[id].get("pool", true))
+
+
+## Sorteia até `n` melhorias diferentes do sorteio que ainda não chegaram ao máximo. Com o mesmo `rng` (mesma semente)
 ## sai a mesma lista. Vazia só se todas estiverem no máximo.
 static func roll(rng: RandomNumberGenerator, taken: Dictionary, n := CHOICES) -> Array[String]:
 	var pool: Array[String] = []
 	for id in DATA:
-		if can_take(id, taken):
+		if in_pool(id) and can_take(id, taken):
 			pool.append(id)
 	pool.sort()   # ordem estável antes de sortear (independe da ordem do dicionário)
 	var out: Array[String] = []
@@ -126,6 +145,7 @@ static func validate() -> PackedStringArray:
 				out.append("melhoria '%s' mexe em '%s', que não é de run_mods" % [id, k])
 			elif float(add[k]) <= 0.0:
 				out.append("melhoria '%s' com valor não positivo em '%s'" % [id, k])
-	if DATA.size() < CHOICES:
-		out.append("menos melhorias (%d) do que opções na recompensa (%d)" % [DATA.size(), CHOICES])
+	var pooled := DATA.keys().filter(in_pool).size()
+	if pooled < CHOICES:
+		out.append("menos melhorias (%d) do que opções na recompensa (%d)" % [pooled, CHOICES])
 	return out

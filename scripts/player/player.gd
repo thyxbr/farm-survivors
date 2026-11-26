@@ -1258,10 +1258,13 @@ static func _make_cooldowns() -> Dictionary:
 	return d
 
 
-## Usa a habilidade do slot (1..5) do kit da arma equipada; slot sem habilidade não faz nada.
+## Usa a habilidade do slot (1..6) do kit que vale agora (Game.ability_kit: o da arma, ou o kit temporário da
+## expedição, numerado na ordem em que foi levado); slot sem habilidade não faz nada.
 func use_slot(slot: int) -> void:
-	for id in Game.ability_kit():
-		if ItemDB.ABILITIES[id].slot == slot:
+	var kit := Game.ability_kit()
+	for i in kit.size():
+		var id := kit[i]
+		if Game.kit_slot(kit, i) == slot:
 			var before := ability
 			cast(id)
 			if before == "" and ability != "":   # só quando este cast começou a habilidade

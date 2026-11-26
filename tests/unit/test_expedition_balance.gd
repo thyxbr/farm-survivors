@@ -47,14 +47,23 @@ func _spawns() -> Array:
 		for id in rooms:
 			if (rooms[id].node as MapDungeonRoom).contains(rooms[id].c, Vector2(o.x, o.z)):
 				home = id
-		out.append({"kind": s.kind, "room": home, "chief": s.chief, "level": s.level, "level_max": s.level_max})
+		out.append({"kind": s.kind, "room": home, "chief": s.chief, "level": s.level, "level_max": s.level_max,
+			"leader": false, "elite": false})
 	root.free()
+	# e os das ondas (ExpeditionDefs "waves"), que nascem no nível da sala
+	var def := _def()
+	for room in ExpeditionDefs.rooms(def):
+		var lv := ExpeditionBalance.level_range(def, room, 0, 0)
+		for i in ExpeditionDefs.waves_of(def, room).size():
+			for g in ExpeditionDefs.wave_groups(def, room, i):
+				out.append({"kind": str(g.kind), "room": room, "chief": false, "level": lv.x, "level_max": lv.y,
+					"leader": bool(g.get("leader", false)), "elite": bool(g.get("elite", false))})
 	return out
 
 
 func _role(s: Dictionary) -> String:
 	var boss := bool(_tables().get_table("enemies").get(s.kind, {}).get("boss", false)) or bool(s.chief)
-	return ExpeditionBalance.role_of(boss)
+	return ExpeditionBalance.role_of(boss, false, bool(s.get("leader", false)))
 
 
 # ================================================================ dados
@@ -171,6 +180,35 @@ func test_espinheira_beatable_not_trivial() -> void:
 	var sp := ExpeditionBalance.enemy_stats(bt, _def(), "broto_espinheiro", lv.x, "minion")
 	var sp_hits := ceili(sp.hp / (hero.dmg * ElementRules.mult(bt, "broto_espinheiro", "fisico")))
 	T.ok(sp_hits >= 2 and sp_hits <= 8, "broto da Espinheira: %d golpes básicos (vida %.0f)" % [sp_hits, sp.hp])
+
+
+# ================================================================ elites (Fase B)
+func test_elite_leaders_are_tougher_but_fair() -> void:
+	var bt := _tables()
+	var hero := _hero()
+	var top := ExpeditionBalance.max_level(_def())
+	for room in ["Guardião das Raízes", "Arauto do Pântano"]:
+		for i in ExpeditionDefs.waves_of(_def(), room).size():
+			for g in ExpeditionDefs.wave_groups(_def(), room, i):
+				if not bool(g.get("leader", false)):
+					continue
+				# nível: o da sala + o bônus de elite, mas nunca acima do teto da expedição (o modo corta)
+				var lv := mini(ExpeditionBalance.level_range(_def(), room, 0, 0).y
+					+ int(bt.get_table("progression").elite.level_bonus), top)
+				var st := ExpeditionBalance.enemy_stats(bt, _def(), str(g.kind), lv, "elite", false, true)
+				var common := ExpeditionBalance.enemy_stats(bt, _def(), str(g.kind), lv, "common")
+				var hit: float = hero.dmg * ElementRules.mult(bt, str(g.kind), "fisico")
+				var hits := ceili(st.hp / hit)
+				T.ok(st.hp > common.hp * 1.5, "%s: líder bem mais resistente que o comum (%.0f x %.0f)" % [room, st.hp, common.hp])
+				T.ok(hits >= 12 and hits <= 60, "%s: %d golpes básicos de nível 1 (vida %.0f)" % [room, hits, st.hp])
+				var frac: float = st.dmg * hero.taken / hero.hp
+				T.ok(frac <= 0.3, "%s: golpe base do líder tira %.0f%% da vida de nível 1" % [room, frac * 100.0])
+		# reforços do líder: lacaios (vida de lacaio)
+		var lvr := ExpeditionBalance.level_range(_def(), room, 0, 0)
+		for g in ExpeditionDefs.leader_of(_def(), room).get("call", []):
+			var sp := ExpeditionBalance.enemy_stats(bt, _def(), str(g.kind), lvr.y, "minion")
+			var sp_hits := ceili(sp.hp / (hero.dmg * ElementRules.mult(bt, str(g.kind), "fisico")))
+			T.ok(sp_hits >= 1 and sp_hits <= 10, "%s: reforço %s cai em %d golpes" % [room, g.kind, sp_hits])
 
 
 # ================================================================ isolamento do MMO

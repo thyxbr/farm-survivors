@@ -107,7 +107,26 @@ func test_expedition_maps_follow_the_graph() -> void:
 			var has_spawn := false
 			for s: EnemySpawn in root.pieces(EnemySpawn):
 				has_spawn = has_spawn or _room_of(rooms, _xz(root.local_xform(s).origin)) == r
-			T.ok(has_spawn, "%s: a sala com luta '%s' tem monstros" % [id, r])
+			var waves := ExpeditionDefs.has_waves(def, r)
+			T.ok(has_spawn or waves, "%s: a sala com luta '%s' tem monstros" % [id, r])
+			# sala por ondas: os monstros vêm só do ExpeditionDefs (nada nasce antes de o jogador entrar)
+			T.ok(not (has_spawn and waves), "%s: '%s' por ondas não tem ponto de monstro na cena" % [id, r])
+			if waves and rooms.has(r):
+				var rm: MapDungeonRoom = rooms[r].node
+				T.ok(rm.size.x * rm.size.y >= 120.0, "%s: '%s' tem espaço para as ondas (%.0f m²)" % [id, r, rm.size.x * rm.size.y])
+			# toda sala com luta tem por onde trancar: corredor que cruza a borda dela, ou o portão do chefe
+			var mouths := 0
+			if rooms.has(r):
+				for pth: MapDungeonPath in root.pieces(MapDungeonPath):
+					var pts := pth.points(root)
+					for i in range(pts.size() - 1):
+						var a_in: bool = _room_of(rooms, pts[i]) == r
+						var b_in: bool = _room_of(rooms, pts[i + 1]) == r
+						if a_in != b_in:
+							mouths += 1
+				if (rooms[r].node as MapDungeonRoom).boss:
+					mouths += 1 if not d.boss_entrance().is_empty() else 0
+			T.ok(mouths >= 1, "%s: '%s' tem passagem para a barreira fechar (%d)" % [id, r, mouths])
 		for pth: MapDungeonPath in root.pieces(MapDungeonPath):
 			T.ok(pth.width >= 6.0, "%s: %s é largo (%.1f m)" % [id, pth.name, pth.width])
 		root.free()

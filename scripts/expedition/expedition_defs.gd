@@ -8,16 +8,49 @@ extends RefCounted
 ## Tipos de sala (ROOM_KINDS):
 ##   start  — chegada, sem monstros (a saída para a Guilda fica nela)
 ##   combat — monstros comuns; precisa limpar para contar no progresso
-##   elite  — (futuro) bando mais forte; conta no progresso
-##   reward / event / rest — (futuro) sala sem luta obrigatória
+##   elite  — bando com um líder de elite (mais forte, com nome); conta no progresso e dá uma bênção melhor
+##   altar  — sala do Altar da Deusa (sem luta)
+##   event  — sala com um evento (escolha com consequência na run: ExpeditionEvents)
+##   reward — sala de recompensa (o santuário da sala dá uma bênção ao ser usado)
+##   rest   — descanso (o santuário da sala, se houver, cura uma vez)
 ##   boss   — chefe; limpar a sala de chefe conclui a expedição (vitória)
+##
+## Encontros (salas de CLEAR_KINDS): entrar na sala fecha as passagens dela (barreiras do expedition_mode) até
+## a luta acabar. "waves" na sala = lista de ondas, cada onda uma lista de {"kind": id do enemies.json, "count": n}
+## (e "elite": true opcional; "leader": true = o líder da sala de elite, ver "leader"). A próxima onda só nasce
+## quando a atual cai inteira, e nada nasce antes de o jogador entrar. Sala de luta sem "waves" (o chefe) é uma
+## onda só: os pontos de monstro (EnemySpawn) da cena.
+##
+## Líder de elite ("leader" na sala de elite): {"name": nome na placa, "call": [grupos], "call_at": fração da vida}.
+## O monstro do grupo com "leader": true ganha o nome, o balanceamento de elite (ExpeditionBalance "elite") e, quando
+## a vida dele cai abaixo de `call_at`, chama os grupos de `call` uma vez só (reforços que também precisam cair).
+##
+## Bênçãos ("reward": true; ExpeditionUpgrades): sala de luta dá a escolha ao ser limpa; sala "reward"/"altar" dá
+## quando o santuário/altar dela é usado. "reward_stacks" = acúmulos que a bênção escolhida soma (padrão: 2 na sala
+## de elite, 1 nas outras).
+##
+## Altar da Deusa ("altar" na sala; skill_altar.gd + ExpeditionSkills): {"at": [x, z]} = lugar do altar em metros a
+## partir do centro da sala. Usado uma vez só: escolhe 1 de 3 habilidades para o kit temporário da run. Numa sala de
+## luta ele só desperta depois que a sala é limpa. Sala de chefe não tem altar (limpá-la encerra a run). Se não há
+## mais habilidade para ensinar e a sala tem "reward": true, o altar oferece uma bênção no lugar.
+##
+## Santuário ("shrine" na sala; run_shrine.gd): {"at": [x, z]} e, conforme o tipo da sala:
+##   event  — "event": id do ExpeditionEvents (a escolha da sala)
+##   reward — a bênção da sala (precisa de "reward": true)
+##   rest   — "heal": fração da vida máxima recuperada (uma vez só)
 
-const ROOM_KINDS := ["start", "combat", "elite", "reward", "event", "rest", "boss"]
+const ROOM_KINDS := ["start", "combat", "elite", "altar", "event", "reward", "rest", "boss"]
 ## Tipos que precisam ser limpos (todos os monstros mortos) para contar no progresso.
 const CLEAR_KINDS := ["combat", "elite", "boss"]
-## Tipos de sala que podem dar uma melhoria temporária ao serem limpos ("reward": true na sala; ExpeditionUpgrades).
-## A sala de chefe não entra: limpá-la encerra a run.
-const REWARD_KINDS := ["combat", "elite"]
+## Tipos de sala com ondas.
+const WAVE_KINDS := ["combat", "elite"]
+## Tipos de sala que podem dar uma melhoria temporária ("reward": true na sala; ExpeditionUpgrades). As de luta dão
+## ao serem limpas; as outras pelo santuário/altar. A sala de chefe não entra: limpá-la encerra a run.
+const REWARD_KINDS := ["combat", "elite", "reward", "altar"]
+## Tipos de sala que podem ter Altar da Deusa.
+const ALTAR_KINDS := ["start", "combat", "elite", "altar", "reward", "event", "rest"]
+## Tipos de sala que podem ter santuário (o tipo da sala é o tipo do santuário).
+const SHRINE_KINDS := ["event", "reward", "rest"]
 
 ## Ordem em que as expedições aparecem na seleção da Guilda (expedition_select_ui.gd). Bioma novo: entra em DATA
 ## e aqui; sem mais nada a mudar na seleção.
@@ -30,25 +63,87 @@ const DATA := {
 		"biome": "bosque",       # Regions.DATA: de onde vêm o tema, os monstros e a faixa de nível
 		"ambience": "dg_bosque", # clima, céu e música como dentro do Covil das Raízes (ambience_at)
 		"rank": "C",             # dificuldade mostrada na seleção da Guilda
-		"half": 70.0,            # meia largura da cena (MapRoot.half)
+		"half": 100.0,           # meia largura da cena (MapRoot.half)
 		# texto da seleção da Guilda
-		"desc": "Um brejo de névoa e raízes onde as vozes dos afogados guiam os incautos. "
-			+ "No coração do pântano, a Espinheira guarda o Trono da Rainha.",
+		"desc": "Um brejo de névoa e raízes onde as vozes dos afogados guiam os incautos. Treze etapas de lama, "
+			+ "ruínas e elites até o coração do pântano, onde a Espinheira guarda o Trono da Rainha.",
 		"boss": "Espinheira",
 		"start": "Entrada",
+		# Rota linear de 13 etapas até o chefe. Ritmo: luta curta -> habilidade -> luta -> evento -> elite ->
+		# recompensa -> luta longa -> habilidade -> luta dura -> elite -> descanso -> antecâmara -> chefe.
 		# "level": [mín, máx] dos monstros que nascem na sala (ExpeditionBalance; vale sobre o nível da cena)
 		"rooms": {
 			"Entrada": {"kind": "start", "next": ["Encruzilhada"]},
-			"Encruzilhada": {"kind": "combat", "reward": true, "level": [2, 3], "next": ["Clareira Funda"]},
-			"Clareira Funda": {"kind": "combat", "reward": true, "level": [3, 4], "next": ["Salão do Portão"]},
-			"Salão do Portão": {"kind": "rest", "next": ["Trono da Rainha"]},
+			# 1. primeira luta: duas ondas curtas; a segunda já mostra o slime explosivo
+			"Encruzilhada": {"kind": "combat", "reward": true, "level": [2, 3], "next": ["Altar da Deusa"],
+				"waves": [
+					[{"kind": "slime_veloz", "count": 2}],
+					[{"kind": "slime_veloz", "count": 2}, {"kind": "slime_explosivo", "count": 1}],
+				]},
+			# 2. a primeira habilidade da run (o altar que ficava na Encruzilhada)
+			"Altar da Deusa": {"kind": "altar", "next": ["Raízes Corrompidas"], "altar": {"at": [-3.5, 1.0]}},
+			# 3. raízes e lodo: sanguessugas e um brejeiro arqueiro, sem bênção (o ritmo respira até o evento)
+			"Raízes Corrompidas": {"kind": "combat", "level": [3, 3], "next": ["Santuário Abandonado"],
+				"waves": [
+					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "slime_veloz", "count": 1}],
+					[{"kind": "brejeiro_arqueiro", "count": 1}, {"kind": "sanguessuga_lodo", "count": 2}],
+				]},
+			# 4. evento: a oferenda de sangue na estátua caída da Deusa (ExpeditionEvents "santuario")
+			"Santuário Abandonado": {"kind": "event", "next": ["Guardião das Raízes"], "event": "santuario",
+				"shrine": {"at": [0.0, -2.5]}},
+			# 5. primeira elite: o Guardião (brejeiro de elite) faz brotar duas flores-famintas quando perde metade da vida
+			"Guardião das Raízes": {"kind": "elite", "reward": true, "level": [3, 4], "next": ["Câmara das Oferendas"],
+				"leader": {"name": "Guardião das Raízes", "call_at": 0.5,
+					"call": [{"kind": "flor_faminta", "count": 2}]},
+				"waves": [
+					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "slime_veloz", "count": 2}],
+					[{"kind": "brejeiro", "count": 1, "elite": true, "leader": true},
+						{"kind": "brejeiro_arqueiro", "count": 1}],
+				]},
+			# 6. recompensa: o baú das oferendas dá uma bênção (sem luta)
+			"Câmara das Oferendas": {"kind": "reward", "reward": true, "next": ["Clareira Funda"],
+				"shrine": {"at": [0.0, -2.0]}},
+			# 7. luta longa: três ondas que sobem (explosivos; os xamãs que atacam de longe; os dois juntos)
+			"Clareira Funda": {"kind": "combat", "reward": true, "level": [3, 4], "next": ["Altar Ancestral"],
+				"waves": [
+					[{"kind": "slime_explosivo", "count": 2}, {"kind": "slime_veloz", "count": 1}],
+					[{"kind": "goblin_xama", "count": 2}, {"kind": "slime_veloz", "count": 1}],
+					[{"kind": "slime_explosivo", "count": 2}, {"kind": "goblin_xama", "count": 2}],
+				]},
+			# 8. segunda habilidade (o altar que ficava no salão do portão); sem habilidade nova, uma bênção
+			"Altar Ancestral": {"kind": "altar", "reward": true, "next": ["Pântano Corrompido"],
+				"altar": {"at": [-3.5, 0.0]}},
+			# 9. a luta mais dura antes das elites finais: mosquitos, sanguessugas, o xamã e os arqueiros juntos
+			"Pântano Corrompido": {"kind": "combat", "level": [4, 5], "next": ["Arauto do Pântano"],
+				"waves": [
+					[{"kind": "pernilongo_brejo", "count": 3}, {"kind": "slime_veloz", "count": 1}],
+					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "brejeiro_xama", "count": 1}],
+					[{"kind": "brejeiro_arqueiro", "count": 2}, {"kind": "pernilongo_brejo", "count": 2},
+						{"kind": "slime_explosivo", "count": 1}],
+				]},
+			# 10. segunda elite: o Arauto (xamã de elite) chama mosquitos e um slime explosivo na metade da vida
+			"Arauto do Pântano": {"kind": "elite", "reward": true, "level": [4, 5], "next": ["Refúgio das Raízes"],
+				"leader": {"name": "Arauto do Pântano", "call_at": 0.5,
+					"call": [{"kind": "pernilongo_brejo", "count": 2}, {"kind": "slime_explosivo", "count": 1}]},
+				"waves": [
+					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "goblin_xama", "count": 1}],
+					[{"kind": "brejeiro_xama", "count": 1, "elite": true, "leader": true},
+						{"kind": "brejeiro_arqueiro", "count": 1}, {"kind": "sanguessuga_lodo", "count": 1}],
+				]},
+			# 11. descanso: a fonte das raízes cura metade da vida, uma vez
+			"Refúgio das Raízes": {"kind": "rest", "next": ["Antecâmara"], "shrine": {"at": [0.0, -2.0], "heal": 0.5}},
+			# 12. salão de pedra na frente do portão do chefe (sem luta)
+			"Antecâmara": {"kind": "rest", "next": ["Trono da Rainha"]},
+			# 13. a Espinheira
 			"Trono da Rainha": {"kind": "boss", "level": [5, 5], "next": []},
 		},
 		# Balanceamento só desta expedição (ExpeditionBalance): multiplica a vida e o dano que o monstro já tem
 		# pelas regras de sempre (curva de nível + categoria do progression.json) no nível da sala.
-		#   common — monstros das salas; boss — o chefe; minion — o que nasce durante a luta (brotos, lacaios)
+		#   common — monstros das salas; elite — o líder da sala de elite (por cima do bônus de elite do MMO);
+		#   minion — o que nasce durante a luta (brotos, lacaios, reforços do líder); boss — o chefe
 		"balance": {
 			"common": {"hp": 0.8, "dmg": 0.75},
+			"elite": {"hp": 1.0, "dmg": 0.6},
 			"minion": {"hp": 0.5, "dmg": 0.75},
 			"boss": {"hp": 0.5, "dmg": 0.2},
 		},
@@ -126,19 +221,140 @@ static func needs_clear(def: Dictionary, room: String) -> bool:
 	return kind_of(def, room) in CLEAR_KINDS
 
 
+## Nome da (primeira) sala de chefe ("" = nenhuma).
+static func boss_room(def: Dictionary) -> String:
+	for r in rooms(def):
+		if kind_of(def, r) == "boss":
+			return str(r)
+	return ""
+
+
 ## Salas que precisam ser limpas (as que contam no progresso).
 static func clear_rooms(def: Dictionary) -> Array:
 	return rooms(def).keys().filter(func(r: String) -> bool: return needs_clear(def, r))
 
 
-## Limpar `room` dá uma melhoria temporária (sala de luta comum/elite marcada com "reward": true).
+## A sala dá uma melhoria temporária (sala com "reward": true de um tipo de REWARD_KINDS).
 static func grants_reward(def: Dictionary, room: String) -> bool:
 	return bool(rooms(def).get(room, {}).get("reward", false)) and kind_of(def, room) in REWARD_KINDS
 
 
-## Salas que dão melhoria ao serem limpas.
+## A bênção da sala sai sozinha quando ela é limpa (sala de luta); as outras saem pelo santuário/altar.
+static func reward_on_clear(def: Dictionary, room: String) -> bool:
+	return grants_reward(def, room) and needs_clear(def, room)
+
+
+## Acúmulos que a bênção escolhida na sala soma ("reward_stacks"; padrão 2 na elite, 1 nas outras).
+static func reward_stacks(def: Dictionary, room: String) -> int:
+	var d := 2 if kind_of(def, room) == "elite" else 1
+	return maxi(1, int(rooms(def).get(room, {}).get("reward_stacks", d)))
+
+
+## Salas que dão melhoria.
 static func reward_rooms(def: Dictionary) -> Array:
 	return rooms(def).keys().filter(func(r: String) -> bool: return grants_reward(def, r))
+
+
+# ================================================================ altares (kit temporário de habilidades)
+## A sala tem Altar da Deusa.
+static func has_altar(def: Dictionary, room: String) -> bool:
+	return rooms(def).get(room, {}).get("altar") is Dictionary and kind_of(def, room) in ALTAR_KINDS
+
+
+## Lugar do altar em metros a partir do centro da sala (x, z); Vector2.ZERO se a sala não tem altar.
+static func altar_offset(def: Dictionary, room: String) -> Vector2:
+	if not has_altar(def, room):
+		return Vector2.ZERO
+	return _offset(rooms(def)[room].altar)
+
+
+## Salas com altar.
+static func altar_rooms(def: Dictionary) -> Array:
+	return rooms(def).keys().filter(func(r: String) -> bool: return has_altar(def, r))
+
+
+## O altar da sala só desperta depois de a sala ser limpa (sala de luta).
+static func altar_needs_clear(def: Dictionary, room: String) -> bool:
+	return has_altar(def, room) and needs_clear(def, room)
+
+
+static func _offset(d: Dictionary) -> Vector2:
+	var at = d.get("at", [0.0, 0.0])
+	if at is Array and (at as Array).size() == 2:
+		return Vector2(float(at[0]), float(at[1]))
+	return Vector2.ZERO
+
+
+# ================================================================ santuários (evento, recompensa, descanso)
+## A sala tem santuário (o tipo é o da sala: event, reward ou rest).
+static func has_shrine(def: Dictionary, room: String) -> bool:
+	return rooms(def).get(room, {}).get("shrine") is Dictionary and kind_of(def, room) in SHRINE_KINDS
+
+
+static func shrine_offset(def: Dictionary, room: String) -> Vector2:
+	if not has_shrine(def, room):
+		return Vector2.ZERO
+	return _offset(rooms(def)[room].shrine)
+
+
+static func shrine_rooms(def: Dictionary) -> Array:
+	return rooms(def).keys().filter(func(r: String) -> bool: return has_shrine(def, r))
+
+
+## Evento da sala (id do ExpeditionEvents; "" = nenhum).
+static func event_of(def: Dictionary, room: String) -> String:
+	if kind_of(def, room) != "event":
+		return ""
+	return str(rooms(def).get(room, {}).get("event", ""))
+
+
+## Fração da vida máxima que o descanso da sala cura (0 = a sala não cura).
+static func heal_of(def: Dictionary, room: String) -> float:
+	if not has_shrine(def, room) or kind_of(def, room) != "rest":
+		return 0.0
+	return clampf(float(rooms(def)[room].shrine.get("heal", 0.0)), 0.0, 1.0)
+
+
+# ================================================================ elites
+## Líder da sala de elite ({} = nenhum): {"name", "call", "call_at"}.
+static func leader_of(def: Dictionary, room: String) -> Dictionary:
+	var l = rooms(def).get(room, {}).get("leader")
+	return l if l is Dictionary and kind_of(def, room) == "elite" else {}
+
+
+# ================================================================ encontros (ondas)
+## Ondas configuradas na sala ([] = sem "waves": a sala usa os pontos de monstro da cena como onda única).
+static func waves_of(def: Dictionary, room: String) -> Array:
+	var w = rooms(def).get(room, {}).get("waves", [])
+	return w if w is Array else []
+
+
+## Se a sala nasce por ondas do ExpeditionDefs (e não pelos pontos de monstro da cena).
+static func has_waves(def: Dictionary, room: String) -> bool:
+	return not waves_of(def, room).is_empty()
+
+
+## Quantas ondas a luta da sala tem (0 = sala sem luta; sem "waves" = 1, a dos pontos da cena).
+static func wave_count(def: Dictionary, room: String) -> int:
+	if not needs_clear(def, room):
+		return 0
+	return maxi(1, waves_of(def, room).size())
+
+
+## Grupos da onda `index` (0 = a primeira): [{"kind", "count", "elite"?}]; [] fora da faixa.
+static func wave_groups(def: Dictionary, room: String, index: int) -> Array:
+	var w := waves_of(def, room)
+	if index < 0 or index >= w.size() or not (w[index] is Array):
+		return []
+	return w[index]
+
+
+## Monstros na onda `index` (solo; no coop o DungeonRules.population aumenta cada grupo).
+static func wave_size(def: Dictionary, room: String, index: int) -> int:
+	var n := 0
+	for g in wave_groups(def, room, index):
+		n += int(g.get("count", 0)) if g is Dictionary else 0
+	return n
 
 
 ## Expedições na ordem da seleção da Guilda (só as que existem em DATA).
@@ -166,6 +382,26 @@ static func reachable(def: Dictionary) -> Dictionary:
 	return seen
 
 
+## Rota da chegada ao fim seguindo sempre o primeiro `next` (as etapas, em ordem, de uma rota linear).
+static func route(def: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	var r := str(def.get("start", ""))
+	while rooms(def).has(r) and not out.has(r):
+		out.append(r)
+		var n := next_of(def, r)
+		r = str(n[0]) if not n.is_empty() else ""
+	return out
+
+
+static func _check_groups(groups, r: String, what: String, out: PackedStringArray) -> void:
+	if not (groups is Array) or (groups as Array).is_empty():
+		out.append("sala '%s': %s vazia" % [r, what])
+		return
+	for g in groups:
+		if not (g is Dictionary) or str(g.get("kind", "")) == "" or int(g.get("count", 0)) < 1:
+			out.append("sala '%s': %s com grupo inválido %s" % [r, what, str(g)])
+
+
 ## Problemas da definição ([] = ok): chegada existe e é "start", tipos conhecidos, `next` aponta para salas que
 ## existem, toda sala é alcançável e há ao menos uma sala de chefe no caminho.
 static func validate(def: Dictionary) -> PackedStringArray:
@@ -188,6 +424,52 @@ static func validate(def: Dictionary) -> PackedStringArray:
 			bosses += 1
 		if bool(rs[r].get("reward", false)) and not k in REWARD_KINDS:
 			out.append("sala '%s' do tipo '%s' não pode dar recompensa" % [r, k])
+		if k == "reward" and not bool(rs[r].get("reward", false)):
+			out.append("sala de recompensa '%s' sem \"reward\": true" % r)
+		var altar = rs[r].get("altar")
+		if altar != null:
+			if not (altar is Dictionary):
+				out.append("sala '%s': altar precisa ser {\"at\": [x, z]}" % r)
+			elif not k in ALTAR_KINDS:
+				out.append("sala '%s' do tipo '%s' não pode ter altar" % [r, k])
+		if k == "altar" and not (altar is Dictionary):
+			out.append("sala de altar '%s' sem altar" % r)
+		var shrine = rs[r].get("shrine")
+		if shrine != null:
+			if not (shrine is Dictionary):
+				out.append("sala '%s': santuário precisa ser {\"at\": [x, z]}" % r)
+			elif not k in SHRINE_KINDS:
+				out.append("sala '%s' do tipo '%s' não pode ter santuário" % [r, k])
+		if k in ["event", "reward"] and not (shrine is Dictionary):
+			out.append("sala '%s' do tipo '%s' sem santuário" % [r, k])
+		if k == "event" and str(rs[r].get("event", "")) == "":
+			out.append("sala de evento '%s' sem \"event\"" % r)
+		var waves = rs[r].get("waves")
+		if waves != null:
+			if not (waves is Array) or (waves as Array).is_empty():
+				out.append("sala '%s': waves precisa ser uma lista de ondas" % r)
+			elif not k in WAVE_KINDS:
+				out.append("sala '%s' do tipo '%s' não tem ondas (só combat/elite)" % [r, k])
+			else:
+				for i in (waves as Array).size():
+					_check_groups(waves[i], r, "onda %d" % (i + 1), out)
+		var leader = rs[r].get("leader")
+		if leader != null:
+			if k != "elite" or not (leader is Dictionary):
+				out.append("sala '%s': só sala de elite tem líder {\"name\", \"call\"}" % r)
+			else:
+				if str(leader.get("name", "")) == "":
+					out.append("sala '%s': líder sem nome" % r)
+				if leader.has("call"):
+					_check_groups(leader.call, r, "chamado do líder", out)
+		if k == "elite":
+			var leaders := 0
+			for wave in (waves if waves is Array else []):
+				for g in (wave if wave is Array else []):
+					if g is Dictionary and bool(g.get("leader", false)):
+						leaders += int(g.get("count", 0))
+			if leaders != 1:
+				out.append("sala de elite '%s' precisa de exatamente um líder nas ondas (%d)" % [r, leaders])
 		for n in next_of(def, r):
 			if not rs.has(n):
 				out.append("sala '%s' leva a '%s', que não existe" % [r, n])

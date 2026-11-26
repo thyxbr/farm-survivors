@@ -47,6 +47,10 @@ var _kit_class := ""
 var boss_panel: VBoxContainer
 var boss_bar: GhostBar
 var boss_name: Label
+## Luta da sala da expedição (expedition_mode.gd): "Sala — Onda 1/2" e quantos inimigos faltam; some fora de luta.
+var encounter_panel: VBoxContainer
+var encounter_title: Label
+var encounter_info: Label
 var help_panel: PanelContainer
 var help_hint: Label
 var buff_box: HBoxContainer
@@ -460,6 +464,29 @@ func _build_boss() -> void:
 	boss_panel.visible = false
 	_ignore_all(boss_panel)
 	root.add_child(boss_panel)
+	# luta da expedição: fica acima da barra do chefe (que desce para 76 durante a run)
+	encounter_panel = VBoxContainer.new()
+	encounter_panel.add_theme_constant_override("separation", 0)
+	_anchor(encounter_panel, 0.5, 0, -260, 18, 520, 52)
+	encounter_title = UITheme.outlined("", 20, UITheme.GOLD, 6)
+	encounter_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	encounter_panel.add_child(encounter_title)
+	encounter_info = UITheme.outlined("", 15, UITheme.TEXT, 5)
+	encounter_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	encounter_panel.add_child(encounter_info)
+	encounter_panel.visible = false
+	_ignore_all(encounter_panel)
+	root.add_child(encounter_panel)
+
+
+## Linha da luta da sala ("" no título = esconde).
+func set_encounter(title: String, info: String) -> void:
+	if encounter_panel == null:
+		return
+	encounter_panel.visible = title != ""
+	if title != "":
+		encounter_title.text = title
+		encounter_info.text = info
 
 
 func _build_help() -> void:
@@ -593,17 +620,25 @@ func _redraw(s: ItemSlot) -> void:
 ## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; o 5 (Julgamento de
 ## Luz do cetro, Grito do Bastião da espada com escudo, Fúria Picante da montante, Vórtice Sombrio da espada) e o 6
 ## (Vórtice Sombrio da montante) só quando o kit tem habilidade neles.
+## Na expedição (Game.run_kit_on) a barra mostra só o ataque básico e as habilidades levadas dos altares, nas
+## teclas 1, 2, 3... na ordem em que foram levadas: nenhum espaço vazio, a barra cresce com o kit.
 func _refresh_kit() -> void:
 	_kit_class = Game.weapon_class()
 	_slot_ids = []
 	_slot_ids.resize(ItemDB.SLOT_COUNT)
 	_slot_ids.fill("")
-	for id in Game.ability_kit():
-		_slot_ids[ItemDB.ABILITIES[id].slot - 1] = id
+	var kit := Game.ability_kit()
+	# na expedição o ataque básico (M1) aparece na barra: é o kit inicial, e a barra nunca fica vazia
+	if slots.has("attack"):
+		slots.attack.visible = Game.run_kit_on
+	for i in kit.size():
+		var n := Game.kit_slot(kit, i)
+		if n >= 1 and n <= ItemDB.SLOT_COUNT:
+			_slot_ids[n - 1] = kit[i]
 	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
-		s.visible = n <= 4 or id != ""
+		s.visible = id != "" or (n <= 4 and not Game.run_kit_on)
 		s.icon_kind = ItemDB.ABILITIES[id].icon if id != "" else ""
 		s.icon_tex = ItemSlot.skill_art(id)
 		s.dim = id == ""
@@ -614,7 +649,7 @@ func _refresh_kit() -> void:
 	# o anel de fúria só em volta de uma ultimate (com escudo o slot 4 é o Martelo de Energia, com recarga)
 	if _fury_ring != null:
 		var u4: String = _slot_ids[3]
-		_fury_ring.visible = u4 == "" or bool(ItemDB.ABILITIES[u4].ultimate)
+		_fury_ring.visible = (u4 == "" and not Game.run_kit_on) or (u4 != "" and bool(ItemDB.ABILITIES[u4].ultimate))
 	# a tecla 5 aparece e some com o escudo (Grito do Bastião): a doca volta a ficar centrada na largura nova
 	if dock != null:
 		_center_dock.call_deferred()

@@ -331,7 +331,9 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 			var need := str(ab.get("offhand", ""))
 			var in_kit := need == off_kind if need != "" else not alt_slots.has(int(ab.slot))
 			if ab["class"] == weapon_cls and in_kit and int(ab.level) == s.level and ab.ready:
-				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
+				var note := _notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0))
+				note["ability"] = id   # o cliente cala o aviso durante a expedição (Game.apply_events)
+				ev.append(note)
 		ev.append({"t": "level_up", "level": s.level})
 	if s.level >= ProgressionRules.max_level(bt):
 		s.xp = 0

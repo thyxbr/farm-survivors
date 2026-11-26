@@ -107,6 +107,12 @@ func _banner() -> void:
 	if hud == null or hud.get("region_banner") == null:
 		return
 	var at := to_global(_gate_pos)
+	# expedição: o Regions não a conhece (diria "Vale de Valdoria"); nome da sala de chefe e da expedição
+	var ex_id := ExpeditionDefs.expedition_at(at)
+	if ex_id != "":
+		hud.region_banner.show_area(ExpeditionDefs.boss_room(ExpeditionDefs.get_def(ex_id)),
+			"Sala do chefe · %s" % ExpeditionDefs.display_name(ex_id))
+		return
 	var region := Regions.region_at(at)
 	var title := Regions.display_name(region)
 	var id := Regions.area_at(at - _gate.global_basis.z * 8.0)   # 8 m para dentro da sala

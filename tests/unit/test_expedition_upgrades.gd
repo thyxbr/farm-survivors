@@ -19,9 +19,13 @@ func _run() -> ExpeditionRun:
 	return r
 
 
-## Leva a run até a sala `room` (seguindo o grafo) e a limpa.
+## Leva a run até a sala `room` pela rota (limpando as salas de luta do caminho) e a limpa.
 func _clear(r: ExpeditionRun, room: String) -> void:
-	r.enter_room(room)
+	var route := ExpeditionDefs.route(r.def)
+	for j in range(route.find(r.current_room) + 1, route.find(room) + 1):
+		r.enter_room(route[j])
+		if j < route.find(room) and ExpeditionDefs.needs_clear(r.def, route[j]):
+			r.clear_room(route[j])
 	r.clear_room(room)
 
 
@@ -37,7 +41,8 @@ func test_table_is_valid() -> void:
 	for p in problems:
 		T.ok(false, p)
 	T.eq(problems.size(), 0, "tabela de melhorias sem problemas")
-	T.ok(ExpeditionUpgrades.DATA.size() >= 3 and ExpeditionUpgrades.DATA.size() <= 6, "entre 3 e 6 melhorias")
+	var pooled := ExpeditionUpgrades.DATA.keys().filter(ExpeditionUpgrades.in_pool)
+	T.ok(pooled.size() >= 3 and pooled.size() <= 6, "entre 3 e 6 melhorias no sorteio (%d)" % pooled.size())
 	for id in ExpeditionUpgrades.DATA:
 		for k in ExpeditionUpgrades.DATA[id].add:
 			T.ok(BASE.has(k), "%s mexe em %s, que existe em run_mods" % [id, k])
@@ -56,7 +61,7 @@ func test_roll_gives_distinct_choices_and_is_seeded() -> void:
 
 func test_roll_skips_maxed_upgrades() -> void:
 	var taken := {}
-	var ids := ExpeditionUpgrades.DATA.keys()
+	var ids := ExpeditionUpgrades.DATA.keys().filter(ExpeditionUpgrades.in_pool)
 	for i in ids.size() - 1:
 		taken[ids[i]] = ExpeditionUpgrades.MAX_STACKS
 	for s in 10:
@@ -94,7 +99,7 @@ func test_reward_rooms_in_the_swamp() -> void:
 	var rooms := ExpeditionDefs.reward_rooms(d)
 	T.ok(rooms.size() >= 1, "o Pântano tem salas com recompensa")
 	for r in rooms:
-		T.ok(ExpeditionDefs.kind_of(d, r) in ExpeditionDefs.REWARD_KINDS, "%s é sala de luta" % r)
+		T.ok(ExpeditionDefs.kind_of(d, r) in ExpeditionDefs.REWARD_KINDS, "%s é sala que pode dar bênção" % r)
 	T.ok(not ExpeditionDefs.grants_reward(d, "Trono da Rainha"), "sala de chefe não dá recompensa")
 	T.ok(not ExpeditionDefs.grants_reward(d, "Entrada"), "chegada não dá recompensa")
 	var bad := {"start": "A", "rooms": {"A": {"kind": "start", "reward": true, "next": ["B"]},
@@ -146,7 +151,7 @@ func test_cannot_advance_while_choosing() -> void:
 	T.ok(not r.enter_room("Entrada"), "nem volta")
 	T.eq(r.current_room, "Encruzilhada", "fica na sala")
 	r.choose_reward("seiva")
-	T.ok(r.enter_room("Clareira Funda"), "escolheu: segue")
+	T.ok(r.enter_room("Altar da Deusa"), "escolheu: segue")
 
 
 func test_rewards_stack_across_rooms() -> void:
@@ -168,7 +173,7 @@ func test_no_valid_choice_never_blocks() -> void:
 	_clear(r, "Encruzilhada")
 	T.ok(not r.offer_reward("Encruzilhada", []), "sem opção não abre escolha")
 	T.ok(not r.has_pending_reward() and r.is_rewarded("Encruzilhada"), "a sala conta como recompensada")
-	T.ok(r.enter_room("Clareira Funda"), "e o jogador segue")
+	T.ok(r.enter_room("Altar da Deusa"), "e o jogador segue")
 	_clear(r, "Clareira Funda")
 	T.ok(r.offer_reward("Clareira Funda", ["inexistente", "furia", "furia"]), "opções inválidas e repetidas filtradas")
 	T.eq(r.pending_reward.choices, ["furia"] as Array[String], "fica só a válida")
