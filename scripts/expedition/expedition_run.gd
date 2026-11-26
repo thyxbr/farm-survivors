@@ -25,6 +25,9 @@ extends RefCounted
 ## a tela e voltar mostra as mesmas, sem sortear de novo); choose_skill põe a habilidade em `skills` e gasta o altar
 ## (`altars_used`): cada altar serve uma vez só. A escolha de altar não prende o jogador na sala. O fim da run
 ## descarta as escolhas pendentes; `skills` morre com a run (nada é salvo no personagem).
+## O Altar Ancestral (ExpeditionDefs "mode": "evolve") mistura nas opções melhorias de habilidade e bênçãos de run
+## (ExpeditionSkills.roll_evolution): escolher uma delas soma 1 acúmulo em `modifiers` (como as bênçãos) em vez de
+## pôr uma habilidade no kit. A validação é a mesma para os dois altares (altar_option_valid).
 ##
 ## Santuários (salas de evento, recompensa e descanso; run_shrine.gd): cada um serve uma vez por run
 ## (`shrines_used`: sala -> o que foi feito). choose_event aplica a escolha do evento (ExpeditionEvents: a bênção de
@@ -42,6 +45,7 @@ signal reward_offered(room: String, choices: Array)
 signal reward_chosen(room: String, upgrade: String)
 signal altar_offered(room: String, choices: Array)
 signal skill_chosen(room: String, skill: String)
+signal altar_upgrade_chosen(room: String, upgrade: String)
 signal event_chosen(room: String, option: String)
 signal rested(room: String, fraction: float)
 
@@ -290,13 +294,13 @@ func pending_stacks() -> int:
 	return int(pending_reward.get("stacks", 1)) if has_pending_reward() else 0
 
 
-## Soma `stacks` acúmulos de `upgrade` em `modifiers`, sem passar do máximo (ExpeditionUpgrades.MAX_STACKS).
+## Soma `stacks` acúmulos de `upgrade` em `modifiers`, sem passar do máximo (ExpeditionUpgrades.max_stacks).
 ## Devolve quantos entraram de fato.
 func add_modifier(upgrade: String, stacks := 1) -> int:
 	if not ExpeditionUpgrades.has(upgrade):
 		return 0
 	var now := int(modifiers.get(upgrade, 0))
-	var n := clampi(stacks, 0, ExpeditionUpgrades.MAX_STACKS - now)
+	var n := clampi(stacks, 0, ExpeditionUpgrades.max_stacks(upgrade) - now)
 	if n > 0:
 		modifiers[upgrade] = now + n
 	return n
@@ -375,7 +379,7 @@ func offer_altar(room: String, choices: Array) -> bool:
 	var valid: Array[String] = []
 	for c in choices:
 		var id := str(c)
-		if ExpeditionSkills.can_offer(id) and not skills.has(id) and not valid.has(id):
+		if altar_option_valid(room, id) and not valid.has(id):
 			valid.append(id)
 	if valid.is_empty():
 		return false
@@ -390,20 +394,44 @@ func altar_choices(room: String) -> Array:
 	if not altar_ready(room):
 		return out
 	for id in pending_altar.get(room, []):
-		if not skills.has(id):
+		if altar_option_valid(room, str(id)):
 			out.append(id)
 	return out
 
 
-## O jogador levou `skill` do altar de `room`: entra no kit da run e o altar fica gasto. false (e nada muda) se o
-## altar não tem escolha em aberto, a run acabou ou a habilidade não estava entre as opções.
+## `id` ainda vale como opção do altar de `room`: habilidade nova que pode sair e ainda não foi levada (com vaga no
+## kit); no altar de evolução também melhoria de uma habilidade levada que não chegou ao máximo, ou bênção de run
+## (do sorteio) que não chegou ao máximo.
+func altar_option_valid(room: String, id: String) -> bool:
+	match ExpeditionSkills.option_kind(id):
+		"skill":
+			return ExpeditionSkills.can_offer(id) and not skills.has(id) and skills.size() < ExpeditionSkills.MAX_SKILLS
+		"ability":
+			return _evolves(room) and skills.has(ExpeditionUpgrades.ability_of(id)) \
+				and ExpeditionUpgrades.can_take(id, modifiers)
+		"boon":
+			return _evolves(room) and ExpeditionUpgrades.in_pool(id) and ExpeditionUpgrades.can_take(id, modifiers)
+	return false
+
+
+func _evolves(room: String) -> bool:
+	return ExpeditionDefs.altar_mode(def, room) == ExpeditionDefs.ALTAR_EVOLVE
+
+
+## O jogador escolheu `skill` no altar de `room` e o altar fica gasto: habilidade nova entra no kit da run; melhoria
+## de habilidade ou bênção (altar de evolução) soma 1 acúmulo em `modifiers`. false (e nada muda) se o altar não tem
+## escolha em aberto, a run acabou ou a opção não estava entre as do altar.
 func choose_skill(room: String, skill: String) -> bool:
 	if not is_active() or not altar_choices(room).has(skill):
 		return false
 	pending_altar.erase(room)
 	altars_used[room] = skill
-	skills.append(skill)
-	skill_chosen.emit(room, skill)
+	if ExpeditionSkills.option_kind(skill) == "skill":
+		skills.append(skill)
+		skill_chosen.emit(room, skill)
+	else:
+		add_modifier(skill, 1)
+		altar_upgrade_chosen.emit(room, skill)
 	return true
 
 

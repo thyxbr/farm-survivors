@@ -703,10 +703,15 @@ func crit_chance() -> float:
 	return clampf(base + mod("crit"), 0.0, 1.0)
 
 
-func cooldown_mult() -> float:
+## `ability_id` (opcional): soma também a Recuperação daquela habilidade ganha na expedição (run_mods
+## "ability_cd:<id>", ExpeditionUpgrades); sem id, só os bônus gerais.
+func cooldown_mult(ability_id := "") -> float:
 	# buff e talento "cooldown" são frações negativas (o mod("cooldown") das cartas da Horda é outra conta)
 	# run_mods "cdr": melhorias temporárias da expedição (0 fora dela)
-	return clampf(1.0 - gear("cdr") - float(run_mods.get("cdr", 0.0)) + float(buff_mods.get("cooldown", 0.0))
+	var run_cdr := float(run_mods.get("cdr", 0.0))
+	if ability_id != "":
+		run_cdr += float(run_mods.get("ability_cd:" + ability_id, 0.0))
+	return clampf(1.0 - gear("cdr") - run_cdr + float(buff_mods.get("cooldown", 0.0))
 		+ float(talent_mods.get("cooldown", 0.0)), 0.4, 1.0)
 
 
@@ -722,14 +727,18 @@ func ability_cooldown(ability_id: String, base: float, mult: float) -> float:
 	return cd
 
 
-## Segundos a mais que o talento dá à habilidade `ability_id` (chave "ability_time:<id>").
+## Segundos a mais que o talento (e a Persistência da expedição, em run_mods) dá à habilidade `ability_id` (chave
+## "ability_time:<id>").
 func ability_time_bonus(ability_id: String) -> float:
-	return float(talent_mods.get("ability_time:" + ability_id, 0.0))
+	var k := "ability_time:" + ability_id
+	return float(talent_mods.get(k, 0.0)) + float(run_mods.get(k, 0.0))
 
 
-## Multiplicador de dano do talento da habilidade `ability_id` (chave "ability_dmg:<id>"): 1 + bônus.
+## Multiplicador de dano do talento (e da Potência da expedição, em run_mods) da habilidade `ability_id` (chave
+## "ability_dmg:<id>"): 1 + bônus.
 func ability_dmg_mult(ability_id: String) -> float:
-	return 1.0 + float(talent_mods.get("ability_dmg:" + ability_id, 0.0))
+	var k := "ability_dmg:" + ability_id
+	return 1.0 + float(talent_mods.get(k, 0.0)) + float(run_mods.get(k, 0.0))
 
 
 ## Duração do buff `buff_id` para quem o conjurou: o tempo de buffs.json + o bônus de talento da habilidade

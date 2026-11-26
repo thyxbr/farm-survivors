@@ -2785,7 +2785,9 @@ func _test_expedicao() -> void:
 			await _expedicao_reward(ex, room, hub_stats, same_stats)
 			await wait(0.3)
 			check(not world.hud.encounter_panel.visible, "%s: fora de luta a linha de ondas some do HUD" % room)
-		if ExpeditionDefs.has_altar(run.def, room):
+		if ExpeditionDefs.altar_mode(run.def, room) == ExpeditionDefs.ALTAR_EVOLVE:
+			await _expedicao_evolucao(ex, room)
+		elif ExpeditionDefs.has_altar(run.def, room):
 			await _expedicao_altar(ex, room)
 		match ExpeditionDefs.kind_of(run.def, room):
 			"event":
@@ -2843,7 +2845,14 @@ func _test_expedicao() -> void:
 		"vitória: melhorias removidas (run_mods padrão)")
 	check(world.modal == null and not get_tree().paused and not Game.run_mods.active,
 		"vitória: nenhuma tela de escolha aberta na Guilda e run_mods desligado")
-	check(run.skills.size() == ExpeditionDefs.altar_rooms(run.def).size(), "vitória: uma habilidade por altar na run (%s)" % [run.skills])
+	var skill_altars := run.altars_used.values().filter(func(o) -> bool: return ExpeditionSkills.option_kind(str(o)) == "skill")
+	check(run.skills.size() == skill_altars.size() and run.altars_used.size() == ExpeditionDefs.altar_rooms(run.def).size(),
+		"vitória: cada altar usado uma vez, uma habilidade por altar de habilidade (%s, %s)" % [run.skills, run.altars_used])
+	check(not Game.run_mods.keys().any(func(k) -> bool: return str(k).begins_with("ability_")),
+		"vitória: nenhuma melhoria de habilidade sobra em run_mods na Guilda")
+	check(is_equal_approx(Game.ability_dmg_mult("sword_vortex"), 1.0 + float(Game.talent_mods.get("ability_dmg:sword_vortex", 0.0)))
+		and is_equal_approx(Game.cooldown_mult(str(run.skills[0]) if not run.skills.is_empty() else ""), Game.cooldown_mult()),
+		"vitória: dano e recarga das habilidades de volta aos números permanentes")
 	await wait(0.2)
 	check(not Game.run_kit_on and Game.full_ability_kit() == hub_kit and Game.ability_kit() == hub_kit
 		and hud_slot_ids() == hub_bar, "vitória: as habilidades dos altares saem e o kit permanente volta (%s)" % [hud_slot_ids()])
@@ -2943,6 +2952,190 @@ func _expedicao_altar(ex: Node, room: String) -> void:
 		dummy.queue_free()
 	await wait(1.5)
 	player.cooldowns[pick] = 0.0
+
+
+## Altar Ancestral (etapa 8, "mode": "evolve"): [E] abre a evolução da build com 3 opções válidas e de tipos diferentes
+## (habilidade nova, melhoria de uma habilidade já levada, bênção de run); escolher a melhoria de habilidade soma em
+## run_mods pela chave da habilidade e ela vale de verdade: a recarga da habilidade usada num monstro sai menor (ou o
+## multiplicador de dano sobe, na Potência). O altar se apaga e não serve de novo.
+func _expedicao_evolucao(ex: Node, room: String) -> void:
+	var run: ExpeditionRun = ex.run
+	var altar: Node3D = ex.altars.get(room)
+	check(altar != null and is_instance_valid(altar) and altar.evolve, "%s: altar de evolução montado" % room)
+	if altar == null:
+		return
+	await wait(0.3)
+	check(altar.state == altar.READY, "%s: altar desperto (%s)" % [room, altar.state])
+	var front: Vector3 = altar.global_position + (ex.rooms[room].global_position - altar.global_position).normalized() * 1.6
+	player.global_position = Vector3(front.x, altar.global_position.y + 0.5, front.z)
+	player.velocity = Vector3.ZERO
+	await wait(0.4)
+	check(player.interact_target == altar and world.hud.prompt.text.contains("Altar Ancestral"),
+		"%s: [E] do Altar Ancestral (%s)" % [room, world.hud.prompt.text])
+	var skills_before := run.skills.duplicate()
+	check(not skills_before.is_empty(), "%s: chega com a habilidade do primeiro altar (%s)" % [room, skills_before])
+	altar.interact(player)
+	await wait(0.2)
+	var ui: Control = ex.altar_ui
+	check(ui != null and is_instance_valid(ui) and world.modal == ui and get_tree().paused and ui.evolve,
+		"%s: [E] abre a evolução da build (jogo pausado)" % room)
+	if ui == null or not is_instance_valid(ui):
+		return
+	var choices: Array = ui.choices.duplicate()
+	check(choices.size() == 3 and ui._cards.size() == 3, "%s: três opções na tela (%s)" % [room, choices])
+	var kinds := {}
+	var all_valid := true
+	for id in choices:
+		kinds[ExpeditionSkills.option_kind(str(id))] = true
+		if not run.altar_option_valid(room, str(id)) or (ItemDB.ABILITIES.has(id) and bool(ItemDB.ABILITIES[id].ultimate)):
+			all_valid = false
+		if ExpeditionSkills.option_kind(str(id)) == "ability" and not run.skills.has(ExpeditionUpgrades.ability_of(str(id))):
+			all_valid = false
+	check(all_valid, "%s: só opções válidas (sem ultimate, sem repetir, melhoria só do que tem)" % room)
+	check(kinds.has("ability") and kinds.size() == 3, "%s: habilidade nova, melhoria e bênção (%s)" % [room, kinds.keys()])
+	var types: Array[String] = []
+	for id in choices:
+		var ci: Dictionary = ui.card_info(str(id), run.modifiers)
+		types.append(str(ci.type))
+		check(str(ci.name) != "" and str(ci.desc) != "" and str(ci.value) != "", "%s: carta completa (%s)" % [room, ci.name])
+	check(types.has("Nova habilidade") and types.has("Bênção da expedição")
+		and types.any(func(t: String) -> bool: return t.begins_with("Melhoria de habilidade")),
+		"%s: o tipo aparece em cada carta (%s)" % [room, types])
+	# a melhoria de habilidade: de preferência a Recuperação (dá para medir a recarga de verdade)
+	var pick := ""
+	for id in choices:
+		if ExpeditionUpgrades.kind_of(str(id)) == "recarga" or (pick == "" and ExpeditionUpgrades.is_ability_upgrade(str(id))):
+			pick = str(id)
+	if pick == "":
+		return
+	var ab := ExpeditionUpgrades.ability_of(pick)
+	var dmg0 := Game.ability_dmg_mult(ExpeditionSkills.dmg_key(ab))
+	var cd_plain := Game.ability_cooldown(ab, ItemDB.cooldown_of(ab), Game.cooldown_mult())
+	check(ui.pick(choices.find(pick), true), "%s: escolhe %s" % [room, ExpeditionUpgrades.display_name(pick)])
+	await wait(0.3)
+	check(int(run.modifiers.get(pick, 0)) == 1 and run.skills == skills_before, "%s: melhoria na run, kit igual" % room)
+	check(Game.run_mods.has(ExpeditionUpgrades.ability_mod_key(pick)) and Game.run_mods.active,
+		"%s: run_mods com %s" % [room, ExpeditionUpgrades.ability_mod_key(pick)])
+	check(altar.state == altar.USED and not ex.open_altar(room) and world.modal == null and not get_tree().paused,
+		"%s: altar gasto, não serve de novo" % room)
+	if ExpeditionUpgrades.kind_of(pick) == "potencia":
+		check(is_equal_approx(Game.ability_dmg_mult(ExpeditionSkills.dmg_key(ab)), dmg0 + 0.15),
+			"%s: Potência: dano de %s x%.2f -> x%.2f" % [room, ab, dmg0, Game.ability_dmg_mult(ExpeditionSkills.dmg_key(ab))])
+	# usa a habilidade melhorada num monstro: a recarga que o jogador ganha já vem com a melhoria
+	var key := Game.ability_kit().find(ab) + 1
+	Game.mp = Game.max_mp()
+	player.cooldowns[ab] = 0.0
+	await wait(0.6)
+	var dummy: Enemy = Enemy.new()
+	dummy.kind = "slime_veloz"
+	dummy.level = 1
+	dummy.hp_mult = 50.0
+	world.add_child(dummy)
+	player.model.rotation.y = PI
+	player.velocity = Vector3.ZERO
+	dummy.global_position = player.global_position + Vector3(0, 0, -2.5)
+	await wait(0.3)
+	player.model.rotation.y = PI
+	dummy.global_position = player.global_position + Vector3(0, 0, -2.5)
+	player.use_slot(key)
+	if player.area_armed == ab:
+		player.confirm_area()
+	# (habilidade de segurar só começa a recarga ao soltar: espera ela aparecer)
+	var cd_now := 0.0
+	for i in 40:
+		await wait(0.1)
+		if player.cooldowns[ab] > 0.0:
+			cd_now = player.cooldowns[ab] + 0.1
+			break
+	var cd_want := Game.ability_cooldown(ab, ItemDB.cooldown_of(ab), Game.cooldown_mult(ab))
+	check(cd_now > 0.2 and absf(cd_now - cd_want) < 0.25, "%s: %s usada na tecla %d (recarga %.2f s, esperado %.2f s)"
+		% [room, ab, key, cd_now, cd_want])
+	if ExpeditionUpgrades.kind_of(pick) == "recarga":
+		check(cd_want < cd_plain - 0.01 or is_equal_approx(Game.cooldown_mult(), 0.4),
+			"%s: Recuperação: recarga de %s %.2f s -> %.2f s" % [room, ab, cd_plain, cd_want])
+	if ExpeditionUpgrades.kind_of(pick) == "persistencia":
+		var bk := ExpeditionSkills.time_key(ab)
+		var base_t := float(ItemDB.BUFFS[bk].time) + float(Game.talent_mods.get("ability_time:" + bk, 0.0))
+		var left := float(Game.buffs.get(bk, 0.0))
+		check(left > base_t + 0.2 * float(ItemDB.BUFFS[bk].time) - 1.0 and left <= base_t + 0.2 * float(ItemDB.BUFFS[bk].time) + 0.01,
+			"%s: Persistência: o buff de %s dura %.1f s (base %.1f s)" % [room, ab, left, base_t])
+	for i in 30:
+		await wait(0.1)
+		if player.ability == "":
+			break
+	if is_instance_valid(dummy):
+		dummy.queue_free()
+	await wait(1.0)
+	player.cooldowns[ab] = 0.0
+	await _expedicao_evolucao_efeitos(ex, room)
+
+
+## Efeito real de cada tipo de melhoria de habilidade (o sorteio do altar escolhe um só): põe cada uma por um momento
+## na run (pelo mesmo ExpeditionRun.modifiers -> _sync_mods), mede no personagem e devolve a run como estava.
+func _expedicao_evolucao_efeitos(ex: Node, room: String) -> void:
+	var run: ExpeditionRun = ex.run
+	var keep := run.modifiers.duplicate()
+	var full := Game.full_ability_kit()
+	var with_cd := ""
+	var with_dmg := ""
+	var with_time := ""
+	for ab in full:
+		if with_cd == "" and run.skills.has(ab) and ExpeditionSkills.supports(ab, "recarga"):
+			with_cd = ab
+		if with_dmg == "" and ExpeditionSkills.supports(ab, "potencia"):
+			with_dmg = ab
+		if with_time == "" and ExpeditionSkills.supports(ab, "persistencia"):
+			with_time = ab
+	if with_cd != "":
+		var plain := Game.ability_cooldown(with_cd, ItemDB.cooldown_of(with_cd), Game.cooldown_mult(with_cd))
+		run.modifiers = keep.duplicate()
+		var cid := ExpeditionUpgrades.ability_upgrade("recarga", with_cd)
+		run.modifiers[cid] = int(keep.get(cid, 0)) + 1
+		ex._sync_mods()
+		Game.buffs.erase(ExpeditionSkills.time_key(with_cd))
+		player.cooldowns[with_cd] = 0.0
+		await wait(0.3)
+		player.use_slot(Game.ability_kit().find(with_cd) + 1)
+		if player.area_armed == with_cd:
+			player.confirm_area()
+		var cd := 0.0
+		for i in 40:
+			await wait(0.1)
+			if player.cooldowns[with_cd] > 0.0:
+				cd = player.cooldowns[with_cd] + 0.1
+				break
+		var want := Game.ability_cooldown(with_cd, ItemDB.cooldown_of(with_cd), Game.cooldown_mult(with_cd))
+		check(cd > 0.2 and absf(cd - want) < 0.25 and (want < plain - 0.01 or is_equal_approx(Game.cooldown_mult(), 0.4)),
+			"%s: Recuperação vale no uso: %s recarga %.2f s (sem ela %.2f s)" % [room, with_cd, cd, plain])
+		for i in 30:
+			await wait(0.1)
+			if player.ability == "":
+				break
+		player.cooldowns[with_cd] = 0.0
+	if with_dmg != "":
+		var key := ExpeditionSkills.dmg_key(with_dmg)
+		var pid := ExpeditionUpgrades.ability_upgrade("potencia", with_dmg)
+		run.modifiers = keep.duplicate()
+		run.modifiers.erase(pid)
+		ex._sync_mods()
+		var m0 := Game.ability_dmg_mult(key)
+		run.modifiers[pid] = 2
+		ex._sync_mods()
+		check(is_equal_approx(Game.ability_dmg_mult(key), m0 + 0.30),
+			"%s: Potência x2 em %s: multiplicador do golpe x%.2f -> x%.2f" % [room, with_dmg, m0, Game.ability_dmg_mult(key)])
+	if with_time != "":
+		var bk := ExpeditionSkills.time_key(with_time)
+		run.modifiers = keep.duplicate()
+		run.modifiers.erase(ExpeditionUpgrades.ability_upgrade("persistencia", with_time))
+		ex._sync_mods()
+		var t0 := Game.buff_duration(bk)
+		run.modifiers[ExpeditionUpgrades.ability_upgrade("persistencia", with_time)] = 1
+		ex._sync_mods()
+		check(is_equal_approx(Game.buff_duration(bk), t0 + 0.2 * float(ItemDB.BUFFS[bk].time)),
+			"%s: Persistência em %s: buff %.1f s -> %.1f s" % [room, with_time, t0, Game.buff_duration(bk)])
+	run.modifiers = keep
+	ex._sync_mods()
+	check(run.modifiers == keep, "%s: a run volta só com a melhoria escolhida (%s)" % [room, run.modifiers])
 
 
 ## Balanceamento da expedição nos monstros de verdade (Enemy no mundo): nível da sala, vida e dano iguais à conta

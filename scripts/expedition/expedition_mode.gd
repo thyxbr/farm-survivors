@@ -30,6 +30,10 @@ extends Node3D
 ## Altar da Deusa (skill_altar.gd), que desperta quando a sala é visitada (e, numa sala de luta, limpa); [E] nele
 ## abre a escolha de 1 de 3 habilidades do kit do personagem (skill_altar_ui.gd). A escolhida vai para o
 ## ExpeditionRun.skills e o Game.run_kit espelha. A volta à Guilda (ou a saída para o menu) devolve o kit normal.
+## O Altar Ancestral ("mode": "evolve") evolui a build: as 3 opções (ExpeditionSkills.roll_evolution) misturam
+## habilidade nova, melhoria de uma habilidade levada (Potência/Recuperação/Persistência, em run_mods por habilidade:
+## "ability_dmg:<id>", "ability_cd:<id>", "ability_time:<id>") e bênção de run. Tudo vai pelo mesmo
+## ExpeditionRun.modifiers -> _sync_mods -> Game.run_mods, que a volta à Guilda zera.
 ##
 ## Salas sem luta com santuário (run_shrine.gd; "shrine" no ExpeditionDefs), cada um uma vez por run:
 ##   event  — abre a escolha do evento (expedition_event_ui.gd, ExpeditionEvents): custo em vida + bênção de evento.
@@ -279,7 +283,9 @@ func _announce(room: String, kind: String) -> void:
 		"rest": "Descanso", "boss": "Chefe",
 	}
 	var sub := str(what.get(kind, ""))
-	if kind == "rest" and ExpeditionDefs.heal_of(run.def, room) > 0.0:
+	if ExpeditionDefs.altar_mode(run.def, room) == ExpeditionDefs.ALTAR_EVOLVE:
+		sub = "Altar Ancestral — evolua a sua build"
+	elif kind == "rest" and ExpeditionDefs.heal_of(run.def, room) > 0.0:
 		sub = "Descanso — a fonte cura uma vez"
 	elif kind == "rest":
 		sub = "O ar pesa: a Rainha espera além do portão"
@@ -651,15 +657,23 @@ func choose_reward(upgrade: String) -> bool:
 ## Refaz Game.run_mods a partir das melhorias da run (padrão + soma). A vida máxima que sobe vem cheia.
 func _sync_mods() -> void:
 	var old_max := Game.max_hp()
-	var mods := ExpeditionUpgrades.apply_to(_base_run_mods(), run.modifiers)
-	for k in mods:
-		Game.run_mods[k] = mods[k]
-	Game.run_mods.active = true
+	var mods := ExpeditionUpgrades.apply_to(_base_run_mods(), run.modifiers, buff_times())
+	mods.active = true
+	Game.run_mods = mods   # troca inteira: nenhuma chave por habilidade sobra de uma conta antiga
 	var new_max := Game.max_hp()
 	if new_max > old_max:
 		Game.hp += new_max - old_max
 	Game.hp = minf(Game.hp, new_max)
 	Game.stats_changed.emit()
+
+
+## Duração base (s) dos buffs das habilidades que aceitam a Persistência (ExpeditionSkills.TIME_KEY), em buffs.json.
+static func buff_times() -> Dictionary:
+	var out := {}
+	for ab in ExpeditionSkills.TIME_KEY:
+		var b := str(ExpeditionSkills.TIME_KEY[ab])
+		out[b] = float(ItemDB.BUFFS.get(b, {}).get("time", 0.0))
+	return out
 
 
 static func _base_run_mods() -> Dictionary:
@@ -761,6 +775,7 @@ func _build_altars() -> void:
 		a.expedition = self
 		a.room = room
 		a.name = "SkillAltar"
+		a.evolve = ExpeditionDefs.altar_mode(run.def, room) == ExpeditionDefs.ALTAR_EVOLVE
 		a.position = Vector3(r.global_position.x + off.x, r.global_position.y, r.global_position.z + off.y)
 		world.add_child(a)
 		# vira para o caminho (o centro da sala), de frente para quem chega
@@ -796,9 +811,13 @@ func open_altar(room: String) -> bool:
 		return false
 	if _altar_open() or _reward_open() or _event_open() or run.has_pending_reward():
 		return false
+	var evolve := ExpeditionDefs.altar_mode(run.def, room) == ExpeditionDefs.ALTAR_EVOLVE
 	var choices: Array = run.altar_choices(room)
 	if choices.is_empty():
-		choices = ExpeditionSkills.roll(_altar_rng, Game.full_ability_kit(), run.skills)
+		if evolve:
+			choices = ExpeditionSkills.roll_evolution(_altar_rng, Game.full_ability_kit(), run.skills, run.modifiers)
+		else:
+			choices = ExpeditionSkills.roll(_altar_rng, Game.full_ability_kit(), run.skills)
 	if not run.offer_altar(room, choices):
 		# nada mais a ensinar: a sala com bênção dá a bênção no lugar (o altar se apaga)
 		if ExpeditionDefs.grants_reward(run.def, room) and run.spend_altar(room):
@@ -816,6 +835,9 @@ func open_altar(room: String) -> bool:
 	ui.room = room
 	ui.choices = run.altar_choices(room)
 	ui.owned = run.skills.duplicate()
+	ui.taken = run.modifiers.duplicate()
+	ui.evolve = evolve
+	ui.title_text = room
 	altar_ui = ui
 	world._open_modal(ui)
 	Sfx.play("levelup", 0.0)
@@ -829,6 +851,17 @@ func choose_skill(skill: String) -> bool:
 	var room: String = altar_ui.room
 	if not run.choose_skill(room, skill):
 		return false
+	if ExpeditionSkills.option_kind(skill) != "skill":
+		# melhoria de habilidade ou bênção (Altar Ancestral): entra em run_mods pelo mesmo caminho das bênçãos
+		_sync_mods()
+		refresh_altars()
+		var inf := ExpeditionUpgrades.info(skill)
+		var lvl := int(run.modifiers.get(skill, 1))
+		var val := ExpeditionUpgrades.value_text(skill, lvl)
+		Sfx.play("pickup", 0.0)
+		_banner("BUILD EVOLUÍDA", "%s%s" % [str(inf.name), ("  (%s)" % val) if val != "" else ""])
+		Game.notify.emit("%s: %s" % [str(inf.name), str(inf.desc)], Color(0.55, 1.0, 0.85))
+		return true
 	Game.set_run_kit(run.skills)
 	refresh_altars()
 	var kit := Game.ability_kit()

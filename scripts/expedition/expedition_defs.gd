@@ -33,6 +33,9 @@ extends RefCounted
 ## partir do centro da sala. Usado uma vez só: escolhe 1 de 3 habilidades para o kit temporário da run. Numa sala de
 ## luta ele só desperta depois que a sala é limpa. Sala de chefe não tem altar (limpá-la encerra a run). Se não há
 ## mais habilidade para ensinar e a sala tem "reward": true, o altar oferece uma bênção no lugar.
+## "mode": "evolve" no altar (Altar Ancestral) = altar de evolução da build: as 3 opções misturam uma habilidade nova,
+## uma melhoria de habilidade que o jogador já tem (ExpeditionUpgrades: Potência, Recuperação, Persistência) e uma
+## bênção de run, conforme a build (ExpeditionSkills.roll_evolution). Sem "mode" = só habilidades novas.
 ##
 ## Santuário ("shrine" na sala; run_shrine.gd): {"at": [x, z]} e, conforme o tipo da sala:
 ##   event  — "event": id do ExpeditionEvents (a escolha da sala)
@@ -49,6 +52,11 @@ const WAVE_KINDS := ["combat", "elite"]
 const REWARD_KINDS := ["combat", "elite", "reward", "altar"]
 ## Tipos de sala que podem ter Altar da Deusa.
 const ALTAR_KINDS := ["start", "combat", "elite", "altar", "reward", "event", "rest"]
+## Modos do altar: "skill" ensina uma habilidade nova; "evolve" evolui a build (habilidade nova, melhoria de
+## habilidade ou bênção).
+const ALTAR_SKILL := "skill"
+const ALTAR_EVOLVE := "evolve"
+const ALTAR_MODES := [ALTAR_SKILL, ALTAR_EVOLVE]
 ## Tipos de sala que podem ter santuário (o tipo da sala é o tipo do santuário).
 const SHRINE_KINDS := ["event", "reward", "rest"]
 
@@ -110,9 +118,10 @@ const DATA := {
 					[{"kind": "goblin_xama", "count": 2}, {"kind": "slime_veloz", "count": 1}],
 					[{"kind": "slime_explosivo", "count": 2}, {"kind": "goblin_xama", "count": 2}],
 				]},
-			# 8. segunda habilidade (o altar que ficava no salão do portão); sem habilidade nova, uma bênção
+			# 8. evolução da build: habilidade nova, melhoria de uma habilidade já levada ou bênção de run (1 de 3);
+			# sem nada para oferecer, uma bênção comum
 			"Altar Ancestral": {"kind": "altar", "reward": true, "next": ["Pântano Corrompido"],
-				"altar": {"at": [-3.5, 0.0]}},
+				"altar": {"at": [-3.5, 0.0], "mode": "evolve"}},
 			# 9. a luta mais dura antes das elites finais: mosquitos, sanguessugas, o xamã e os arqueiros juntos
 			"Pântano Corrompido": {"kind": "combat", "level": [4, 5], "next": ["Arauto do Pântano"],
 				"waves": [
@@ -271,6 +280,13 @@ static func altar_offset(def: Dictionary, room: String) -> Vector2:
 ## Salas com altar.
 static func altar_rooms(def: Dictionary) -> Array:
 	return rooms(def).keys().filter(func(r: String) -> bool: return has_altar(def, r))
+
+
+## Modo do altar da sala: ALTAR_SKILL (só habilidade nova) ou ALTAR_EVOLVE (evolução da build); "" sem altar.
+static func altar_mode(def: Dictionary, room: String) -> String:
+	if not has_altar(def, room):
+		return ""
+	return str(rooms(def)[room].altar.get("mode", ALTAR_SKILL))
 
 
 ## O altar da sala só desperta depois de a sala ser limpa (sala de luta).
@@ -432,6 +448,8 @@ static func validate(def: Dictionary) -> PackedStringArray:
 				out.append("sala '%s': altar precisa ser {\"at\": [x, z]}" % r)
 			elif not k in ALTAR_KINDS:
 				out.append("sala '%s' do tipo '%s' não pode ter altar" % [r, k])
+			elif not str(altar.get("mode", ALTAR_SKILL)) in ALTAR_MODES:
+				out.append("sala '%s': modo de altar '%s' desconhecido" % [r, str(altar.mode)])
 		if k == "altar" and not (altar is Dictionary):
 			out.append("sala de altar '%s' sem altar" % r)
 		var shrine = rs[r].get("shrine")

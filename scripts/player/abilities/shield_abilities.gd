@@ -62,7 +62,7 @@ static func _on_end(player: Node, d: Dictionary) -> void:
 	if not player.remote and player.cooldowns.has(ID):
 		var sp: Dictionary = ItemDB.ABILITIES[ID]
 		var mult := BREAK_COOLDOWN_MULT if bool(d.aegis.get("broken", false)) else 1.0
-		player.cooldowns[ID] = Game.ability_cooldown(ID, float(sp.cooldown) * mult, Game.cooldown_mult())
+		player.cooldowns[ID] = Game.ability_cooldown(ID, float(sp.cooldown) * mult, Game.cooldown_mult(ID))
 		Game.stats_changed.emit()
 
 

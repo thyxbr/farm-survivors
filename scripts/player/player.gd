@@ -1303,7 +1303,7 @@ func cast(id: String) -> void:
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
 	if not id in ["heal", "frost_nova"]:
-		var cd_mult := Game.cooldown_mult()   # antes do use(): o buff que a habilidade dá não encurta a própria recarga
+		var cd_mult := Game.cooldown_mult(id)   # antes do use(): o buff que a habilidade dá não encurta a própria recarga
 		if not sp.ready or not _ab_module(id).use(self, id):
 			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
 			return
@@ -1321,7 +1321,7 @@ func cast(id: String) -> void:
 		return
 	if sp.cost > 0:
 		Game.mp -= sp.cost
-	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
+	cooldowns[id] = sp.cooldown * Game.cooldown_mult(id)
 	cast_timer = 0.4
 	_start_cast_pose(id)
 	if id == "frost_nova":
@@ -1441,7 +1441,7 @@ func confirm_heal(target: Node3D = null) -> void:
 		return
 	var ally: Node3D = target if target != null and target != self and is_instance_valid(target) and target.get("remote") else null
 	Game.mp -= sp.cost
-	cooldowns.heal = sp.cooldown * Game.cooldown_mult()
+	cooldowns.heal = sp.cooldown * Game.cooldown_mult("heal")
 	cast_timer = 0.4
 	_start_cast_pose("heal")
 	if Network.is_client():

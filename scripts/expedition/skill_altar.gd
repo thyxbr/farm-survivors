@@ -31,6 +31,8 @@ var expedition: Node
 ## Sala do ExpeditionDefs onde o altar fica.
 var room := ""
 var state := DORMANT
+## Altar de evolução da build (Altar Ancestral, ExpeditionDefs "mode": "evolve"): só muda o texto do [E].
+var evolve := false
 var npc_id := "skill_altar"   # lido pelos testes e pela depuração junto com os NPCs
 
 var _crystal: MeshInstance3D
@@ -63,6 +65,8 @@ func _ready() -> void:
 
 # ================================================================ interação
 func interact_prompt() -> String:
+	if evolve:
+		return "Altar Ancestral — evoluir a build"
 	return "Altar da Deusa — receber uma habilidade"
 
 
