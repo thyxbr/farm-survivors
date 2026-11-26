@@ -36,12 +36,21 @@ const DATA := {
 			+ "No coração do pântano, a Espinheira guarda o Trono da Rainha.",
 		"boss": "Espinheira",
 		"start": "Entrada",
+		# "level": [mín, máx] dos monstros que nascem na sala (ExpeditionBalance; vale sobre o nível da cena)
 		"rooms": {
 			"Entrada": {"kind": "start", "next": ["Encruzilhada"]},
-			"Encruzilhada": {"kind": "combat", "reward": true, "next": ["Clareira Funda"]},
-			"Clareira Funda": {"kind": "combat", "reward": true, "next": ["Salão do Portão"]},
+			"Encruzilhada": {"kind": "combat", "reward": true, "level": [2, 3], "next": ["Clareira Funda"]},
+			"Clareira Funda": {"kind": "combat", "reward": true, "level": [3, 4], "next": ["Salão do Portão"]},
 			"Salão do Portão": {"kind": "rest", "next": ["Trono da Rainha"]},
-			"Trono da Rainha": {"kind": "boss", "next": []},
+			"Trono da Rainha": {"kind": "boss", "level": [5, 5], "next": []},
+		},
+		# Balanceamento só desta expedição (ExpeditionBalance): multiplica a vida e o dano que o monstro já tem
+		# pelas regras de sempre (curva de nível + categoria do progression.json) no nível da sala.
+		#   common — monstros das salas; boss — o chefe; minion — o que nasce durante a luta (brotos, lacaios)
+		"balance": {
+			"common": {"hp": 0.8, "dmg": 0.75},
+			"minion": {"hp": 0.5, "dmg": 0.75},
+			"boss": {"hp": 0.5, "dmg": 0.2},
 		},
 	},
 }

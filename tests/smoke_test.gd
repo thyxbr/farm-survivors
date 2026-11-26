@@ -2647,6 +2647,7 @@ func _test_expedicao() -> void:
 	check(int(exp_alive.call()) >= 6 and ex.alive_in("Trono da Rainha") == 1 and ex.alive_in("Entrada") == 0,
 		"monstros nas salas de luta e um chefe (%d)" % int(exp_alive.call()))
 	check(ex.exit_portal != null and ex.exit_portal.interact_prompt() == "Voltar à Guilda", "saída para a Guilda na Entrada")
+	await _expedicao_balance(ex)
 	# cada melhoria mexe no número que diz: aplica todas pelo estado da run e confere no personagem
 	var before: Dictionary = hub_stats.call()
 	run.modifiers = {"furia": 1, "seiva": 1, "casca": 1, "nevoa": 1, "sussurro": 1}
@@ -2745,6 +2746,90 @@ func _test_expedicao() -> void:
 		"vitória: melhorias removidas (run_mods padrão)")
 	check(world.modal == null and not get_tree().paused and not Game.run_mods.active,
 		"vitória: nenhuma tela de escolha aberta na Guilda e run_mods desligado")
+
+
+## Balanceamento da expedição nos monstros de verdade (Enemy no mundo): nível da sala, vida e dano iguais à conta
+## do ExpeditionBalance, sem placa vermelha, golpe do jogador tirando vida, brotos da Espinheira com o
+## balanceamento de lacaio e um monstro criado fora da expedição (com ela ativa) com os números do MMO.
+func _expedicao_balance(ex: Node) -> void:
+	var bt: BalanceTables = Balance.tables
+	var def: Dictionary = ex.run.def
+	var ok_level := true
+	var ok_stats := true
+	var ok_danger := true
+	var worst := ""
+	var boss: Enemy = null
+	var common: Enemy = null
+	for e in ex.entries:
+		var en: Enemy = e.node
+		if en == null or not is_instance_valid(en):
+			continue
+		var lv := ExpeditionBalance.level_range(def, str(e.room), 0, 0)
+		var role := ExpeditionBalance.role_of(bool(e.get("boss", false)) or en.chief)
+		ok_level = ok_level and en.level >= lv.x and en.level <= lv.y and str(en.get_meta(ex.TUNED, "")) == role
+		var want := ExpeditionBalance.enemy_stats(bt, def, en.kind, en.level, role, en.chief)
+		if absf(en.max_hp - want.hp) > 0.01 or absf(float(en.data.damage) * en.dmg_mult - want.dmg) > 0.01:
+			ok_stats = false
+			worst = "%s Nv %d: vida %.1f (quer %.1f), dano %.1f (quer %.1f)" % [en.kind, en.level, en.max_hp, want.hp,
+				float(en.data.damage) * en.dmg_mult, want.dmg]
+		var dm := ProgressionRules.danger_mults(bt, en.level, Game.level)
+		ok_danger = ok_danger and is_equal_approx(dm.dmg, 1.0) and is_equal_approx(dm.taken, 1.0) \
+			and is_equal_approx(Enemy.vs(en.level, player, 10.0), 10.0)
+		if role == "boss":
+			boss = en
+		elif common == null:
+			common = en
+	check(ok_level, "expedição: monstros com o nível da sala e o papel certo (nada de Nv 16-20)")
+	check(ok_stats, "expedição: vida e dano reais = conta do ExpeditionBalance %s" % worst)
+	check(ok_danger, "expedição: sem bônus de placa vermelha contra o jogador (Nv %d)" % Game.level)
+	# o golpe do jogador tira vida de verdade, sem o corte de 'taken' da placa vermelha
+	if common != null:
+		var hp0 := common.hp
+		var hit := Game.melee_damage()
+		common.take_damage(hit, common.global_position + Vector3.FORWARD, false)
+		var lost := hp0 - common.hp
+		var want_lost := hit * common.element_mult("fisico")
+		check(lost > 0.0 and absf(lost - want_lost) < 0.5 or common.dead,
+			"expedição: golpe do jogador tira %.1f de %s (esperado %.1f, vida %.0f)" % [lost, common.kind, want_lost, common.max_hp])
+		common.hp = common.max_hp
+	# Espinheira: o chefe da expedição, com os números dela e a luta funcionando
+	check(boss != null and boss.kind == "espinheira" and boss.is_boss and boss.ai() == "thorn" and boss.level == 5,
+		"expedição: Espinheira Nv 5 como chefe da sala do trono")
+	if boss != null:
+		var mmo := ExpeditionBalance.enemy_stats(bt, {}, "espinheira", 20, "boss", true)
+		check(boss.max_hp < mmo.hp * 0.25 and boss.max_hp > 500.0,
+			"Espinheira da expedição: vida %.0f (a do Covil Nv 20 tem %.0f)" % [boss.max_hp, mmo.hp])
+		var hp0 := boss.hp
+		boss.take_damage(Game.melee_damage(), boss.global_position + Vector3.FORWARD, false)
+		check(boss.hp < hp0, "Espinheira leva dano do golpe do jogador (%.0f -> %.0f)" % [hp0, boss.hp])
+		boss.hp = boss.max_hp
+		var before := {}
+		for n in get_tree().get_nodes_in_group("enemies"):
+			before[n] = true
+		boss._thorn_sprouts()   # confere já: com ela parada (fora da luta) o broto murcha no primeiro tique
+		var sprouts := []
+		for n in get_tree().get_nodes_in_group("enemies"):
+			if not before.has(n) and n is Enemy and n.kind == boss.SPROUT_KIND:
+				sprouts.append(n)
+		var ok_sp := not sprouts.is_empty()
+		for sp: Enemy in sprouts:
+			var want := ExpeditionBalance.enemy_stats(bt, def, sp.kind, sp.level, "minion")
+			ok_sp = ok_sp and str(sp.get_meta(ex.TUNED, "")) == "minion" and absf(sp.max_hp - want.hp) < 0.01
+		check(ok_sp, "Espinheira invoca brotos (%d) com o balanceamento de lacaio da expedição" % sprouts.size())
+		for sp in sprouts:
+			sp.queue_free()
+	# com a expedição ativa, um monstro criado fora dela (no Hub) fica com os números do MMO
+	var out: Enemy = ex.ENEMY.new()
+	out.kind = "slime_veloz"
+	out.level = 16
+	out.position = world.HORDE_RETURN + Vector3(0, 0.3, 60)
+	world.add_child(out)
+	var mmo_slime := ExpeditionBalance.enemy_stats(bt, {}, "slime_veloz", 16, "common")
+	check(not out.has_meta(ex.TUNED) and absf(out.max_hp - mmo_slime.hp) < 0.01
+		and absf(float(out.data.damage) * out.dmg_mult - mmo_slime.dmg) < 0.01,
+		"fora da expedição: slime Nv 16 com vida %.0f e dano %.1f do MMO" % [out.max_hp, mmo_slime.dmg])
+	out.queue_free()
+	await wait(0.1)
 
 
 ## Escolha de melhoria ao limpar `room`: tela obrigatória (pausa, Esc não fecha, fechar por fora reabre com as

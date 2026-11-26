@@ -30,6 +30,8 @@ const DEATH_DELAY := 1.8
 const ROOM_SCAN := 0.2
 ## Espera a tela escurecer (world._teleport leva 0.4 s) antes de desmontar o mapa.
 const FADE_WAIT := 0.45
+## Meta do Enemy que já recebeu o balanceamento da expedição (valor: o papel, ExpeditionBalance.ROLES).
+const TUNED := &"expedition_role"
 
 var world: Node
 var player: Player
@@ -93,6 +95,8 @@ func begin() -> bool:
 	_rng.randomize()
 	run.run_seed = _rng.seed
 	_reward_rng.seed = hash(run.run_seed)
+	if not world.child_entered_tree.is_connected(_on_world_child):
+		world.child_entered_tree.connect(_on_world_child)
 	_spawn_all()
 	arrive_point = world.landmarks.get(map_id + ":arrive", MapData.origin(map_id))
 	exit_portal = _portal("exit", "", world.landmarks.get(map_id + ":exit", arrive_point + Vector3(0, 0, 4)))
@@ -291,12 +295,38 @@ func _spawn(entry: Dictionary) -> void:
 	en.arena = entry.get("arena", Rect2())
 	if not en.arena.has_area():
 		en.leash = LEASH
-	en.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0),
-		en.elite, _rng)
+	# nível da sala (ExpeditionBalance) no lugar do nível da cena; vida e dano com o multiplicador da expedição
+	var lv := ExpeditionBalance.level_range(run.def, str(entry.get("room", "")), int(entry.get("level", 0)),
+		int(entry.get("level_max", 0)))
+	en.level = ProgressionRules.spawn_level(Balance.tables, lv.x, lv.y, en.elite, _rng)
+	_tune(en, ExpeditionBalance.role_of(bool(entry.get("boss", false)) or en.chief))
 	en.position = entry.pos + Vector3.UP * 0.2
 	world.add_child(en)   # filhos do mundo, como os monstros das dungeons (world.summon_minions e afins)
 	entry.node = en
 	en.died.connect(_on_enemy_died.bind(entry))
+
+
+## Multiplicador de vida e dano da expedição (ExpeditionBalance) num monstro que ainda não entrou no mundo: o
+## Enemy._ready multiplica hp_mult/dmg_mult pela curva de nível e pela categoria, como faz com os da Horda.
+## Uma vez só por monstro (a marca evita somar de novo quando o lacaio passa pelo _on_world_child).
+func _tune(en: Enemy, role: String) -> void:
+	if en.has_meta(TUNED):
+		return
+	var m := ExpeditionBalance.mults(run.def, role)
+	en.hp_mult *= float(m.hp)
+	en.dmg_mult *= float(m.dmg)
+	en.set_meta(TUNED, role)
+
+
+## Monstro que nasce no mundo durante a expedição sem passar pelo _spawn (brotos da Espinheira, lacaios
+## invocados): se nasce na área da expedição, recebe o balanceamento de lacaio. Chega aqui antes do _ready dele.
+func _on_world_child(n: Node) -> void:
+	if _returning or run == null or not (n is Enemy):
+		return
+	var en := n as Enemy
+	if en.horde or en.has_meta(TUNED) or not ExpeditionDefs.is_inside(en.global_position):
+		return
+	_tune(en, ExpeditionBalance.role_of(false, true))
 
 
 func _on_enemy_died(_en: Enemy, entry: Dictionary) -> void:
@@ -328,6 +358,8 @@ func _return_to_hub() -> void:
 	if _returning:
 		return
 	_returning = true
+	if world.child_entered_tree.is_connected(_on_world_child):
+		world.child_entered_tree.disconnect(_on_world_child)
 	world.expedition = null   # daqui em diante a morte e o menu voltam ao normal
 	_close_reward_ui()        # a escolha não sobrevive à volta (a run já descartou a pendente)
 	Game.reset_run_mods()     # melhorias temporárias saem aqui; a vida não passa do máximo sem elas

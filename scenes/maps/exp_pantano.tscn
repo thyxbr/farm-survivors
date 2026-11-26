@@ -123,8 +123,8 @@ count = 3
 radius = 3.0
 respawn = 150.0
 follow_ground = false
-level = 16
-level_max = 17
+level = 2
+level_max = 3
 
 [node name="Clareira slime_explosivo" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, -4)
@@ -134,8 +134,8 @@ count = 3
 radius = 3.0
 respawn = 150.0
 follow_ground = false
-level = 17
-level_max = 19
+level = 3
+level_max = 4
 
 [node name="Clareira goblin_xama" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -5)
@@ -145,8 +145,8 @@ count = 2
 radius = 2.0
 respawn = 150.0
 follow_ground = false
-level = 17
-level_max = 19
+level = 3
+level_max = 4
 
 [node name="chefe espinheira" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -48)
@@ -154,6 +154,6 @@ script = ExtResource("7_ex")
 kind = "espinheira"
 respawn = 600.0
 follow_ground = false
-level = 19
-level_max = 20
+level = 5
+level_max = 5
 chief = true
