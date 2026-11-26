@@ -41,6 +41,18 @@ extends Node3D
 ##   rest   — a fonte cura uma fração da vida máxima (Game.hp; nada muda na vida máxima nem no save).
 ## Elites: o líder da onda ("leader" no ExpeditionDefs) nasce com nome, balanceamento de elite e a barra no alto
 ## da tela; abaixo de "call_at" da vida chama reforços (uma vez). A bênção da sala de elite soma em dobro.
+##
+## Encontros especiais (ExpeditionEncounters; "encounter" na sala): as mesmas ondas, barreiras e ExpeditionRun, com
+## outro jeito de começar, de nascer e de liberar a sala (o que já aconteceu fica no ExpeditionRun.encounters):
+##   emboscada — a sala não tranca na boca: só depois de o jogador andar "trigger" m lá dentro; a 1ª onda brota em
+##               roda dele, a 2ª na boca por onde ele entrou; aviso mais longo e atordoamento ao brotar.
+##   caçada    — o líder de elite vem na 1ª onda com o bando; o bando que cai se reagrupa perto dele enquanto ele
+##               vive; o líder caído dispersa (wither) o resto do bando.
+##   ritual    — o Foco da Corrupção (monstro parado "foco_corrupcao", barra no alto da tela) nasce com a luta, marca
+##               o chão sob o jogador a cada pulso e chama mosquitos; quebrá-lo para o ritual, desfaz os chamados e
+##               corta as ondas que não vieram. A sala só abre com o foco quebrado.
+##   oferendas — as ondas nascem em volta do baú (run_shrine, lacrado); limpa a sala, o baú dá a bênção (uma vez) e,
+##               vencendo a tempo, com um acúmulo a mais.
 
 signal finished(summary: Dictionary)
 
@@ -118,6 +130,17 @@ var shrines := {}
 var event_ui: Control = null
 ## Líderes de elite vivos: [{"entry", "room", "called"}].
 var _leaders: Array = []
+## Onde o jogador entrou em cada sala de emboscada ainda não disparada (de lá conta o gatilho; a onda "behind"
+## fecha essa boca).
+var _entry_at := {}
+## Rituais em andamento: sala -> {"entry": entrada do foco, "t": s até o próximo pulso, "n": pulsos já dados}.
+var _rituals := {}
+## Salas da caçada com um reagrupamento do bando anunciado e para nascer.
+var _regroup_pending := {}
+## Pulsos do ritual que já caíram (o smoke confere).
+var ritual_pulses := 0
+## Espaço mínimo entre dois monstros que nascem pelo jeito da onda (roda, boca, guarda) (m).
+const PATTERN_GAP := 1.2
 
 
 ## Prepara a expedição `id`. false se ela não existe ou a definição está quebrada.
@@ -210,19 +233,33 @@ func room_at(pos: Vector3) -> String:
 	return ""
 
 
-## Monstros vivos que nasceram na sala.
+## Monstros vivos que nasceram na sala (o foco do ritual não conta: ele é o objetivo, não um da onda).
 func alive_in(room: String) -> int:
 	var n := 0
 	for e in entries:
-		if e.room == room and is_instance_valid(e.node) and not e.node.dead:
+		if e.room == room and not bool(e.get("focus", false)) and is_instance_valid(e.node) and not e.node.dead:
 			n += 1
 	return n
+
+
+## O foco do ritual da sala está de pé.
+func focus_alive(room: String) -> bool:
+	return focus_of(room) != null
+
+
+## O Enemy do foco do ritual da sala (null = não nasceu ou já caiu).
+func focus_of(room: String) -> Enemy:
+	for e in entries:
+		if e.room == room and bool(e.get("focus", false)) and is_instance_valid(e.node) and not e.node.dead:
+			return e.node
+	return null
 
 
 func _process(delta: float) -> void:
 	if run == null or not run.is_active() or player == null:
 		return
 	run.tick(delta)
+	_tick_rituals(delta)
 	# escolha pendente sem tela (alguém fechou a janela por fora): reabre com as mesmas opções
 	if run.has_pending_reward() and not _reward_open() and not player.dead:
 		_open_reward_ui()
@@ -242,7 +279,7 @@ func _process(delta: float) -> void:
 		_hold_in_room(r)
 	elif r != "" and r != run.current_room and run.enter_room(r):
 		_on_room_entered(r)
-	elif r != "" and r == run.current_room and run.can_start_encounter(r) and _deep_inside(r) and not player.dead:
+	elif r != "" and r == run.current_room and run.can_start_encounter(r) and _ready_to_lock(r) and not player.dead:
 		_start_encounter(r)   # entrou na borda e agora avançou: a luta começa
 	_check_leaders()
 	refresh_altars()
@@ -257,10 +294,26 @@ func _on_room_entered(room: String) -> void:
 		_announced[room] = true
 		_announce(room, kind)
 	if run.can_start_encounter(room):
-		if _deep_inside(room):
+		if ExpeditionEncounters.is_type(run.def, room, ExpeditionEncounters.AMBUSH):
+			_entry_at[room] = player.global_position   # a emboscada conta daqui (e a 2ª onda fecha esta boca)
+		if _ready_to_lock(room):
 			_start_encounter(room)
 		return   # ainda na borda: tranca quando ele avançar (o _process confere)
 	_check_room(room)
+
+
+## A luta de `room` já pode trancar: o jogador passou da boca da sala (ENTER_DEPTH) e, na emboscada, andou o
+## "trigger" lá dentro desde onde entrou (até lá a sala parece vazia).
+func _ready_to_lock(room: String) -> bool:
+	if not _deep_inside(room):
+		return false
+	if not ExpeditionEncounters.is_type(run.def, room, ExpeditionEncounters.AMBUSH):
+		return true
+	if not _entry_at.has(room):
+		_entry_at[room] = player.global_position
+	var from: Vector3 = _entry_at[room]
+	var walked := Vector2(player.global_position.x - from.x, player.global_position.z - from.z).length()
+	return ExpeditionEncounters.ambush_triggered(run.def, room, walked)
 
 
 ## Salas já anunciadas nesta run (o letreiro da etapa sai só na primeira visita).
@@ -289,10 +342,21 @@ func _announce(room: String, kind: String) -> void:
 		sub = "Descanso — a fonte cura uma vez"
 	elif kind == "rest":
 		sub = "O ar pesa: a Rainha espera além do portão"
-	if tag != "" and not kind in ["combat", "elite", "boss"]:
+	var enc := ExpeditionEncounters.type_of(run.def, room)
+	match enc:
+		ExpeditionEncounters.AMBUSH:
+			sub = "Silêncio entre as raízes... cuidado onde pisa"   # a surpresa fica para o meio da sala
+		ExpeditionEncounters.HUNT:
+			sub = "Caçada ao Elite — derrube o líder e o bando se dispersa"
+		ExpeditionEncounters.RITUAL:
+			sub = "Ritual Corrompido — quebre o %s" % ExpeditionEncounters.focus_name(run.def, room)
+		ExpeditionEncounters.OFFERING:
+			sub = "Defesa das Oferendas — derrote os guardiões do baú"
+	if tag != "" and (not kind in ["combat", "elite", "boss"] or enc == ExpeditionEncounters.AMBUSH):
 		_banner(room.to_upper(), "%s · %s" % [tag, sub])   # a luta tem o letreiro da onda logo em seguida
 	if tag != "":
-		var c := Color(1.0, 0.7, 0.4) if kind in ["elite", "boss"] else Color(0.8, 0.9, 1.0)
+		var c := Color(1.0, 0.7, 0.4) if kind in ["elite", "boss"] or enc in [ExpeditionEncounters.RITUAL,
+			ExpeditionEncounters.OFFERING] else Color(0.8, 0.9, 1.0)
 		Game.notify.emit("%s — %s: %s" % [tag, room, sub], c)
 
 
@@ -311,13 +375,32 @@ func _check_room(room: String) -> void:
 		_update_hud()
 		return
 	if not run.clear_room(room):
+		if run.locked_room == room and _rituals.has(room) and focus_alive(room) and not _rituals[room].get("told", false):
+			_rituals[room]["told"] = true   # as ondas acabaram, o foco não: ele é o que falta
+			_banner("QUEBRE O FOCO", "%s — o ritual ainda prende a sala" % ExpeditionEncounters.focus_name(run.def, room))
+		_update_hud()
 		return
 	_set_barriers(room, false)
 	_update_hud()
+	var enc := ExpeditionEncounters.type_of(run.def, room)
 	if run.outcome == ExpeditionRun.VICTORY:
 		_on_victory(room)
 	elif had_fight:
-		if ExpeditionDefs.kind_of(run.def, room) == "elite":
+		if enc == ExpeditionEncounters.OFFERING:
+			refresh_shrines()
+			var x := run.encounter_bonus_stacks(room)
+			if run.is_offering_intact(room):
+				_banner("OFERENDAS PROTEGIDAS", "%s — o baú se abriu: a bênção soma +%d" % [room, x])
+			else:
+				_banner("OFERENDAS RECUPERADAS", "%s — o baú se abriu" % room)
+			Game.notify.emit("O baú das oferendas se abriu: [E] nele para receber a bênção.", Color(1.0, 0.85, 0.45))
+		elif enc == ExpeditionEncounters.RITUAL:
+			_banner("RITUAL DESFEITO", "%s — as passagens se abriram" % room)
+		elif enc == ExpeditionEncounters.HUNT:
+			_banner("CAÇADA CONCLUÍDA", "%s — a bênção vale em dobro" % room)
+		elif enc == ExpeditionEncounters.AMBUSH:
+			_banner("EMBOSCADA SUPERADA", "%s — as passagens se abriram" % room)
+		elif ExpeditionDefs.kind_of(run.def, room) == "elite":
 			_banner("ELITE DERROTADA", "%s — a bênção vale em dobro" % room)
 		else:
 			_banner("SALA LIBERADA", "%s — as passagens se abriram" % room)
@@ -337,6 +420,7 @@ func _start_encounter(room: String) -> void:
 	_push_inside(room)
 	_last_inside = player.global_position
 	Sfx.play("hit", 0.08, -4.0)
+	_begin_special(room)
 	if ExpeditionDefs.has_waves(run.def, room):
 		_queue_wave(room, FIRST_WAVE_DELAY)
 	else:
@@ -354,9 +438,14 @@ func _start_encounter(room: String) -> void:
 func _queue_wave(room: String, delay: float) -> void:
 	var n := run.current_wave(room)
 	var total := run.wave_total(room)
+	delay = ExpeditionEncounters.telegraph_of(run.def, room, delay)   # a emboscada avisa mais tempo
 	var plan := _wave_plan(room, n - 1)
 	wave_pending = room
-	_banner("ONDA %d/%d" % [n, total], "%s — %d inimigo(s)" % [room, plan.size()])
+	var head := _wave_banner(room, n, plan.size())
+	if head.is_empty():
+		_banner("ONDA %d/%d" % [n, total], "%s — %d inimigo(s)" % [room, plan.size()])
+	else:
+		_banner(str(head[0]), str(head[1]))
 	for p in plan:
 		p["mark"] = _spawn_mark(p.pos, delay)
 	get_tree().create_timer(delay, false).timeout.connect(_spawn_wave.bind(room, n, plan))
@@ -408,14 +497,118 @@ func _spawn_mark(pos: Vector3, life: float) -> Node3D:
 
 ## Quem nasce na onda `index` (0 = a primeira) e onde: [{"kind", "elite", "pos"}]. Cada grupo do ExpeditionDefs
 ## cresce pelo DungeonRules.population quando a run tem mais jogadores.
+## No encontro especial o lugar segue o jeito da onda (ExpeditionEncounters.spawn_of: roda, boca, guarda).
 func _wave_plan(room: String, index: int) -> Array:
 	var out: Array = []
 	for g in ExpeditionDefs.wave_groups(run.def, room, index):
 		var count := DungeonRules.population(Balance.tables, int(g.get("count", 1)), run.players)
 		for i in count:
 			out.append({"kind": str(g.kind), "elite": bool(g.get("elite", false)),
-				"leader": bool(g.get("leader", false)) and i == 0, "pos": _spawn_point(room, out)})
+				"leader": bool(g.get("leader", false)) and i == 0})
+	var daze := ExpeditionEncounters.daze_of(run.def, room) \
+		if ExpeditionEncounters.is_type(run.def, room, ExpeditionEncounters.AMBUSH) else 0.0
+	_place(room, out, ExpeditionEncounters.spawn_of(run.def, room, index))
+	for p in out:
+		p["daze"] = daze
 	return out
+
+
+## Põe "pos" em cada um de `plan` pelo jeito `pattern` ("" = espalhado pela sala, longe do jogador). Ponto que não
+## serve (fora da sala, sem chão, perto demais do jogador) cai no _spawn_point de sempre.
+func _place(room: String, plan: Array, pattern: String) -> void:
+	var pts := _pattern_points(room, pattern, plan.size())
+	var placed: Array = []
+	for i in plan.size():
+		var pos: Vector3 = pts[i] if i < pts.size() else Vector3.INF
+		if pos == Vector3.INF or not _spawn_ok(room, pos, placed):
+			pos = _spawn_point(room, placed)
+		plan[i]["pos"] = pos
+		placed.append(plan[i])
+
+
+## Pontos de nascimento do jeito `pattern` (podem não servir: _place confere cada um).
+##   ring   — em roda do jogador, a ExpeditionEncounters.ring_radius m (emboscada);
+##   behind — lado a lado na boca por onde o jogador entrou, um pouco para dentro (emboscada);
+##   guard  — em roda do baú da sala, a "guard" m (defesa das oferendas).
+func _pattern_points(room: String, pattern: String, n: int) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var r: MapDungeonRoom = rooms.get(room)
+	if r == null or n <= 0:
+		return out
+	var y := r.global_position.y
+	match pattern:
+		"ring":
+			var c := Vector2(player.global_position.x, player.global_position.z)
+			var rad := ExpeditionEncounters.ring_radius(run.def, room)
+			for p in ExpeditionEncounters.ring_points(c, n, rad, _rng.randf() * TAU):
+				out.append(_toward_room(room, Vector3(p.x, y, p.y), c, rad))
+		"behind":
+			var at := entry_anchor(room)
+			if at.is_empty():
+				return out
+			var inward: Vector3 = at.inward
+			var side := Vector3(-inward.z, 0.0, inward.x)
+			for i in n:
+				var p: Vector3 = at.pos + inward * 1.0 + side * (float(i) - float(n - 1) / 2.0) * 1.8
+				out.append(Vector3(p.x, y, p.z))
+		"guard":
+			var sh: Node3D = shrines.get(room)
+			if sh == null or not is_instance_valid(sh):
+				return out
+			var c := Vector2(sh.global_position.x, sh.global_position.z)
+			var rad := ExpeditionEncounters.num(run.def, room, "guard", 3.5)
+			for p in ExpeditionEncounters.ring_points(c, n, rad, _rng.randf() * TAU):
+				out.append(_toward_room(room, Vector3(p.x, y, p.y), c, rad))
+	return out
+
+
+## A boca por onde o jogador entrou na sala da emboscada: {"pos": a barreira mais perto de onde ele entrou,
+## "inward": para dentro da sala}; {} se não se sabe (a onda "behind" cai no espalhado de sempre).
+func entry_anchor(room: String) -> Dictionary:
+	var at: Vector3 = _entry_at.get(room, Vector3.INF)
+	if at == Vector3.INF:
+		return {}
+	var best: Node3D = null
+	for b in barriers.get(room, []):
+		if is_instance_valid(b) and (best == null or b.global_position.distance_to(at) < best.global_position.distance_to(at)):
+			best = b
+	if best != null:
+		return {"pos": best.global_position, "inward": (best.inward as Vector3).normalized()}
+	var r: MapDungeonRoom = rooms.get(room)
+	var inward := Vector3(r.global_position.x - at.x, 0.0, r.global_position.z - at.z) if r != null else Vector3.FORWARD
+	return {"pos": at, "inward": inward.normalized() if inward.length() > 0.01 else Vector3.FORWARD}
+
+
+## Ponto da roda que caiu fora da sala (ou sem chão): gira um pouco em volta do centro até achar um lugar que
+## sirva, mantendo o raio. Se nenhum serve, devolve o original (o _place troca pelo _spawn_point).
+func _toward_room(room: String, p: Vector3, center: Vector2, rad: float) -> Vector3:
+	if _spawn_ok(room, p, []):
+		return p
+	var a0 := atan2(p.z - center.y, p.x - center.x)
+	for k in range(1, 7):
+		for sgn in [1.0, -1.0]:
+			var a: float = a0 + sgn * k * 0.35
+			var q := Vector3(center.x + cos(a) * rad, p.y, center.y + sin(a) * rad)
+			if _spawn_ok(room, q, []):
+				return q
+	return p
+
+
+## O ponto serve para um monstro nascer: dentro da sala, com chão, a SPAWN_CLEAR m do jogador e longe dos outros.
+func _spawn_ok(room: String, p: Vector3, taken: Array) -> bool:
+	var r: MapDungeonRoom = rooms.get(room)
+	if r == null:
+		return false
+	var c2 := Vector2(r.global_position.x, r.global_position.z)
+	var p2 := Vector2(p.x, p.z)
+	if not r.contains(c2, p2) or not _walkable(p):
+		return false
+	if Vector2(player.global_position.x, player.global_position.z).distance_to(p2) < SPAWN_CLEAR:
+		return false
+	for t in taken:
+		if Vector2(t.pos.x, t.pos.z).distance_to(p2) < PATTERN_GAP:
+			return false
+	return true
 
 
 func _spawn_wave(room: String, n: int, plan: Array) -> void:
@@ -432,7 +625,7 @@ func _spawn_wave(room: String, n: int, plan: Array) -> void:
 		if me.distance_to(Vector2(p.pos.x, p.pos.z)) < SPAWN_ON_PLAYER:
 			p.pos = _spawn_point(room, plan.filter(func(o) -> bool: return o != p))
 		var entry := {"kind": p.kind, "elite": p.elite, "pos": p.pos, "room": room, "wave": n, "arena": arena,
-			"leader": bool(p.get("leader", false))}
+			"leader": bool(p.get("leader", false)), "daze": float(p.get("daze", 0.0))}
 		entries.append(entry)
 		_spawn(entry)
 		if entry.leader:
@@ -596,7 +789,29 @@ func _update_hud() -> void:
 	else:
 		var n := alive_in(room)
 		info = "%d inimigo%s restante%s" % [n, "" if n == 1 else "s", "" if n == 1 else "s"]
+	info += _encounter_info(room)
 	world.hud.set_encounter(title, info)
+
+
+## O que o encontro especial acrescenta à linha da luta no HUD ("" na luta tradicional).
+func _encounter_info(room: String) -> String:
+	match run.encounter_type(room):
+		ExpeditionEncounters.RITUAL:
+			if focus_alive(room):
+				return " · Quebre o %s!" % ExpeditionEncounters.focus_name(run.def, room)
+			return " · Ritual interrompido"
+		ExpeditionEncounters.OFFERING:
+			var left := ExpeditionEncounters.num(run.def, room, "bonus_time", 90.0) - run.encounter_time(room)
+			if left > 0.0:
+				return " · Oferendas intactas: %d s" % ceili(left)
+			return " · As oferendas se apagam"
+		ExpeditionEncounters.HUNT:
+			if run.is_prey_down(room):
+				return " · O bando se dispersa"
+			if _regroup_pending.has(room):
+				return " · O bando se reagrupa..."
+			return " · Reagrupamentos: %d" % run.regroups_left(room)
+	return ""
 
 
 # ================================================================ melhorias temporárias
@@ -627,6 +842,18 @@ func _open_reward_ui() -> void:
 	ui.choices = (run.pending_reward.choices as Array).duplicate()
 	ui.taken = run.modifiers.duplicate()
 	ui.stacks = run.pending_stacks()
+	if run.encounter_type(ui.room) == ExpeditionEncounters.OFFERING:
+		ui.title_text = "Oferendas protegidas: %s" % ui.room
+		ui.subtitle_text = "As oferendas ficaram intactas: a bênção vale mais." if run.is_offering_intact(ui.room) \
+			else "Os guardiões caíram, mas parte das oferendas se apagou."
+	else:
+		_reward_texts(ui)
+	reward_ui = ui
+	world._open_modal(ui)
+	Sfx.play("levelup", 0.0)
+
+
+func _reward_texts(ui: Control) -> void:
 	match ExpeditionDefs.kind_of(run.def, ui.room):
 		"elite":
 			ui.title_text = "Elite derrotada: %s" % ui.room
@@ -637,9 +864,6 @@ func _open_reward_ui() -> void:
 		"altar":
 			ui.title_text = ui.room
 			ui.subtitle_text = "A Deusa não tem mais o que ensinar, mas abençoa a sua jornada."
-	reward_ui = ui
-	world._open_modal(ui)
-	Sfx.play("levelup", 0.0)
 
 
 ## Chamado pela tela: aplica a melhoria escolhida. false se a escolha não vale (já escolhida, fora da run...).
@@ -733,6 +957,10 @@ func _spawn(entry: Dictionary) -> void:
 	world.add_child(en)   # filhos do mundo, como os monstros das dungeons (world.summon_minions e afins)
 	entry.node = en
 	en.died.connect(_on_enemy_died.bind(entry))
+	# quem brota de surpresa (emboscada, bando reagrupado, chamado do ritual) chega atordoado: sem golpe na hora
+	var daze := float(entry.get("daze", 0.0))
+	if daze > 0.0:
+		en.apply_stun(daze)
 
 
 ## Multiplicador de vida e dano da expedição (ExpeditionBalance) num monstro que ainda não entrou no mundo: o
@@ -760,7 +988,14 @@ func _on_world_child(n: Node) -> void:
 
 func _on_enemy_died(_en: Enemy, entry: Dictionary) -> void:
 	entry.node = null
-	_check_room(str(entry.get("room", "")))
+	var room := str(entry.get("room", ""))
+	if bool(entry.get("focus", false)):
+		_on_focus_broken(room)
+	elif bool(entry.get("leader", false)) and run.encounter_type(room) == ExpeditionEncounters.HUNT:
+		_on_prey_down(room)
+	_check_room(room)
+	if run.encounter_type(room) == ExpeditionEncounters.HUNT:
+		_check_hunt.call_deferred(room)   # fora do sinal de morte (o golpe que mata vários de uma vez acaba antes)
 
 
 # ================================================================ altares (kit temporário de habilidades)
@@ -893,7 +1128,7 @@ func _build_shrines() -> void:
 		var sh: StaticBody3D = SHRINE.new()
 		sh.expedition = self
 		sh.room = room
-		sh.kind = ExpeditionDefs.kind_of(run.def, room)
+		sh.kind = ExpeditionDefs.shrine_kind(run.def, room)
 		sh.name = "RunShrine"
 		sh.position = Vector3(r.global_position.x + off.x, r.global_position.y, r.global_position.z + off.y)
 		world.add_child(sh)
@@ -904,12 +1139,18 @@ func _build_shrines() -> void:
 		shrines[room] = sh
 
 
-## Santuário pronto (aceso, [E]) ou gasto.
+## Santuário pronto (aceso, [E]), gasto ou lacrado (o baú da Defesa das Oferendas antes de a sala ser limpa).
 func refresh_shrines() -> void:
 	for room in shrines:
 		var sh = shrines[room]
-		if is_instance_valid(sh):
-			sh.set_state(SHRINE.USED if run.is_shrine_used(room) else SHRINE.READY)
+		if not is_instance_valid(sh):
+			continue
+		var s: String = SHRINE.READY
+		if run.is_shrine_used(room):
+			s = SHRINE.USED
+		elif ExpeditionDefs.shrine_needs_clear(run.def, room) and not run.is_cleared(room):
+			s = SHRINE.SEALED
+		sh.set_state(s)
 
 
 func _event_open() -> bool:
@@ -922,7 +1163,7 @@ func use_shrine(room: String) -> bool:
 		return false
 	if _altar_open() or _reward_open() or _event_open():
 		return false
-	match ExpeditionDefs.kind_of(run.def, room):
+	match ExpeditionDefs.shrine_kind(run.def, room):
 		"event":
 			return _open_event_ui(room)
 		"reward":
@@ -1071,6 +1312,249 @@ func _leader_call(l: Dictionary, info: Dictionary) -> void:
 	Sfx.play("hit", 0.05, -3.0)
 
 
+# ================================================================ encontros especiais (ExpeditionEncounters)
+## Letreiro da onda `n` num encontro especial: [título, linha]; [] = o "ONDA n/t" de sempre.
+func _wave_banner(room: String, n: int, count: int) -> Array:
+	match run.encounter_type(room):
+		ExpeditionEncounters.AMBUSH:
+			if ExpeditionEncounters.spawn_of(run.def, room, n - 1) == "behind":
+				return ["ATRÁS DE VOCÊ!", "%s — %d inimigo(s) tomam a passagem" % [room, count]]
+			return ["EMBOSCADA!", "%s — %d inimigo(s) brotam ao seu redor" % [room, count]]
+		ExpeditionEncounters.HUNT:
+			if n == 1:
+				return ["CAÇADA AO ELITE", "%s — derrube o líder e o bando se dispersa" % room]
+		ExpeditionEncounters.RITUAL:
+			if n == 1:
+				return ["RITUAL CORROMPIDO", "Quebre o %s — fuja das marcas no chão" % ExpeditionEncounters.focus_name(run.def, room)]
+		ExpeditionEncounters.OFFERING:
+			if n == 1:
+				return ["DEFESA DAS OFERENDAS", "Derrote os guardiões em %d s e as oferendas ficam intactas"
+					% roundi(ExpeditionEncounters.num(run.def, room, "bonus_time", 90.0))]
+	return []
+
+
+## A luta especial de `room` acabou de trancar: o que ela traz além das ondas.
+func _begin_special(room: String) -> void:
+	match run.encounter_type(room):
+		ExpeditionEncounters.AMBUSH:
+			if player.has_method("add_shake"):
+				player.add_shake(0.5)
+			Game.notify.emit("Emboscada! As raízes se abrem ao seu redor.", Color(1.0, 0.5, 0.4))
+		ExpeditionEncounters.RITUAL:
+			_spawn_focus(room)
+			Game.notify.emit("%s: um ritual pulsa na sala. Quebre o foco para interrompê-lo!" % room,
+				Color(0.75, 1.0, 0.5))
+		ExpeditionEncounters.OFFERING:
+			refresh_shrines()
+			Game.notify.emit("Os guardiões despertam em volta do baú das oferendas.", Color(1.0, 0.8, 0.45))
+		ExpeditionEncounters.HUNT:
+			Game.notify.emit("Caçada: o líder já está no bando. Derrube-o e o resto foge.", Color(1.0, 0.7, 0.35))
+
+
+# ---------------------------------------------------------------- ritual corrompido
+## O Foco da Corrupção nasce no lugar marcado da sala, com nome, a barra no alto da tela e a luz da corrupção.
+func _spawn_focus(room: String) -> void:
+	var r: MapDungeonRoom = rooms.get(room)
+	var kind := ExpeditionEncounters.focus_kind(run.def, room)
+	if r == null or kind == "" or _rituals.has(room):
+		return
+	var off := ExpeditionEncounters.focus_offset(run.def, room)
+	var pos := Vector3(r.global_position.x + off.x, r.global_position.y, r.global_position.z + off.y)
+	var arena := Rect2(Vector2(r.global_position.x, r.global_position.z) - r.size / 2.0, r.size)
+	var entry := {"kind": kind, "elite": false, "pos": pos, "room": room, "wave": 0, "arena": arena, "focus": true}
+	entries.append(entry)
+	_spawn(entry)
+	var en: Enemy = entry.get("node")
+	if en == null or not is_instance_valid(en):
+		return
+	var nm := ExpeditionEncounters.focus_name(run.def, room)
+	en.display_name = "Nv %d %s" % [en.level, nm] if en.level > 0 else nm
+	if en.name_tag != null:
+		en.name_tag.text = en.display_name
+	if world.hud != null:
+		world.hud.boss = en   # a barra do alto da tela, como a do líder de elite
+	if DisplayServer.get_name() != "headless":
+		var glow := OmniLight3D.new()
+		glow.light_color = Color(0.55, 1.0, 0.35)
+		glow.light_energy = 2.4
+		glow.omni_range = 6.5
+		glow.position.y = 1.4
+		en.add_child(glow)
+		FX.ring(pos + Vector3.UP * 0.08, Color(0.55, 1.0, 0.35), 3.0, 0.8)
+	_rituals[room] = {"entry": entry, "t": ExpeditionEncounters.num(run.def, room, "pulse", 6.5), "n": 0}
+
+
+## Relógio dos pulsos de cada ritual em andamento (só com a sala trancada e o foco de pé).
+func _tick_rituals(delta: float) -> void:
+	if _rituals.is_empty() or player == null or player.dead:
+		return
+	for room in _rituals.keys():
+		var st: Dictionary = _rituals[room]
+		if run.locked_room != room or not focus_alive(room):
+			continue
+		st.t = float(st.t) - delta
+		if float(st.t) > 0.0:
+			continue
+		st.t = ExpeditionEncounters.num(run.def, room, "pulse", 6.5)
+		st.n = int(st.n) + 1
+		_ritual_pulse(room, int(st.n))
+
+
+## Um pulso: marca o chão sob o jogador (o aviso vermelho de ataque em área) e, depois do aviso, quem ficou na marca
+## leva o dano. A cada "summon_every" pulsos o foco chama os lacaios do ritual.
+func _ritual_pulse(room: String, n: int) -> void:
+	var focus := focus_of(room)
+	if focus == null:
+		return
+	var r: MapDungeonRoom = rooms.get(room)
+	var at := Vector3(player.global_position.x, r.global_position.y if r != null else player.global_position.y,
+		player.global_position.z)
+	var radius := ExpeditionEncounters.num(run.def, room, "pulse_radius", 2.4)
+	var warn := ExpeditionEncounters.num(run.def, room, "pulse_warn", 1.4)
+	if DisplayServer.get_name() != "headless":
+		FX.telegraph(at, radius, warn)
+		FX.ring(focus.global_position + Vector3.UP * 0.1, Color(0.55, 1.0, 0.35), 2.6, 0.6)
+	Sfx.play_at("slam", focus.global_position, 0.1, -8.0)
+	get_tree().create_timer(warn, false).timeout.connect(_ritual_strike.bind(room, at, radius))
+	if ExpeditionEncounters.pulse_summons(run.def, room, n):
+		_ritual_summon(room, focus)
+
+
+func _ritual_strike(room: String, at: Vector3, radius: float) -> void:
+	if _returning or not run.is_active() or run.locked_room != room or not focus_alive(room):
+		return   # o foco quebrou durante o aviso: a marca se desfaz sem dano
+	ritual_pulses += 1
+	FX.burst(at + Vector3.UP * 0.3, Color(0.45, 0.9, 0.3), 18, 3.2, 0.1, 0.6)
+	if player == null or player.dead:
+		return
+	if Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length() <= radius:
+		player.take_damage(ExpeditionEncounters.pulse_damage(run.def, room, Game.max_hp()), at)
+
+
+## O foco chama os lacaios do ritual (até "summon_cap" deles vivos), atordoados ao brotar.
+func _ritual_summon(room: String, focus: Enemy) -> void:
+	var cap := int(ExpeditionEncounters.param(run.def, room, "summon_cap", 3))
+	var alive := 0
+	for e in entries:
+		if e.room == room and bool(e.get("ritual", false)) and is_instance_valid(e.node) and not e.node.dead:
+			alive += 1
+	if alive >= cap:
+		return
+	var r: MapDungeonRoom = rooms.get(room)
+	var arena := Rect2(Vector2(r.global_position.x, r.global_position.z) - r.size / 2.0, r.size) if r != null else Rect2()
+	var plan: Array = []
+	for g in ExpeditionEncounters.param(run.def, room, "summon", []):
+		for i in DungeonRules.population(Balance.tables, int(g.get("count", 1)), run.players):
+			if alive + plan.size() < cap:
+				plan.append({"kind": str(g.kind)})
+	if plan.is_empty():
+		return
+	var c := Vector2(focus.global_position.x, focus.global_position.z)
+	var pts := ExpeditionEncounters.ring_points(c, plan.size(), 2.0, _rng.randf() * TAU)
+	var placed: Array = []
+	for i in plan.size():
+		var pos := Vector3(pts[i].x, focus.global_position.y, pts[i].y)
+		if not _spawn_ok(room, pos, placed):
+			pos = _spawn_point(room, placed)
+		var entry := {"kind": plan[i].kind, "elite": false, "pos": pos, "room": room, "wave": run.current_wave(room),
+			"arena": arena, "summoned": true, "ritual": true, "daze": ExpeditionEncounters.daze_of(run.def, room)}
+		placed.append(entry)
+		entries.append(entry)
+		_spawn(entry)
+		FX.burst(pos + Vector3.UP * 0.5, Color(0.5, 1.0, 0.35), 14, 3.0, 0.12, 0.5)
+	Game.notify.emit("O ritual chama o pântano!", Color(0.75, 1.0, 0.5))
+
+
+## O foco caiu: o ritual para (sem pulsos nem chamados), os chamados se desfazem e as ondas que ainda não vieram
+## não vêm mais (ExpeditionRun.break_focus). A sala abre quando o que sobrou da onda atual cair.
+func _on_focus_broken(room: String) -> void:
+	_rituals.erase(room)
+	if not run.break_focus(room):
+		return
+	for e in entries:
+		if e.room == room and bool(e.get("ritual", false)) and is_instance_valid(e.node) and not e.node.dead:
+			e.node.wither()
+	if world.hud != null and world.hud.boss != null and not is_instance_valid(world.hud.boss):
+		world.hud.boss = null
+	var r: MapDungeonRoom = rooms.get(room)
+	if r != null:
+		FX.burst(r.global_position + Vector3.UP * 1.0, Color(0.6, 1.0, 0.4), 28, 4.0, 0.12, 0.9, -2.0)
+	Sfx.play("levelup", 0.0)
+	_banner("RITUAL INTERROMPIDO", "%s — a corrupção recua" % room)
+	Game.notify.emit("O foco se partiu: o ritual parou e as ondas que viriam se desfizeram.", Color(0.75, 1.0, 0.5))
+	_update_hud()
+
+
+# ---------------------------------------------------------------- caçada ao elite
+## O bando da caçada caiu inteiro e o líder segue de pé: o bando se reagrupa perto dele (gasta um reagrupamento).
+func _check_hunt(room: String) -> void:
+	if _returning or not run.is_active() or run.locked_room != room or _regroup_pending.has(room):
+		return
+	if wave_pending == room or run.is_prey_down(room):
+		return
+	var leader: Enemy = null
+	for e in entries:
+		if e.room == room and bool(e.get("leader", false)) and is_instance_valid(e.node) and not e.node.dead:
+			leader = e.node
+	if leader == null or alive_in(room) != 1 or not run.regroup(room):
+		return
+	_regroup_pending[room] = true
+	var delay := ExpeditionEncounters.num(run.def, room, "regroup_delay", 1.4)
+	var plan: Array = []
+	for g in ExpeditionEncounters.param(run.def, room, "regroup", []):
+		for i in DungeonRules.population(Balance.tables, int(g.get("count", 1)), run.players):
+			plan.append({"kind": str(g.kind)})
+	var c := Vector2(leader.global_position.x, leader.global_position.z)
+	var pts := ExpeditionEncounters.ring_points(c, plan.size(), 2.5, _rng.randf() * TAU)
+	var placed: Array = []
+	for i in plan.size():
+		var pos := Vector3(pts[i].x, leader.global_position.y, pts[i].y)
+		if not _spawn_ok(room, pos, placed):
+			pos = _spawn_point(room, placed)
+		plan[i]["pos"] = pos
+		placed.append(plan[i])
+		plan[i]["mark"] = _spawn_mark(pos, delay)
+	var nm := str(ExpeditionDefs.leader_of(run.def, room).get("name", "O líder"))
+	_banner("O BANDO SE REAGRUPA", "%s chama o bando de volta (%d restante%s)" % [nm, run.regroups_left(room),
+		"" if run.regroups_left(room) == 1 else "s"])
+	Game.notify.emit("%s reagrupa o bando!" % nm, Color(1.0, 0.6, 0.35))
+	get_tree().create_timer(delay, false).timeout.connect(_spawn_regroup.bind(room, plan))
+	_update_hud()
+
+
+func _spawn_regroup(room: String, plan: Array) -> void:
+	_regroup_pending.erase(room)
+	if _returning or not run.is_active() or run.locked_room != room or run.is_prey_down(room):
+		return   # o líder caiu durante o aviso: ninguém mais atende ao chamado
+	var r: MapDungeonRoom = rooms.get(room)
+	var arena := Rect2(Vector2(r.global_position.x, r.global_position.z) - r.size / 2.0, r.size) if r != null else Rect2()
+	var me := Vector2(player.global_position.x, player.global_position.z)
+	for p in plan:
+		if me.distance_to(Vector2(p.pos.x, p.pos.z)) < SPAWN_ON_PLAYER:
+			p.pos = _spawn_point(room, plan.filter(func(o) -> bool: return o != p))
+		var entry := {"kind": p.kind, "elite": false, "pos": p.pos, "room": room, "wave": run.current_wave(room),
+			"arena": arena, "summoned": true, "pack": true, "daze": ExpeditionEncounters.daze_of(run.def, room)}
+		entries.append(entry)
+		_spawn(entry)
+		FX.burst(p.pos + Vector3.UP * 0.5, Color(0.9, 0.5, 0.3), 14, 3.0, 0.12, 0.5)
+	Sfx.play("hit", 0.08, -6.0)
+	_check_room(room)
+
+
+## O líder da caçada caiu: o bando que sobrou se dispersa (some sem saque) e a sala é liberada pelo fluxo de sempre.
+func _on_prey_down(room: String) -> void:
+	if not run.mark_prey_down(room):
+		return
+	var fled := 0
+	for e in entries:
+		if e.room == room and is_instance_valid(e.node) and not e.node.dead:
+			e.node.wither()
+			fled += 1
+	_banner("PRESA ABATIDA", "%s caiu — o bando se dispersa" % str(ExpeditionDefs.leader_of(run.def, room).get("name", room)))
+	if fled > 0:
+		Game.notify.emit("Sem o líder, %d do bando fogem para o brejo." % fled, Color(1.0, 0.75, 0.45))
+
+
 ## Saída sem passar pela volta (o mundo caiu inteiro: menu, troca de personagem): o kit normal volta mesmo assim.
 func _exit_tree() -> void:
 	if not _returning:
@@ -1152,6 +1636,9 @@ func _teardown() -> void:
 			sh.queue_free()
 	shrines.clear()
 	_leaders.clear()
+	_rituals.clear()
+	_regroup_pending.clear()
+	_entry_at.clear()
 	wave_pending = ""
 	if world.hud != null and world.hud.has_method("set_encounter"):
 		world.hud.set_encounter("", "")

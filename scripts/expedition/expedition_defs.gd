@@ -41,6 +41,12 @@ extends RefCounted
 ##   event  — "event": id do ExpeditionEvents (a escolha da sala)
 ##   reward — a bênção da sala (precisa de "reward": true)
 ##   rest   — "heal": fração da vida máxima recuperada (uma vez só)
+## A sala de luta com o encontro "offering" (Defesa das Oferendas) também tem santuário: o baú da bênção da sala,
+## lacrado até a luta acabar (shrine_kind = "reward").
+##
+## Encontros especiais ("encounter" numa sala de luta; ExpeditionEncounters): emboscada, caçada ao elite, ritual
+## corrompido e defesa das oferendas. Mudam como a luta começa, onde os monstros nascem e o que libera a sala,
+## sempre pelas mesmas ondas, barreiras e ExpeditionRun. Sala sem "encounter" é a luta tradicional.
 
 const ROOM_KINDS := ["start", "combat", "elite", "altar", "event", "reward", "rest", "boss"]
 ## Tipos que precisam ser limpos (todos os monstros mortos) para contar no progresso.
@@ -74,11 +80,13 @@ const DATA := {
 		"half": 100.0,           # meia largura da cena (MapRoot.half)
 		# texto da seleção da Guilda
 		"desc": "Um brejo de névoa e raízes onde as vozes dos afogados guiam os incautos. Treze etapas de lama, "
-			+ "ruínas e elites até o coração do pântano, onde a Espinheira guarda o Trono da Rainha.",
+			+ "ruínas, emboscadas, rituais e elites até o coração do pântano, onde a Espinheira guarda o Trono da Rainha.",
 		"boss": "Espinheira",
 		"start": "Entrada",
 		# Rota linear de 13 etapas até o chefe. Ritmo: luta curta -> habilidade -> luta -> evento -> elite ->
 		# recompensa -> luta longa -> habilidade -> luta dura -> elite -> descanso -> antecâmara -> chefe.
+		# Encontros especiais (ExpeditionEncounters) em 4 das 7 lutas — emboscada (3), defesa das oferendas (7),
+		# ritual corrompido (9) e caçada ao elite (10); Encruzilhada, Guardião e o chefe são lutas tradicionais.
 		# "level": [mín, máx] dos monstros que nascem na sala (ExpeditionBalance; vale sobre o nível da cena)
 		"rooms": {
 			"Entrada": {"kind": "start", "next": ["Encruzilhada"]},
@@ -90,8 +98,11 @@ const DATA := {
 				]},
 			# 2. a primeira habilidade da run (o altar que ficava na Encruzilhada)
 			"Altar da Deusa": {"kind": "altar", "next": ["Raízes Corrompidas"], "altar": {"at": [-3.5, 1.0]}},
-			# 3. raízes e lodo: sanguessugas e um brejeiro arqueiro, sem bênção (o ritmo respira até o evento)
+			# 3. EMBOSCADA: a sala parece vazia; no meio dela as sanguessugas brotam em roda do jogador e, depois, o
+			# arqueiro e mais sanguessugas fecham a boca por onde ele entrou. Sem bênção (o ritmo respira até o evento)
 			"Raízes Corrompidas": {"kind": "combat", "level": [3, 3], "next": ["Santuário Abandonado"],
+				"encounter": {"type": "ambush", "trigger": 6.0, "ring": 6.0, "telegraph": 1.6, "daze": 1.0,
+					"spawn": ["ring", "behind"]},
 				"waves": [
 					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "slime_veloz", "count": 1}],
 					[{"kind": "brejeiro_arqueiro", "count": 1}, {"kind": "sanguessuga_lodo", "count": 2}],
@@ -111,8 +122,12 @@ const DATA := {
 			# 6. recompensa: o baú das oferendas dá uma bênção (sem luta)
 			"Câmara das Oferendas": {"kind": "reward", "reward": true, "next": ["Clareira Funda"],
 				"shrine": {"at": [0.0, -2.0]}},
-			# 7. luta longa: três ondas que sobem (explosivos; os xamãs que atacam de longe; os dois juntos)
+			# 7. DEFESA DAS OFERENDAS, a luta longa: três ondas que sobem (explosivos; os xamãs que atacam de longe; os
+			# dois juntos) nascem em volta do baú das oferendas, lacrado até o último guardião cair. Vencer em até
+			# 90 s mantém as oferendas intactas: a bênção do baú soma um acúmulo a mais
 			"Clareira Funda": {"kind": "combat", "reward": true, "level": [3, 4], "next": ["Altar Ancestral"],
+				"encounter": {"type": "offering", "bonus_time": 90.0, "bonus_stacks": 1, "guard": 3.0},
+				"shrine": {"at": [-6.0, 0.0]},
 				"waves": [
 					[{"kind": "slime_explosivo", "count": 2}, {"kind": "slime_veloz", "count": 1}],
 					[{"kind": "goblin_xama", "count": 2}, {"kind": "slime_veloz", "count": 1}],
@@ -122,22 +137,30 @@ const DATA := {
 			# sem nada para oferecer, uma bênção comum
 			"Altar Ancestral": {"kind": "altar", "reward": true, "next": ["Pântano Corrompido"],
 				"altar": {"at": [-3.5, 0.0], "mode": "evolve"}},
-			# 9. a luta mais dura antes das elites finais: mosquitos, sanguessugas, o xamã e os arqueiros juntos
+			# 9. RITUAL CORROMPIDO, a luta mais dura antes da última elite: mosquitos, sanguessugas, o xamã e os
+			# arqueiros enquanto o Foco da Corrupção marca o chão sob o jogador e chama mosquitos. Quebrar o foco
+			# interrompe o ritual (as ondas que ainda não vieram não vêm); a sala só abre com o foco quebrado
 			"Pântano Corrompido": {"kind": "combat", "level": [4, 5], "next": ["Arauto do Pântano"],
+				"encounter": {"type": "ritual", "pulse": 6.5, "pulse_radius": 2.4, "pulse_warn": 1.4, "pulse_dmg": 0.1,
+					"focus": {"kind": "foco_corrupcao", "at": [6.0, 3.5], "name": "Foco da Corrupção"},
+					"summon": [{"kind": "pernilongo_brejo", "count": 1}], "summon_every": 2, "summon_cap": 2},
 				"waves": [
 					[{"kind": "pernilongo_brejo", "count": 3}, {"kind": "slime_veloz", "count": 1}],
 					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "brejeiro_xama", "count": 1}],
 					[{"kind": "brejeiro_arqueiro", "count": 2}, {"kind": "pernilongo_brejo", "count": 2},
 						{"kind": "slime_explosivo", "count": 1}],
 				]},
-			# 10. segunda elite: o Arauto (xamã de elite) chama mosquitos e um slime explosivo na metade da vida
+			# 10. CAÇADA AO ELITE: o Arauto (xamã de elite) já chega com o bando; enquanto ele vive o bando que cai se
+			# reagrupa (2 vezes), na metade da vida ele chama mosquitos e um slime explosivo, e ele caindo o bando que
+			# sobrou se dispersa
 			"Arauto do Pântano": {"kind": "elite", "reward": true, "level": [4, 5], "next": ["Refúgio das Raízes"],
 				"leader": {"name": "Arauto do Pântano", "call_at": 0.5,
 					"call": [{"kind": "pernilongo_brejo", "count": 2}, {"kind": "slime_explosivo", "count": 1}]},
+				"encounter": {"type": "hunt", "regroups": 2, "regroup_delay": 1.4, "daze": 0.6,
+					"regroup": [{"kind": "sanguessuga_lodo", "count": 1}, {"kind": "brejeiro_arqueiro", "count": 1}]},
 				"waves": [
-					[{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "goblin_xama", "count": 1}],
 					[{"kind": "brejeiro_xama", "count": 1, "elite": true, "leader": true},
-						{"kind": "brejeiro_arqueiro", "count": 1}, {"kind": "sanguessuga_lodo", "count": 1}],
+						{"kind": "sanguessuga_lodo", "count": 2}, {"kind": "goblin_xama", "count": 1}],
 				]},
 			# 11. descanso: a fonte das raízes cura metade da vida, uma vez
 			"Refúgio das Raízes": {"kind": "rest", "next": ["Antecâmara"], "shrine": {"at": [0.0, -2.0], "heal": 0.5}},
@@ -248,9 +271,11 @@ static func grants_reward(def: Dictionary, room: String) -> bool:
 	return bool(rooms(def).get(room, {}).get("reward", false)) and kind_of(def, room) in REWARD_KINDS
 
 
-## A bênção da sala sai sozinha quando ela é limpa (sala de luta); as outras saem pelo santuário/altar.
+## A bênção da sala sai sozinha quando ela é limpa (sala de luta); as outras saem pelo santuário/altar (e a da
+## Defesa das Oferendas pelo baú, depois de a sala ser limpa).
 static func reward_on_clear(def: Dictionary, room: String) -> bool:
-	return grants_reward(def, room) and needs_clear(def, room)
+	return grants_reward(def, room) and needs_clear(def, room) \
+		and not ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.OFFERING)
 
 
 ## Acúmulos que a bênção escolhida na sala soma ("reward_stacks"; padrão 2 na elite, 1 nas outras).
@@ -302,9 +327,25 @@ static func _offset(d: Dictionary) -> Vector2:
 
 
 # ================================================================ santuários (evento, recompensa, descanso)
-## A sala tem santuário (o tipo é o da sala: event, reward ou rest).
+## A sala tem santuário (o tipo é o da sala: event, reward ou rest; o baú da Defesa das Oferendas é "reward").
 static func has_shrine(def: Dictionary, room: String) -> bool:
-	return rooms(def).get(room, {}).get("shrine") is Dictionary and kind_of(def, room) in SHRINE_KINDS
+	return rooms(def).get(room, {}).get("shrine") is Dictionary and shrine_kind(def, room) != ""
+
+
+## Tipo do santuário da sala: o tipo da sala (event, reward, rest), "reward" no baú da Defesa das Oferendas e ""
+## se a sala não pode ter santuário.
+static func shrine_kind(def: Dictionary, room: String) -> String:
+	var k := kind_of(def, room)
+	if k in SHRINE_KINDS:
+		return k
+	if ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.OFFERING):
+		return "reward"
+	return ""
+
+
+## O santuário da sala só acende depois de a luta dela acabar (o baú lacrado da Defesa das Oferendas).
+static func shrine_needs_clear(def: Dictionary, room: String) -> bool:
+	return has_shrine(def, room) and needs_clear(def, room)
 
 
 static func shrine_offset(def: Dictionary, room: String) -> Vector2:
@@ -409,6 +450,11 @@ static func route(def: Dictionary) -> Array[String]:
 	return out
 
 
+## Confere uma lista de grupos de monstros ({"kind", "count"}); usada também pelo ExpeditionEncounters.
+static func check_groups(groups, r: String, what: String, out: PackedStringArray) -> void:
+	_check_groups(groups, r, what, out)
+
+
 static func _check_groups(groups, r: String, what: String, out: PackedStringArray) -> void:
 	if not (groups is Array) or (groups as Array).is_empty():
 		out.append("sala '%s': %s vazia" % [r, what])
@@ -456,7 +502,7 @@ static func validate(def: Dictionary) -> PackedStringArray:
 		if shrine != null:
 			if not (shrine is Dictionary):
 				out.append("sala '%s': santuário precisa ser {\"at\": [x, z]}" % r)
-			elif not k in SHRINE_KINDS:
+			elif shrine_kind(def, r) == "":
 				out.append("sala '%s' do tipo '%s' não pode ter santuário" % [r, k])
 		if k in ["event", "reward"] and not (shrine is Dictionary):
 			out.append("sala '%s' do tipo '%s' sem santuário" % [r, k])
@@ -488,6 +534,7 @@ static func validate(def: Dictionary) -> PackedStringArray:
 						leaders += int(g.get("count", 0))
 			if leaders != 1:
 				out.append("sala de elite '%s' precisa de exatamente um líder nas ondas (%d)" % [r, leaders])
+		ExpeditionEncounters.check_room(def, r, out)
 		for n in next_of(def, r):
 			if not rs.has(n):
 				out.append("sala '%s' leva a '%s', que não existe" % [r, n])

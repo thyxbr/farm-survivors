@@ -7,10 +7,13 @@ extends StaticBody3D
 ##   event  — estátua caída da Deusa (knight_f tingida de pedra) diante de uma bacia de sangue com runas vermelhas.
 ##   reward — baú das oferendas (chest) num estrado de pedra, com moedas e um brilho dourado.
 ##   rest   — fonte das raízes: poça de água clara com a fogueira (campfire) ao lado e vaga-lumes.
-## Estados: ready (brilha, [E]) e used (apagado, sem [E]).
+## Estados: ready (brilha, [E]), used (apagado, sem [E]) e sealed (o baú da Defesa das Oferendas enquanto os
+## guardiões estão de pé: luz vermelha baixa, sem [E]; abre em ready quando a sala é limpa).
 
 const READY := "ready"
 const USED := "used"
+const SEALED := "sealed"
+const SEAL_COLOR := Color(0.9, 0.2, 0.18)
 
 const LOOK := {
 	"event": {"color": Color(0.95, 0.25, 0.25), "prompt": "Santuário Abandonado — examinar a oferenda"},
@@ -65,11 +68,13 @@ func interact(_player: Node) -> void:
 func set_state(s: String) -> void:
 	if s == state:
 		return
+	var was := state
 	state = s
 	_apply_state()
-	if s == USED and is_inside_tree() and DisplayServer.get_name() != "headless":
-		FX.burst(global_position + Vector3.UP * 1.0, color(), 18, 2.6, 0.08, 0.8, -3.0)
-		FX.ring(global_position + Vector3.UP * 0.08, color(), 2.2, 0.6)
+	if s in [USED, READY] and was != "" and is_inside_tree() and DisplayServer.get_name() != "headless":
+		if s == USED or was == SEALED:   # gastou, ou o lacre se quebrou (as oferendas se libertam)
+			FX.burst(global_position + Vector3.UP * 1.0, color(), 18, 2.6, 0.08, 0.8, -3.0)
+			FX.ring(global_position + Vector3.UP * 0.08, color(), 2.2, 0.6)
 
 
 func _apply_state() -> void:
@@ -80,8 +85,10 @@ func _apply_state() -> void:
 		remove_from_group("interactable")
 	if _visual == null:
 		return
-	_glow_mat.albedo_color = Color(color(), 0.6 if state == READY else 0.05)
-	_light.light_energy = 2.2 if state == READY else 0.35
+	var c := SEAL_COLOR if state == SEALED else color()
+	_glow_mat.albedo_color = Color(c, 0.6 if state == READY else (0.3 if state == SEALED else 0.05))
+	_light.light_color = c
+	_light.light_energy = 2.2 if state == READY else (0.9 if state == SEALED else 0.35)
 	for m in _motes:
 		m.visible = state == READY
 

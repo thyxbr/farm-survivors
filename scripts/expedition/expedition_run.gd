@@ -34,6 +34,15 @@ extends RefCounted
 ## evento vai para `modifiers`; o custo em vida quem cobra é o modo); rest devolve quanto da vida curar. A sala de
 ## recompensa usa a mesma escolha de bênção das salas de luta (offer_reward), só que pelo santuário. A bênção de
 ## uma sala de elite soma mais de um acúmulo (ExpeditionDefs.reward_stacks).
+##
+## Encontros especiais (ExpeditionEncounters; "encounter" na sala): o que já aconteceu em cada um fica em
+## `encounters` (sala -> {"t0": segundos de run em que trancou, ...}), para nada se repetir ao voltar à sala:
+##   ritual   — break_focus: o foco quebrado interrompe o ritual uma vez só e corta as ondas que ainda não vieram
+##              (`wave_cap`); a sala só é limpa com o foco quebrado.
+##   hunt     — regroup: cada reagrupamento do bando gasta um dos `regroups` da sala; prey_down marca o líder caído.
+##   offering — clear_room guarda se as oferendas ficaram intactas (venceu em até `bonus_time` s); a bênção do baú
+##              soma o acúmulo a mais (offer_reward). O baú (santuário da sala) só acende com a sala limpa.
+##   ambush   — só o "sprung" (a emboscada já disparou): start_encounter só acontece uma vez por sala.
 
 signal phase_changed(phase: String)
 signal room_entered(room: String)
@@ -48,6 +57,8 @@ signal skill_chosen(room: String, skill: String)
 signal altar_upgrade_chosen(room: String, upgrade: String)
 signal event_chosen(room: String, option: String)
 signal rested(room: String, fraction: float)
+signal focus_broken(room: String)
+signal pack_regrouped(room: String, left: int)
 
 const IDLE := "idle"
 const ACTIVE := "active"
@@ -89,6 +100,10 @@ var altars_used := {}
 var pending_altar := {}
 ## Santuários já usados: sala -> o que foi feito (id da opção do evento, "rest").
 var shrines_used := {}
+## Estado dos encontros especiais que já começaram: sala -> {"t0", "type", "focus", "regroups", "prey", "intact"}.
+var encounters := {}
+## Teto de ondas de uma sala (o ritual interrompido corta as que não vieram): sala -> última onda.
+var wave_cap := {}
 
 
 ## Nova run para a expedição `id` (null se a expedição não existe ou a definição está quebrada).
@@ -153,6 +168,11 @@ func clear_room(room: String) -> bool:
 		return false
 	if waves.has(room) and int(waves[room]) < wave_total(room):
 		return false   # ainda há onda por vir
+	if encounters.has(room) and ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.RITUAL) \
+			and not is_focus_broken(room):
+		return false   # o ritual em andamento só acaba com o foco quebrado
+	if encounters.has(room) and ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.OFFERING):
+		encounters[room]["intact"] = ExpeditionEncounters.offering_intact(def, room, encounter_time(room))
 	cleared[room] = true
 	if locked_room == room:
 		locked_room = ""
@@ -185,9 +205,10 @@ func is_locked() -> bool:
 	return locked_room != ""
 
 
-## Quantas ondas a luta de `room` tem (0 = sala sem luta).
+## Quantas ondas a luta de `room` tem (0 = sala sem luta). O ritual interrompido corta as que não vieram.
 func wave_total(room: String) -> int:
-	return ExpeditionDefs.wave_count(def, room)
+	var n := ExpeditionDefs.wave_count(def, room)
+	return mini(n, int(wave_cap[room])) if wave_cap.has(room) else n
 
 
 ## Onda em que `room` está (1 = a primeira; 0 = o encontro ainda não começou ou a sala não tem luta).
@@ -213,6 +234,11 @@ func start_encounter(room: String) -> bool:
 		return false
 	locked_room = room
 	waves[room] = 1
+	var t := ExpeditionEncounters.type_of(def, room)
+	if t != "":
+		encounters[room] = {"type": t, "t0": elapsed}
+		if t == ExpeditionEncounters.AMBUSH:
+			encounters[room]["sprung"] = true
 	room_locked.emit(room)
 	wave_started.emit(room, 1, wave_total(room))
 	return true
@@ -226,6 +252,82 @@ func advance_wave(room: String) -> bool:
 	waves[room] = current_wave(room) + 1
 	wave_started.emit(room, current_wave(room), wave_total(room))
 	return true
+
+
+# ================================================================ encontros especiais (ExpeditionEncounters)
+## Tipo do encontro especial da sala ("" = luta tradicional).
+func encounter_type(room: String) -> String:
+	return ExpeditionEncounters.type_of(def, room)
+
+
+## Segundos desde que a luta especial de `room` trancou (0 se ainda não começou).
+func encounter_time(room: String) -> float:
+	if not encounters.has(room):
+		return 0.0
+	return maxf(0.0, elapsed - float(encounters[room].get("t0", elapsed)))
+
+
+## O foco do ritual de `room` já foi quebrado.
+func is_focus_broken(room: String) -> bool:
+	return str(encounters.get(room, {}).get("focus", "")) == "broken"
+
+
+## O foco do ritual de `room` caiu: interrompe o ritual (uma vez só) e corta as ondas que ainda não vieram (a que
+## está de pé, ou já anunciada, termina normalmente). false se não há ritual em andamento nessa sala ou se o foco já
+## estava quebrado.
+func break_focus(room: String) -> bool:
+	if not is_active() or not encounters.has(room) or cleared.has(room) or is_focus_broken(room):
+		return false
+	if not ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.RITUAL):
+		return false
+	encounters[room]["focus"] = "broken"
+	wave_cap[room] = maxi(1, current_wave(room))
+	focus_broken.emit(room)
+	return true
+
+
+## Reagrupamentos que o bando da caçada de `room` ainda tem.
+func regroups_left(room: String) -> int:
+	if not ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.HUNT):
+		return 0
+	var used := int(encounters.get(room, {}).get("regroups", 0))
+	return maxi(0, int(ExpeditionEncounters.param(def, room, "regroups", 0)) - used)
+
+
+## O bando da caçada de `room` se reagrupa (gasta um reagrupamento). false se a caçada não está em andamento, o
+## líder já caiu ou não sobra reagrupamento.
+func regroup(room: String) -> bool:
+	if not is_active() or locked_room != room or not encounters.has(room) or is_prey_down(room):
+		return false
+	if regroups_left(room) <= 0:
+		return false
+	encounters[room]["regroups"] = int(encounters[room].get("regroups", 0)) + 1
+	pack_regrouped.emit(room, regroups_left(room))
+	return true
+
+
+func is_prey_down(room: String) -> bool:
+	return str(encounters.get(room, {}).get("prey", "")) == "down"
+
+
+## O líder da caçada de `room` caiu (o bando que sobrou se dispersa). false se já tinha caído ou não é caçada.
+func mark_prey_down(room: String) -> bool:
+	if not is_active() or not encounters.has(room) or is_prey_down(room):
+		return false
+	if not ExpeditionEncounters.is_type(def, room, ExpeditionEncounters.HUNT):
+		return false
+	encounters[room]["prey"] = "down"
+	return true
+
+
+## A Defesa das Oferendas de `room` acabou com as oferendas intactas (só depois de limpa).
+func is_offering_intact(room: String) -> bool:
+	return bool(encounters.get(room, {}).get("intact", false))
+
+
+## Acúmulos a mais da bênção da sala pelo encontro (oferendas intactas = +bonus_stacks).
+func encounter_bonus_stacks(room: String) -> int:
+	return ExpeditionEncounters.bonus_stacks(def, room, is_offering_intact(room))
 
 
 # ================================================================ recompensas (melhorias temporárias)
@@ -270,7 +372,8 @@ func offer_reward(room: String, choices: Array) -> bool:
 	if valid.is_empty():
 		rewards[room] = ""
 		return false
-	pending_reward = {"room": room, "choices": valid, "stacks": ExpeditionDefs.reward_stacks(def, room)}
+	pending_reward = {"room": room, "choices": valid,
+		"stacks": ExpeditionDefs.reward_stacks(def, room) + encounter_bonus_stacks(room)}
 	reward_offered.emit(room, valid)
 	return true
 
@@ -314,12 +417,14 @@ func shrine_ready(room: String) -> bool:
 		return false
 	if is_locked() or has_pending_reward():
 		return false
+	if ExpeditionDefs.shrine_needs_clear(def, room) and not cleared.has(room):
+		return false   # o baú da Defesa das Oferendas fica lacrado até o último guardião cair
 	return not is_shrine_used(room)
 
 
-## O santuário de `room` já foi usado (na sala de recompensa: a bênção dela já saiu ou está na tela).
+## O santuário de `room` já foi usado (no baú de recompensa: a bênção dele já saiu ou está na tela).
 func is_shrine_used(room: String) -> bool:
-	if ExpeditionDefs.kind_of(def, room) == "reward":
+	if ExpeditionDefs.shrine_kind(def, room) == "reward":
 		return is_rewarded(room)
 	return shrines_used.has(room)
 
@@ -484,7 +589,7 @@ func summary() -> Dictionary:
 		"rooms_cleared": cleared.size(), "rooms_to_clear": ExpeditionDefs.clear_rooms(def).size(),
 		"rooms_visited": visited.size(), "progress": progress(), "elapsed": elapsed,
 		"modifiers": modifiers.duplicate(), "rewards": rewards.size(), "skills": skills.duplicate(),
-		"shrines": shrines_used.duplicate()}
+		"shrines": shrines_used.duplicate(), "encounters": encounters.duplicate(true)}
 
 
 func _set_phase(p: String) -> void:
