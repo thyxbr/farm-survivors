@@ -7,7 +7,10 @@ extends RefCounted
 const BASE := {"active": true, "damage": 1.0, "max_hp": 1.0, "max_hp_flat": 0.0, "speed": 1.0, "defense": 0.0,
 	"regen": 0.0, "crit": 0.0, "cooldown": 1.0, "area": 1.0, "magnet": 1.0, "xp": 1.0, "gold": 1.0,
 	"lifesteal": 0.0, "cdr": 0.0, "crowd_guard": 0.0, "block_power": 0.0, "block_guard": 0.0, "aegis_integrity": 0.0,
-	"aegis_burst": 0.0, "taunt_time": 0.0, "stun_bonus": 0.0, "guard_dmg": 0.0}
+	"aegis_burst": 0.0, "taunt_time": 0.0, "stun_bonus": 0.0, "guard_dmg": 0.0,
+	"momentum_max": 0.0, "momentum_dmg": 0.0, "momentum_speed": 0.0, "momentum_hold": 0.0, "momentum_kill": 0.0,
+	"momentum_stamina": 0.0, "momentum_heal": 0.0, "momentum_guard": 0.0, "momentum_crit": 0.0, "momentum_burst": 0.0,
+	"momentum_charge": 0.0, "momentum_fury": 0.0}
 
 
 func _near(a: float, b: float) -> bool:

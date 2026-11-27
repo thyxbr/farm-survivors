@@ -33,9 +33,18 @@ const CHOICES := 3
 ##   taunt_time        -> DarkTauntAbilities._on_captured
 ##   stun_bonus        -> EarthquakeAbilities / HammerAbilities (segundos a mais de atordoamento)
 ##   guard_dmg         -> Game.melee_damage (dano por ponto de defesa)
+## e as do Ímpeto do Guerreiro (ExpeditionMomentum; estado em Game.momentum):
+##   momentum_max      -> teto de acúmulos (0 = sem Ímpeto)   momentum_dmg/speed/crit -> Game (por acúmulo)
+##   momentum_hold     -> segundos a mais antes de esvaziar    momentum_kill -> Ímpeto a mais por abate
+##   momentum_stamina  -> fôlego por ganho                    momentum_heal -> vida por ganho
+##   momentum_guard    -> Player.take_damage (corte por acúmulo)
+##   momentum_burst    -> Player._do_hit (Explosão de Ímpeto no 3º golpe com o Ímpeto cheio)
+##   momentum_charge   -> SwordAbilities (Investida que acerta)  momentum_fury -> SwordAbilities (Fúria Picante)
 const RUN_MOD_KEYS := ["damage", "max_hp", "defense", "speed", "cdr",
 	"regen", "lifesteal", "crowd_guard", "block_power", "block_guard", "aegis_integrity", "aegis_burst",
-	"taunt_time", "stun_bonus", "guard_dmg"]
+	"taunt_time", "stun_bonus", "guard_dmg",
+	"momentum_max", "momentum_dmg", "momentum_speed", "momentum_hold", "momentum_kill", "momentum_stamina",
+	"momentum_heal", "momentum_guard", "momentum_crit", "momentum_burst", "momentum_charge", "momentum_fury"]
 ## Acúmulos máximos de uma melhoria de habilidade (cada tipo, em cada habilidade).
 const ABILITY_MAX_STACKS := 3
 ## Separador do id de melhoria de habilidade: "<tipo>@<habilidade>".
@@ -171,6 +180,79 @@ const DATA := {
 		"desc": "Cada inimigo abatido cura 4 de vida.",
 		"add": {"lifesteal": 4.0},
 		"icon": "vigor", "color": Color(0.9, 0.35, 0.4), "class": "tank", "style": "ataque", "max": 3,
+	},
+	# ---------------------------------------------------------------- Guerreiro (Ímpeto, ExpeditionMomentum)
+	# agressivo
+	"golpes_encadeados": {
+		"name": "Golpes Encadeados",
+		"desc": "Ímpeto: +1 acúmulo máximo e +1% de dano por acúmulo.",
+		"add": {"momentum_max": 1.0, "momentum_dmg": 0.01},
+		"icon": "poder", "color": Color(1.0, 0.5, 0.25), "class": "warrior", "style": "agressivo", "max": 2,
+	},
+	"pressao_implacavel": {
+		"name": "Pressão Implacável",
+		"desc": "O Ímpeto leva +1 s a mais para começar a se esvair.",
+		"add": {"momentum_hold": 1.0},
+		"icon": "celeridade", "color": Color(1.0, 0.62, 0.3), "class": "warrior", "style": "agressivo", "max": 2,
+	},
+	"lamina_faminta": {
+		"name": "Lâmina Faminta",
+		"desc": "Cada abate dá +1 de Ímpeto a mais.",
+		"add": {"momentum_kill": 1.0},
+		"icon": "poder", "color": Color(0.95, 0.35, 0.25), "class": "warrior", "style": "agressivo", "max": 2,
+	},
+	# veloz
+	"passo_lobo": {
+		"name": "Passo do Lobo",
+		"desc": "+1,2% de velocidade de movimento por acúmulo de Ímpeto (teto de 25%): cole no próximo alvo.",
+		"add": {"momentum_speed": 0.012},
+		"icon": "botas", "color": Color(0.55, 0.9, 1.0), "class": "warrior", "style": "veloz", "max": 3,
+	},
+	"folego_batalha": {
+		"name": "Fôlego de Batalha",
+		"desc": "Cada Ímpeto ganho devolve 3 de fôlego: mais golpes e esquivas sem parar.",
+		"add": {"momentum_stamina": 3.0},
+		"icon": "celeridade", "color": Color(0.6, 0.95, 0.75), "class": "warrior", "style": "veloz", "max": 2,
+	},
+	"investida_predadora": {
+		"name": "Investida Predadora",
+		"desc": "A Investida que acerta alguém dá +2 de Ímpeto: avance sobre o próximo grupo sem perder o embalo.",
+		"add": {"momentum_charge": 2.0},
+		"icon": "botas", "color": Color(1.0, 0.85, 0.5), "class": "warrior", "style": "veloz", "max": 2,
+		"needs": ["sword_charge"],
+	},
+	# resistente
+	"sangue_brasa": {
+		"name": "Sangue em Brasa",
+		"desc": "Cada Ímpeto ganho cura 0,8 de vida: quem não para de bater não cai.",
+		"add": {"momentum_heal": 0.8},
+		"icon": "vigor", "color": Color(0.95, 0.4, 0.35), "class": "warrior", "style": "resistente", "max": 3,
+	},
+	"couraca_embalo": {
+		"name": "Couraça do Embalo",
+		"desc": "-2% de dano recebido por acúmulo de Ímpeto (teto de 20%).",
+		"add": {"momentum_guard": 0.02},
+		"icon": "armadura", "color": Color(0.8, 0.6, 0.45), "class": "warrior", "style": "resistente", "max": 2,
+	},
+	# explosivo
+	"explosao_impeto": {
+		"name": "Explosão de Ímpeto",
+		"desc": "Com o Ímpeto cheio, o 3º golpe do combo solta tudo: explosão de 3,5 m com 90% do dano corpo a corpo e empurrão. O Ímpeto volta a zero.",
+		"add": {"momentum_burst": 0.9},
+		"icon": "poder", "color": Color(1.0, 0.45, 0.15), "class": "warrior", "style": "explosivo", "max": 3,
+	},
+	"brecha": {
+		"name": "Brecha",
+		"desc": "+2% de chance de crítico por acúmulo de Ímpeto (teto de 20%).",
+		"add": {"momentum_crit": 0.02},
+		"icon": "poder", "color": Color(1.0, 0.8, 0.35), "class": "warrior", "style": "explosivo", "max": 2,
+	},
+	"furia_desperta": {
+		"name": "Fúria Desperta",
+		"desc": "Fúria Picante enche o Ímpeto na hora e o segura enquanto dura.",
+		"add": {"momentum_fury": 1.0},
+		"icon": "poder", "color": Color(0.95, 0.3, 0.2), "class": "warrior", "style": "explosivo", "max": 1,
+		"needs": ["sword_fury", "sword_fury_great"],
 	},
 }
 

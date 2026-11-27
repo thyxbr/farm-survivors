@@ -42,8 +42,8 @@ func _run_at(room: String, cls := "tank") -> ExpeditionRun:
 # ================================================================ passiva
 func test_only_the_tank_has_identity() -> void:
 	T.ok(ExpeditionClasses.has_identity("tank"), "Tank tem identidade na expedição")
-	for c in ["warrior", "archer", "mage", "healer", ""]:
-		T.ok(not ExpeditionClasses.has_identity(c), "%s ainda sem identidade (só o Tank nesta etapa)" % c)
+	for c in ["archer", "mage", "healer", ""]:
+		T.ok(not ExpeditionClasses.has_identity(c), "%s ainda sem identidade (Tank e Guerreiro nesta etapa)" % c)
 		T.eq(ExpeditionClasses.apply_passive(BASE, c), BASE, "%s: run_mods intactos" % c)
 	var m := ExpeditionClasses.apply_passive(BASE, "tank")
 	T.ok(_near(float(m.crowd_guard), 0.04), "Linha de Frente: 4% por inimigo")
@@ -108,7 +108,7 @@ func test_tank_boons_table() -> void:
 		styles[ExpeditionUpgrades.style_of(id)] = int(styles.get(ExpeditionUpgrades.style_of(id), 0)) + 1
 		for k in ExpeditionUpgrades.DATA[id].add:
 			T.ok(BASE.has(k), "%s mexe em %s, que existe no run_mods zerado" % [id, k])
-	for s in ExpeditionClasses.STYLES:
+	for s in ["defesa", "escudo", "controle", "ataque"]:   # os estilos do Tank (os do Guerreiro: test_expedition_warrior)
 		T.ok(int(styles.get(s, 0)) >= 2, "estilo %s tem pelo menos 2 bênçãos" % s)
 	T.eq(ExpeditionUpgrades.style_text("furia"), "", "bênção comum sem estilo")
 	T.eq(ExpeditionUpgrades.max_stacks("furia"), ExpeditionUpgrades.MAX_STACKS, "comum segue com 5")
@@ -132,8 +132,8 @@ func test_roll_without_class_is_unchanged() -> void:
 		T.eq(ExpeditionUpgrades.roll(_rng(s), {}, ExpeditionUpgrades.CHOICES, {}), a, "ctx vazio = sorteio de antes")
 		for id in a:
 			T.eq(ExpeditionUpgrades.class_of(id), "", "sem classe, sem bênção de classe (%s)" % id)
-		for id in ExpeditionUpgrades.roll(_rng(s), {}, 3, {"class": "warrior", "skills": []}):
-			T.eq(ExpeditionUpgrades.class_of(id), "", "Guerreiro: só comuns (%s)" % id)
+		for id in ExpeditionUpgrades.roll(_rng(s), {}, 3, {"class": "archer", "skills": []}):
+			T.eq(ExpeditionUpgrades.class_of(id), "", "Arqueiro (sem identidade): só comuns (%s)" % id)
 
 
 func test_tank_roll_always_brings_a_tank_boon() -> void:

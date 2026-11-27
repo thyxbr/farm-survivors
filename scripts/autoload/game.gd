@@ -543,6 +543,10 @@ func reset_run_mods() -> void:
 		# identidade das classes na expedição (ExpeditionClasses; bênçãos de classe e passivas); 0 = sem efeito
 		"crowd_guard": 0.0, "block_power": 0.0, "block_guard": 0.0, "aegis_integrity": 0.0, "aegis_burst": 0.0,
 		"taunt_time": 0.0, "stun_bonus": 0.0, "guard_dmg": 0.0,
+		# Ímpeto do Guerreiro (ExpeditionMomentum; o estado fica em Game.momentum): momentum_max 0 = desligado
+		"momentum_max": 0.0, "momentum_dmg": 0.0, "momentum_speed": 0.0, "momentum_hold": 0.0, "momentum_kill": 0.0,
+		"momentum_stamina": 0.0, "momentum_heal": 0.0, "momentum_guard": 0.0, "momentum_crit": 0.0, "momentum_burst": 0.0,
+		"momentum_charge": 0.0, "momentum_fury": 0.0,
 	}
 
 
@@ -673,7 +677,9 @@ func melee_damage() -> float:
 		attrs[a] = attr(a)
 	# run_mods "guard_dmg": Revide do Bastião (bênção do Tank na expedição), dano a mais por ponto de defesa
 	var guard := ExpeditionClasses.guard_damage_bonus(defense(), float(run_mods.get("guard_dmg", 0.0)))
-	return CharRules.basic_damage(weapon_class(), attrs, weapon_damage(), gear("spell")) * (mod("damage") + guard)
+	# Ímpeto do Guerreiro (expedição): dano a mais por acúmulo (0 fora dela)
+	var mom := ExpeditionClasses.momentum_damage(momentum_stacks(), float(run_mods.get("momentum_dmg", 0.0)))
+	return CharRules.basic_damage(weapon_class(), attrs, weapon_damage(), gear("spell")) * (mod("damage") + guard + mom)
 
 
 func spell_power() -> float:
@@ -705,7 +711,9 @@ static func soft_bonus(x: float, cap: float, half: float) -> float:
 
 func crit_chance() -> float:
 	var base := minf(CRIT_MAX, 0.08 + soft_bonus(attr("agi") - 5, AGI_CRIT_CAP, AGI_CRIT_HALF) + gear("crit"))
-	return clampf(base + mod("crit"), 0.0, 1.0)
+	# Brecha (bênção do Guerreiro na expedição): crítico por acúmulo de Ímpeto
+	var mom := ExpeditionClasses.momentum_crit(momentum_stacks(), float(run_mods.get("momentum_crit", 0.0)))
+	return clampf(base + mod("crit") + mom, 0.0, 1.0)
 
 
 ## `ability_id` (opcional): soma também a Recuperação daquela habilidade ganha na expedição (run_mods
@@ -781,7 +789,8 @@ func mp_regen() -> float:
 
 func speed_multiplier() -> float:
 	var base := minf(SPEED_MAX, 1.0 + soft_bonus(attr("agi") - 5, AGI_SPEED_CAP, AGI_SPEED_HALF) + gear("speed"))
-	return base * mod("speed")
+	# Ímpeto do Guerreiro (expedição): velocidade por acúmulo (1.0 fora dela)
+	return base * mod("speed") * ExpeditionClasses.momentum_speed(momentum_stacks(), float(run_mods.get("momentum_speed", 0.0)))
 
 
 ## Números principais do personagem (para a tela de personagem e comparações).
@@ -812,6 +821,7 @@ func preview_equip(id: String) -> Dictionary:
 
 ## Roubo de vida dos itens: cura uma fração do dano causado.
 func on_damage_dealt(amount: float, target_max_hp := 100.0, with_fury := true) -> void:
+	momentum_hit()
 	if with_fury:
 		add_fury_from_damage(amount, target_max_hp)
 	var l := gear("leech")
@@ -846,6 +856,65 @@ func add_fury(amount: float) -> void:
 
 func fury_full() -> bool:
 	return fury >= FURY_MAX
+
+
+# ---------------------------------------------------------------- Ímpeto do Guerreiro (expedição)
+## Acúmulos de pressão do Guerreiro (ExpeditionMomentum). Só vale com run_mods "momentum_max" > 0 (a passiva do
+## Guerreiro na expedição); fora dela o teto é 0, nada acumula e nada lê. Diferente da fúria (que enche devagar para
+## a ultimate e não esvazia), o Ímpeto é curto: sobe a cada acerto e abate e cai quando o herói para de atacar.
+## A expedição zera tudo ao chegar e na volta (reset_momentum); não vai para o save.
+var momentum := ExpeditionMomentum.new()
+
+
+func momentum_cap() -> int:
+	return ExpeditionMomentum.clamp_cap(float(run_mods.get("momentum_max", 0.0)))
+
+
+func momentum_stacks() -> int:
+	return momentum.effective(momentum_cap())
+
+
+## Um golpe do herói acertou (on_damage_dealt). Devolve quanto Ímpeto ganhou.
+func momentum_hit() -> int:
+	return _momentum_gained(momentum.on_hit(momentum_cap()))
+
+
+## Um inimigo da expedição caiu.
+func momentum_kill() -> int:
+	return _momentum_gained(momentum.on_kill(momentum_cap(), roundi(float(run_mods.get("momentum_kill", 0.0)))))
+
+
+## Ímpeto de uma habilidade (Investida Predadora, Fúria Desperta).
+func momentum_add(n: int) -> int:
+	return _momentum_gained(momentum.add(n, momentum_cap()))
+
+
+## Fôlego de Batalha e Sangue em Brasa: o que cada ganho devolve.
+func _momentum_gained(n: int) -> int:
+	if n <= 0:
+		return 0
+	var st := float(run_mods.get("momentum_stamina", 0.0))
+	if st > 0.0:
+		stamina = minf(max_stamina(), stamina + st * n)
+	var heal := ExpeditionClasses.momentum_heal(n, float(run_mods.get("momentum_heal", 0.0)))
+	if heal > 0.0 and hp > 0.0:
+		hp = minf(max_hp(), hp + heal)
+	return n
+
+
+## Passo de tempo do Ímpeto (o herói local chama a cada quadro de física). Devolve quantos acúmulos caíram.
+func momentum_tick(delta: float) -> int:
+	return momentum.tick(delta, momentum_cap(), float(run_mods.get("momentum_hold", 0.0)))
+
+
+## Explosão de Ímpeto pronta: com a bênção e o Ímpeto cheio (no teto atual).
+func momentum_burst_ready() -> bool:
+	return float(run_mods.get("momentum_burst", 0.0)) > 0.0 and momentum.is_full(momentum_cap()) \
+		and momentum.stacks >= ExpeditionClasses.MOMENTUM_BURST_MIN
+
+
+func reset_momentum() -> void:
+	momentum.reset()
 
 
 ## Habilidades ainda "Em breve" (fases seguintes) não são anunciadas.

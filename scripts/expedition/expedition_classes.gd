@@ -16,8 +16,17 @@ extends RefCounted
 ##   escudo   — bloqueio e Égide (mais fôlego no bloqueio, Égide mais dura, Égide que explode o que segurou);
 ##   controle — prender e atordoar (Provocação e atordoamentos mais longos);
 ##   ataque   — bater com o que aguenta (dano pela defesa, cura por abate).
+##
+## GUERREIRO (o Lutador; Fase E, etapa 2): pressão constante. Começa só com o combo da espada e a passiva Ímpeto
+## (ExpeditionMomentum): cada golpe que acerta e cada abate dão um acúmulo, e cada acúmulo dá dano e velocidade; parar
+## de atacar esvazia. As bênçãos do Guerreiro levam a build para um de quatro estilos:
+##   agressivo  — mais Ímpeto e mais dano por acúmulo, embalo que dura mais;
+##   veloz      — velocidade por acúmulo, fôlego a cada ganho, Investida que embala;
+##   resistente — cura e menos dano recebido enquanto pressiona (nunca o que o Tank segura parado);
+##   explosivo  — crítico por acúmulo e o 3º golpe do combo com Ímpeto cheio solta tudo numa explosão.
 
 const TANK := "tank"
+const WARRIOR := "warrior"
 
 ## Passiva Linha de Frente: inimigos (vivos) a até CROWD_RADIUS m contam, até CROWD_MAX deles; cada um corta
 ## `crowd_guard` do dano recebido; o corte total nunca passa de CROWD_CAP (soma com a defesa por multiplicação).
@@ -40,6 +49,11 @@ const PASSIVES := {
 		"desc": "Cada inimigo a até 4 m corta 4% do dano que você recebe (até 5: -20%). Segure o botão direito para bloquear com o escudo.",
 		"add": {"crowd_guard": 0.04},
 	},
+	WARRIOR: {
+		"name": "Ímpeto",
+		"desc": "Cada golpe que acerta e cada abate dão 1 de Ímpeto (até 5): +3% de dano e +1,5% de velocidade por acúmulo. Fique 2,5 s sem acertar e ele se esvai.",
+		"add": {"momentum_max": 5.0, "momentum_dmg": 0.03, "momentum_speed": 0.015},
+	},
 }
 
 ## Estilos de build (campo "style" das bênçãos de classe) -> nome mostrado na carta.
@@ -48,10 +62,26 @@ const STYLES := {
 	"escudo": "Escudo",
 	"controle": "Controle",
 	"ataque": "Ataque",
+	"agressivo": "Agressivo",
+	"veloz": "Veloz",
+	"resistente": "Resistente",
+	"explosivo": "Explosivo",
 }
 
 ## Nome de cada classe com identidade (para a carta: "Tank · Escudo").
-const CLASS_NAMES := {TANK: "Tank"}
+const CLASS_NAMES := {TANK: "Tank", WARRIOR: "Guerreiro"}
+
+## Tetos do que o Ímpeto dá com todos os acúmulos e bênçãos (pressão forte, mas sem virar imortal nem um tiro só).
+const MOMENTUM_DMG_CAP := 0.40      ## dano a mais
+const MOMENTUM_SPEED_CAP := 0.25    ## velocidade a mais
+const MOMENTUM_CRIT_CAP := 0.20     ## chance de crítico a mais
+const MOMENTUM_GUARD_CAP := 0.20    ## corte no dano recebido (o Tank chega a 40% parado na horda)
+## Explosão de Ímpeto (3º golpe do combo com o Ímpeto cheio): raio (m), empurrão (m/s) e o mínimo de acúmulos.
+const MOMENTUM_BURST_RADIUS := 3.5
+const MOMENTUM_BURST_PUSH := 6.0
+const MOMENTUM_BURST_MIN := 3
+## Cura por ganho de Ímpeto nunca passa disto (por ganho), com qualquer bênção.
+const MOMENTUM_HEAL_CAP := 3.0
 
 
 static func has_identity(cls: String) -> bool:
@@ -117,3 +147,45 @@ static func style_text(cls: String, style: String) -> String:
 		return ""
 	var n := str(CLASS_NAMES.get(cls, cls.capitalize()))
 	return n + (" · " + str(STYLES[style]) if STYLES.has(style) else "")
+
+
+# ---------------------------------------------------------------- Ímpeto (Guerreiro)
+static func _per(stacks: int, per: float) -> float:
+	if stacks <= 0 or per <= 0.0 or not is_finite(per):
+		return 0.0
+	return float(stacks) * per
+
+
+## Dano a mais (soma no multiplicador de dano, como as bênçãos) com `stacks` de Ímpeto e `per` por acúmulo.
+static func momentum_damage(stacks: int, per: float) -> float:
+	return minf(MOMENTUM_DMG_CAP, _per(stacks, per))
+
+
+## Multiplicador de velocidade de movimento (1.0 sem Ímpeto).
+static func momentum_speed(stacks: int, per: float) -> float:
+	return 1.0 + minf(MOMENTUM_SPEED_CAP, _per(stacks, per))
+
+
+## Chance de crítico a mais (Brecha).
+static func momentum_crit(stacks: int, per: float) -> float:
+	return minf(MOMENTUM_CRIT_CAP, _per(stacks, per))
+
+
+## Multiplicador do dano recebido (Couraça do Embalo; 1.0 sem a bênção).
+static func momentum_guard(stacks: int, per: float) -> float:
+	return 1.0 - minf(MOMENTUM_GUARD_CAP, _per(stacks, per))
+
+
+## Vida curada por ganho de Ímpeto (Sangue em Brasa).
+static func momentum_heal(gained: int, per: float) -> float:
+	if gained <= 0 or per <= 0.0 or not is_finite(per):
+		return 0.0
+	return minf(MOMENTUM_HEAL_CAP, per) * float(gained)
+
+
+## Explosão de Ímpeto: dano em volta para o dano corpo a corpo `melee`, `frac` da bênção e `stacks` gastos
+## (proporcional ao quanto estava cheio, contra o teto base 5). 0 sem a bênção ou com pouco Ímpeto.
+static func momentum_burst(melee: float, frac: float, stacks: int) -> float:
+	if frac <= 0.0 or not is_finite(frac) or stacks < MOMENTUM_BURST_MIN or melee <= 0.0:
+		return 0.0
+	return melee * frac * minf(float(stacks) / 5.0, 1.4)

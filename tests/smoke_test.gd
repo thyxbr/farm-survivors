@@ -21,6 +21,19 @@ func check(cond: bool, what: String) -> void:
 		print("FAIL  ", what)
 
 
+## Bênção de classe que só vale em combate (o Ímpeto do Guerreiro com 0 acúmulos não muda os números da ficha): confere
+## que ela entrou em Game.run_mods (a passiva da classe mais o que a bênção soma). false para as comuns.
+func _class_boon_in_mods(id: String) -> bool:
+	if ExpeditionUpgrades.class_of(id) == "":
+		return false
+	var passive := ExpeditionClasses.passive_mods(Game.char_class)
+	var add: Dictionary = ExpeditionUpgrades.DATA[id].add
+	for k in add:
+		if float(Game.run_mods.get(k, 0.0)) < float(passive.get(k, 0.0)) + float(add[k]) - 0.0001:
+			return false
+	return true
+
+
 ## Ids das habilidades mostradas nos slots 1-4 da barra de ações (pelo ícone).
 func hud_slot_ids() -> Array[String]:
 	var out: Array[String] = []
@@ -2597,6 +2610,14 @@ func _test_expedicao() -> void:
 		var ok: bool = keep == Game.run_mods
 		Game.run_mods = keep
 		return ok
+	# run_mods de uma run sem bênçãos: o padrão mais a passiva da classe (o Guerreiro do teste tem o Ímpeto)
+	var run_base_mods := func() -> bool:
+		var keep := Game.run_mods.duplicate()
+		Game.reset_run_mods()
+		var want := ExpeditionClasses.apply_passive(Game.run_mods, Game.char_class)
+		want.active = keep.get("active", false)
+		Game.run_mods = keep
+		return keep == want
 	var stats0: Dictionary = hub_stats.call()
 	# kit permanente do Hub (a expedição não pode mexer nele) e o que a barra mostra nele
 	var hub_kit: Array[String] = Game.ability_kit()
@@ -2733,7 +2754,7 @@ func _test_expedicao() -> void:
 	await wait(1.4)
 	ex = world.expedition
 	run = ex.run
-	check(run.modifiers.is_empty() and bool(default_mods.call()), "run nova começa sem as melhorias da anterior")
+	check(run.modifiers.is_empty() and bool(run_base_mods.call()), "run nova começa sem as melhorias da anterior (só a passiva da classe)")
 	# uma habilidade da run antes de cair: não pode sobrar na Guilda
 	run.skills.append(hub_kit[0])
 	Game.set_run_kit(run.skills)
@@ -2886,6 +2907,7 @@ func _test_expedicao() -> void:
 	check(not Game.run_kit_on and Game.full_ability_kit() == hub_kit and Game.ability_kit() == hub_kit
 		and hud_slot_ids() == hub_bar, "vitória: as habilidades dos altares saem e o kit permanente volta (%s)" % [hud_slot_ids()])
 	await _expedicao_tank(default_mods)
+	await _expedicao_guerreiro(default_mods)
 
 
 ## Identidade do Tank na expedição (Fase E), no jogo de verdade: o personagem vira Tank (maça + escudo), entra no
@@ -2920,6 +2942,7 @@ func _expedicao_tank(default_mods: Callable) -> void:
 	var run: ExpeditionRun = ex.run
 	check(run.char_class == "tank" and is_equal_approx(float(Game.run_mods.crowd_guard), 0.04),
 		"Tank: passiva Linha de Frente ligada ao chegar (crowd_guard %.2f)" % float(Game.run_mods.crowd_guard))
+	check(Game.momentum_cap() == 0 and Game.momentum_stacks() == 0, "Tank: sem Ímpeto (é do Guerreiro)")
 	check(Game.ability_kit().is_empty() and is_equal_approx(Game.max_hp(), hp_hub) and is_equal_approx(Game.defense(), def_hub)
 		and is_equal_approx(Game.damage_mult(), dmg_hub),
 		"Tank: a passiva não mexe em vida, defesa nem dano (só no dano recebido com monstros perto)")
@@ -3130,6 +3153,290 @@ func _expedicao_tank(default_mods: Callable) -> void:
 	check(Game.char_class == cls0 and Game.equipment.weapon == weapon0, "volta à classe e à arma de antes (%s)" % cls0)
 
 
+## Identidade do Guerreiro (Lutador) na expedição (Fase E, etapa 2), no jogo de verdade: o personagem vira Guerreiro
+## (espada de uma mão), entra no Pântano e confere o Ímpeto com golpes reais do combo contra monstros da expedição
+## (acúmulo, teto, queda ao parar), o abate, a Explosão de Ímpeto no 3º golpe, a Investida Predadora, a Fúria
+## Desperta, a Couraça do Embalo, Sangue em Brasa, Fôlego de Batalha, Brecha, Passo do Lobo, o sorteio com bênção do
+## Guerreiro, a tabela de golpes para derrubar (comum, elite, chefe) e a limpeza na volta (abandono e derrota).
+## Volta para a classe e o equipamento de antes.
+func _expedicao_guerreiro(default_mods: Callable) -> void:
+	var cls0 := Game.char_class
+	var weapon0: String = Game.equipment.get("weapon", "")
+	var off0: String = Game.equipment.get("offhand", "")
+	Econ.test_force_class("warrior")
+	Game.add_item("azure_edge")
+	equip_any("azure_edge")
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	var kit := ["sword_charge", "sword_quake", "sword_fury", "sword_whirl", "sword_vortex"]
+	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge" and Game.full_ability_kit() == kit,
+		"Guerreiro: espada de uma mão, kit da espada (%s)" % [Game.full_ability_kit()])
+	var dmg_hub := Game.melee_damage()
+	var spd_hub := Game.speed_multiplier()
+	var crit_hub := Game.crit_chance()
+	var hp_hub := Game.max_hp()
+	var def_hub := Game.defense()
+	player.global_position = world.HORDE_RETURN
+	await wait(0.2)
+	check(world.start_expedition("pantano"), "Guerreiro entra na expedição")
+	await wait(1.4)
+	var ex = world.expedition
+	if ex == null:
+		check(false, "Guerreiro: expedição montada")
+		return
+	var run: ExpeditionRun = ex.run
+	check(run.char_class == "warrior" and Game.momentum_cap() == 5 and Game.momentum_stacks() == 0,
+		"Guerreiro: Ímpeto ligado ao chegar, vazio (teto %d, %d)" % [Game.momentum_cap(), Game.momentum_stacks()])
+	check(is_equal_approx(Game.melee_damage(), dmg_hub) and is_equal_approx(Game.speed_multiplier(), spd_hub)
+		and is_equal_approx(Game.max_hp(), hp_hub) and is_equal_approx(Game.defense(), def_hub)
+		and is_equal_approx(float(Game.run_mods.crowd_guard), 0.0),
+		"Guerreiro sem Ímpeto: dano, velocidade, vida e defesa do Hub (e sem a Linha de Frente do Tank)")
+	Game.clear_buffs(true)
+	var me: Vector3 = player.global_position
+	# monstros da expedição em volta (parados): 6 perto (no alcance do combo) e 2 mais longe (só a Explosão pega)
+	var mobs: Array[Enemy] = []
+	for i in 8:
+		var en: Enemy = ex.ENEMY.new()
+		en.kind = "slime_veloz"
+		en.level = 3
+		en.hp_mult = 40.0
+		var a := TAU * i / 6.0
+		en.position = me + (Vector3(cos(a), 0.3, sin(a)) * 1.5 if i < 6 else Vector3(0, 0.3, 0) + Vector3(8.0, 0, 0) * (1 if i == 6 else -1))
+		world.add_child(en)
+		mobs.append(en)
+	await wait(0.2)
+	for en in mobs:
+		en.set_physics_process(false)
+		en.velocity = Vector3.ZERO
+	# os 2 de longe: fora do alcance do golpe final (2,9 m + raio) e dentro da Explosão (3,5 m + raio)
+	for i in [6, 7]:
+		var far := 2.9 + mobs[i].radius + 0.3
+		mobs[i].global_position = me + Vector3(1.0 if i == 6 else -1.0, 0.3, 0.0) * far
+	var hp_of := func() -> Array: return mobs.map(func(e: Enemy) -> float: return e.hp)
+	var reset_pos := func() -> void:
+		player.global_position = me
+		player.velocity = Vector3.ZERO
+		player.model.rotation.y = 0.0
+	# um golpe de verdade do combo (clique): espera o golpe acabar
+	var swing := func() -> void:
+		Game.stamina = Game.max_stamina()
+		player._try_attack()
+		await wait_until(func(): return not player.attacking, 1.5)
+	# 1 golpe real: acerta e dá 1 de Ímpeto
+	reset_pos.call()
+	player.combo_window = 0.0
+	var h0: Array = hp_of.call()
+	await swing.call()
+	var h1: Array = hp_of.call()
+	var hit_n := 0
+	for i in 6:
+		if float(h1[i]) < float(h0[i]):
+			hit_n += 1
+	check(hit_n >= 1 and Game.momentum_stacks() == 1,
+		"golpe real do combo acerta %d monstro(s) e dá 1 de Ímpeto (não 1 por monstro): %d" % [hit_n, Game.momentum_stacks()])
+	# combo inteiro (mais 2 golpes): Ímpeto sobe a cada golpe que acerta
+	await swing.call()
+	await swing.call()
+	check(Game.momentum_stacks() == 3, "combo de 3 golpes reais: Ímpeto 3 (%d)" % Game.momentum_stacks())
+	await swing.call()
+	await swing.call()
+	await swing.call()
+	check(Game.momentum_stacks() == 5, "mais um combo: Ímpeto no teto 5 (%d)" % Game.momentum_stacks())
+	await swing.call()
+	check(Game.momentum_stacks() == 5, "cheio: não passa de 5")
+	var want := Game.mod("damage") + 0.15
+	check(absf(Game.melee_damage() - dmg_hub / Game.mod("damage") * want) < 0.01,
+		"Ímpeto 5: dano %.1f -> %.1f (+15%%)" % [dmg_hub, Game.melee_damage()])
+	check(absf(Game.speed_multiplier() - spd_hub * 1.075) < 0.001, "Ímpeto 5: velocidade x%.3f (+7,5%%)" % (Game.speed_multiplier() / spd_hub))
+	ex._update_hud()
+	check(ex._identity_info().contains("Ímpeto 5/5"), "HUD da luta mostra o Ímpeto (%s)" % ex._identity_info())
+	# parar de atacar: o Ímpeto se esvai (2,5 s de fôlego, depois 1 a cada 0,5 s)
+	await wait(ExpeditionMomentum.HOLD - 0.6)
+	check(Game.momentum_stacks() == 5, "logo depois de parar: segue 5")
+	await wait(1.7)
+	var dec := Game.momentum_stacks()
+	check(dec >= 2 and dec <= 4, "parado 3,6 s: o Ímpeto caiu para %d" % dec)
+	await wait(3.0)
+	check(Game.momentum_stacks() == 0, "parado mais: esvaziou (%d)" % Game.momentum_stacks())
+	check(is_equal_approx(Game.melee_damage(), dmg_hub), "sem Ímpeto o dano volta ao normal")
+	# abate: +1 de Ímpeto (o modo da expedição chama no abate de verdade)
+	ex._on_enemy_died(mobs[5], {"room": "", "node": mobs[5]})
+	check(Game.momentum_stacks() == 1, "abate dá 1 de Ímpeto (%d)" % Game.momentum_stacks())
+	run.modifiers = {"lamina_faminta": 1}
+	ex._sync_mods()
+	ex._on_enemy_died(mobs[5], {"room": "", "node": mobs[5]})
+	check(Game.momentum_stacks() == 3, "Lâmina Faminta: abate dá 2 (%d)" % Game.momentum_stacks())
+	# Explosão de Ímpeto: com o Ímpeto cheio, o 3º golpe real do combo explode em volta (pega os 2 de longe)
+	run.modifiers = {"explosao_impeto": 1}
+	ex._sync_mods()
+	Game.reset_momentum()
+	Game.momentum.add(5, 5)
+	reset_pos.call()
+	player.combo_window = 0.0
+	await swing.call()
+	await swing.call()
+	check(Game.momentum_stacks() == 5, "golpes 1 e 2 com o Ímpeto cheio: ainda não explode")
+	var far0: Array = [mobs[6].hp, mobs[7].hp]
+	var md5 := Game.melee_damage()
+	await swing.call()
+	var want_burst := md5 * 0.9
+	var far_lost := [float(far0[0]) - mobs[6].hp, float(far0[1]) - mobs[7].hp]
+	check(Game.momentum_stacks() <= 1 and float(far_lost[0]) > want_burst * 0.5 and float(far_lost[0]) < want_burst * 1.2
+		and float(far_lost[1]) > want_burst * 0.5 and float(far_lost[1]) < want_burst * 1.2,
+		"Explosão de Ímpeto no 3º golpe real: os de longe levam %.1f e %.1f (~%.1f), Ímpeto zera (%d)" % [
+			far_lost[0], far_lost[1], want_burst, Game.momentum_stacks()])
+	Game.reset_momentum()   # 0 -> 3 no combo: não enche, não explode
+	far0 = [mobs[6].hp, mobs[7].hp]
+	player.combo_window = 0.0
+	for i in 3:
+		await swing.call()
+	check(is_equal_approx(mobs[6].hp, float(far0[0])), "sem o Ímpeto cheio, o 3º golpe não explode")
+	# Investida Predadora: a Investida que acerta dá +2
+	run.skills.assign(["sword_charge", "sword_fury"])
+	Game.set_run_kit(run.skills)
+	run.modifiers = {"investida_predadora": 1}
+	ex._sync_mods()
+	Game.reset_momentum()
+	reset_pos.call()
+	await wait(0.2)
+	player.cooldowns.sword_charge = 0.0
+	player.cast("sword_charge")
+	await wait(0.9)
+	check(Game.momentum_stacks() >= 3 and Game.momentum_stacks() <= 4, "Investida Predadora: a Investida acerta (+1) e embala (+2) = %d" % Game.momentum_stacks())
+	reset_pos.call()
+	# Fúria Desperta: Fúria Picante enche o Ímpeto e o segura
+	run.modifiers = {"furia_desperta": 1}
+	ex._sync_mods()
+	Game.reset_momentum()
+	await wait(0.2)
+	player.cooldowns.sword_fury = 0.0
+	player.cast("sword_fury")
+	await wait(0.2)
+	check(Game.momentum_stacks() == 5 and Game.momentum.lock > 5.0, "Fúria Desperta: Ímpeto cheio na hora (%d)" % Game.momentum_stacks())
+	await wait(ExpeditionMomentum.HOLD + 1.2)
+	check(Game.momentum_stacks() == 5, "Fúria Desperta: com a Fúria, o Ímpeto não cai")
+	Game.clear_buffs(true)
+	Game.momentum.lock = 0.0
+	player.end_ability()
+	reset_pos.call()
+	# Couraça do Embalo x2: -4% por acúmulo, 5 acúmulos = -20%
+	run.modifiers = {"couraca_embalo": 2}
+	ex._sync_mods()
+	Game.reset_momentum()
+	Game.momentum.add(5, 5)
+	var dmt := Game.damage_taken_mult()
+	Game.hp = Game.max_hp()
+	player.invuln = 0.0
+	var hb := Game.hp
+	player.take_damage(40.0, me + Vector3(0, 0, 2))
+	var lost := hb - Game.hp
+	check(absf(lost - 40.0 * dmt * 0.80) < 0.6, "Couraça do Embalo x2 com 5: golpe de 40 tira %.1f (sem: %.1f)" % [lost, 40.0 * dmt])
+	Game.reset_momentum()
+	player.invuln = 0.0
+	hb = Game.hp
+	player.take_damage(40.0, me + Vector3(0, 0, 2))
+	check(absf((hb - Game.hp) - 40.0 * dmt) < 0.6, "Couraça sem Ímpeto: dano cheio (%.1f)" % (hb - Game.hp))
+	# Sangue em Brasa e Fôlego de Batalha: cada ganho cura e devolve fôlego (golpe real)
+	run.modifiers = {"sangue_brasa": 1, "folego_batalha": 1}
+	ex._sync_mods()
+	Game.reset_momentum()
+	Game.hp = Game.max_hp() - 30.0
+	var hp_b := Game.hp
+	reset_pos.call()
+	player.combo_window = 0.0
+	Game.stamina = Game.max_stamina()
+	player._try_attack()
+	var st_after_swing := Game.stamina
+	await wait_until(func(): return not player.attacking, 1.5)
+	check(Game.momentum_stacks() == 1 and absf(Game.hp - (hp_b + 0.8)) < 0.4,
+		"Sangue em Brasa: o golpe que acerta cura 0,8 (%.1f -> %.1f)" % [hp_b, Game.hp])
+	check(Game.stamina >= minf(Game.max_stamina(), st_after_swing + 2.5), "Fôlego de Batalha: o ganho devolve fôlego")
+	# Brecha x2 e Passo do Lobo x3
+	run.modifiers = {"brecha": 2, "passo_lobo": 3}
+	ex._sync_mods()
+	Game.reset_momentum()
+	var c0 := Game.crit_chance()
+	var s0 := Game.speed_multiplier()
+	Game.momentum.add(5, 5)
+	check(absf(Game.crit_chance() - minf(1.0, c0 + 0.20)) < 0.001, "Brecha x2 com 5: crítico %.2f -> %.2f" % [c0, Game.crit_chance()])
+	check(absf(Game.speed_multiplier() - s0 * 1.25) < 0.001, "Passo do Lobo x3 com 5: velocidade +25%% (teto) x%.3f" % (Game.speed_multiplier() / s0))
+	# o sorteio da recompensa traz bênção do Guerreiro (nunca do Tank)
+	var rng := RandomNumberGenerator.new()
+	var all_w := true
+	for s in 20:
+		rng.seed = s
+		var opts := ExpeditionUpgrades.roll(rng, {}, 3, run.roll_context())
+		all_w = all_w and ExpeditionUpgrades.class_of(opts[0]) == "warrior" \
+			and opts.all(func(o) -> bool: return ExpeditionUpgrades.class_of(str(o)) != "tank")
+	check(all_w, "recompensa do Guerreiro: 1ª opção é sempre dele, nada do Tank")
+	var card: Dictionary = preload("res://scripts/ui/skill_altar_ui.gd").card_info("explosao_impeto", {})
+	check(str(card.type) == "Bênção do Guerreiro · Explosivo", "carta do altar mostra o estilo (%s)" % card.type)
+	# tabela de golpes para derrubar (o relatório usa estes números): sem Ímpeto, cheio e com a build agressiva
+	run.modifiers = {}
+	ex._sync_mods()
+	Game.reset_momentum()
+	var bt: BalanceTables = Balance.tables
+	var com := ExpeditionBalance.enemy_stats(bt, run.def, "sanguessuga_lodo", 3, "common")
+	var eli := ExpeditionBalance.enemy_stats(bt, run.def, "brejeiro", 4, "elite", false, true)
+	var bos := ExpeditionBalance.enemy_stats(bt, run.def, "espinheira", 5, "boss", true)
+	var g0 := Game.melee_damage()
+	Game.momentum.add(5, 5)
+	var g5 := Game.melee_damage()
+	run.modifiers = {"golpes_encadeados": 2}
+	ex._sync_mods()
+	Game.momentum.add(7, 7)
+	var g7 := Game.melee_damage()
+	print("[smoke] Guerreiro Nv %d: golpe %.1f, Ímpeto 5 %.1f (+%.0f%%), Encadeados x2 com 7 %.1f (+%.0f%%)" % [Game.level,
+		g0, g5, (g5 / g0 - 1.0) * 100.0, g7, (g7 / g0 - 1.0) * 100.0])
+	for row in [["comum", com], ["elite", eli], ["chefe", bos]]:
+		var hpe := float(row[1].hp)
+		print("[smoke]   %s: %.0f de vida -> %.0f golpes sem Ímpeto / %.0f com 5 / %.0f com 7 (Encadeados x2)" % [row[0], hpe,
+			ceilf(hpe / g0), ceilf(hpe / g5), ceilf(hpe / g7)])
+	check(ceilf(float(bos.hp) / g7) >= 10.0, "chefe nunca cai em poucos golpes, mesmo com o Ímpeto no máximo")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# limpeza: abandono (com a build inteira e o Ímpeto cheio) e derrota
+	run.modifiers = {"golpes_encadeados": 1, "passo_lobo": 2, "sangue_brasa": 1, "couraca_embalo": 1,
+		"explosao_impeto": 1, "brecha": 1}
+	ex._sync_mods()
+	Game.momentum.add(6, 6)
+	ex.exit_portal.interact(player)
+	await wait(1.2)
+	check(world.expedition == null and bool(default_mods.call()) and not Game.run_kit_on
+		and Game.momentum_cap() == 0 and Game.momentum.stacks == 0,
+		"Guerreiro, abandono: Ímpeto e bênçãos removidos (run_mods padrão, Ímpeto zerado)")
+	check(is_equal_approx(Game.melee_damage(), dmg_hub) and is_equal_approx(Game.speed_multiplier(), spd_hub)
+		and is_equal_approx(Game.crit_chance(), crit_hub) and is_equal_approx(Game.max_hp(), hp_hub),
+		"na Guilda: dano, velocidade, crítico e vida de antes")
+	Game.momentum_hit()
+	Game.momentum_kill()
+	check(Game.momentum.stacks == 0 and is_equal_approx(player.momentum_damage_mult(), 1.0), "na Guilda o Ímpeto não acumula")
+	check(world.start_expedition("pantano"), "Guerreiro entra de novo")
+	await wait(1.4)
+	ex = world.expedition
+	if ex != null:
+		check(ex.run.modifiers.is_empty() and Game.momentum_cap() == 5 and Game.momentum_stacks() == 0,
+			"run nova do Guerreiro: só a passiva, Ímpeto vazio")
+		ex.run.modifiers = {"golpes_encadeados": 1, "couraca_embalo": 1}
+		ex._sync_mods()
+		Game.momentum.add(6, 6)
+		player._die()
+		await wait(2.6)
+		check(world.expedition == null and not player.dead and bool(default_mods.call()) and Game.momentum.stacks == 0,
+			"Guerreiro, derrota: Ímpeto e bênçãos removidos na volta")
+	# volta ao personagem de antes
+	Econ.test_force_class(cls0)
+	if weapon0 != "":
+		equip_any(weapon0)
+	if off0 == "":
+		Game.unequip("offhand")
+	else:
+		equip_any(off0)
+	await wait(0.2)
+	check(Game.char_class == cls0 and Game.equipment.weapon == weapon0, "volta à classe e à arma de antes (%s)" % cls0)
+
+
 ## Altar da Deusa em `room` (já limpa, se for de luta): desperto com o [E], a escolha mostra até 3 habilidades do kit
 ## do personagem (sem ultimate, sem repetir as levadas), Esc fecha guardando as opções, escolher põe a habilidade
 ## na próxima tecla da barra, ela funciona de verdade (gasta recarga, acerta um monstro) e o altar não serve de novo.
@@ -3270,7 +3577,7 @@ func _expedicao_evolucao(ex: Node, room: String) -> void:
 		var ci: Dictionary = ui.card_info(str(id), run.modifiers)
 		types.append(str(ci.type))
 		check(str(ci.name) != "" and str(ci.desc) != "" and str(ci.value) != "", "%s: carta completa (%s)" % [room, ci.name])
-	check(types.has("Nova habilidade") and types.has("Bênção da expedição")
+	check(types.has("Nova habilidade") and types.any(func(t: String) -> bool: return t.begins_with("Bênção d"))
 		and types.any(func(t: String) -> bool: return t.begins_with("Melhoria de habilidade")),
 		"%s: o tipo aparece em cada carta (%s)" % [room, types])
 	# a melhoria de habilidade: de preferência a Recuperação (dá para medir a recarga de verdade)
@@ -3762,8 +4069,8 @@ func _expedicao_guarded_offering(ex: Node, room: String, hub_stats: Callable, sa
 	var had := int(run.modifiers.get(pick, 0))
 	check(ui.pick(0, true), "%s: escolhe a bênção das oferendas" % room)
 	await wait(0.3)
-	check(int(run.modifiers.get(pick, 0)) == mini(had + stacks, ExpeditionUpgrades.MAX_STACKS)
-		and str(run.rewards.get(room, "")) == pick and not same_stats.call(before, hub_stats.call()),
+	check(int(run.modifiers.get(pick, 0)) == mini(had + stacks, ExpeditionUpgrades.max_stacks(pick))
+		and str(run.rewards.get(room, "")) == pick and (not same_stats.call(before, hub_stats.call()) or _class_boon_in_mods(pick)),
 		"%s: a bênção das oferendas vale no personagem (x%d)" % [room, stacks])
 	check(sh.state == sh.USED and not ex.use_shrine(room) and not run.has_pending_reward() and world.modal == null
 		and not get_tree().paused, "%s: o baú se esvazia (a bênção sai uma vez só)" % room)
@@ -3822,13 +4129,15 @@ func _expedicao_reward(ex: Node, room: String, hub_stats: Callable, same_stats: 
 		"%s: bênção x%d na tela" % [room, stacks])
 	check(ui2.pick(1, true), "%s: escolhe %s" % [room, ExpeditionUpgrades.display_name(pick)])
 	await wait(0.3)
-	check(int(run.modifiers.get(pick, 0)) == mini(had + stacks, ExpeditionUpgrades.MAX_STACKS)
+	check(int(run.modifiers.get(pick, 0)) == mini(had + stacks, ExpeditionUpgrades.max_stacks(pick))
 		and str(run.rewards.get(room, "")) == pick, "%s: melhoria registrada no estado da run (x%d)" % [room, stacks])
-	check(not same_stats.call(before, hub_stats.call()), "%s: a melhoria mudou os números do personagem" % room)
+	check(not same_stats.call(before, hub_stats.call()) or _class_boon_in_mods(pick),
+		"%s: a melhoria mudou os números do personagem (ou, bênção de classe, entrou em run_mods)" % room)
 	var want := ExpeditionUpgrades.total_mods(run.modifiers)
 	var ok := true
 	for k in want:
 		var base := 1.0 if k in ["damage", "max_hp", "speed"] else 0.0
+		base += float(ExpeditionClasses.passive_mods(Game.char_class).get(k, 0.0))   # passiva da classe
 		ok = ok and is_equal_approx(float(Game.run_mods[k]), base + float(want[k]))
 	check(ok and Game.run_mods.active, "%s: Game.run_mods = padrão + melhorias da run" % room)
 	check(world.modal == null and not get_tree().paused and not run.has_pending_reward(),
@@ -3932,9 +4241,10 @@ func _expedicao_offering(ex: Node, room: String, hub_stats: Callable, same_stats
 		and ui.title_text == room, "%s: o baú abre a escolha de bênção" % room)
 	if ui == null or not is_instance_valid(ui):
 		return
+	var pick0 := str(run.pending_reward.choices[0])
 	check(ui.pick(0, true), "%s: escolhe a bênção" % room)
 	await wait(0.3)
-	check(run.rewards.has(room) and not same_stats.call(before, hub_stats.call()) and world.modal == null,
+	check(run.rewards.has(room) and (not same_stats.call(before, hub_stats.call()) or _class_boon_in_mods(pick0)) and world.modal == null,
 		"%s: a bênção vale no personagem" % room)
 	check(sh.state == sh.USED and not ex.use_shrine(room) and not run.has_pending_reward(), "%s: o baú se esvazia" % room)
 

@@ -201,6 +201,7 @@ func begin() -> bool:
 	Game.run_mods.active = true
 	Game.begin_run_kit()   # só o ataque básico: as habilidades vêm dos altares
 	run.start()
+	Game.reset_momentum()  # Ímpeto do Guerreiro: toda run começa do zero
 	_sync_mods()           # a passiva da classe (ExpeditionClasses) já vale desde a chegada
 	_announce_identity()
 	refresh_altars()
@@ -810,6 +811,10 @@ func _update_hud() -> void:
 
 ## Linha de Frente na linha da luta (Tank): " · Linha de Frente -12%" com inimigos perto; "" sem a passiva.
 func _identity_info() -> String:
+	var cap := Game.momentum_cap()
+	if cap > 0 and player != null and not player.dead:
+		# Ímpeto do Guerreiro: " · Ímpeto 3/5" (só durante a luta, na linha que já existe)
+		return " · %s %d/%d" % [str(ExpeditionClasses.passive(run.char_class).get("name", "Ímpeto")), Game.momentum_stacks(), cap]
 	var per := float(Game.run_mods.get("crowd_guard", 0.0))
 	if per <= 0.0 or player == null or player.dead:
 		return ""
@@ -1022,6 +1027,9 @@ func _on_enemy_died(_en: Enemy, entry: Dictionary) -> void:
 	if heal > 0.0 and not bool(entry.get("focus", false)) and player != null and not player.dead and Game.hp > 0.0:
 		Game.hp = minf(Game.max_hp(), Game.hp + heal)
 		Game.stats_changed.emit()
+	# Ímpeto do Guerreiro: cada abate embala (o foco do ritual também conta: foi derrubado na pancada)
+	if player != null and not player.dead:
+		Game.momentum_kill()
 	if bool(entry.get("focus", false)):
 		_on_focus_broken(room)
 	elif bool(entry.get("leader", false)) and run.encounter_type(room) == ExpeditionEncounters.HUNT:
@@ -1593,6 +1601,7 @@ func _on_prey_down(room: String) -> void:
 func _exit_tree() -> void:
 	if not _returning:
 		Game.end_run_kit()
+		Game.reset_momentum()
 
 
 # ================================================================ fim e volta à Guilda
@@ -1627,6 +1636,7 @@ func _return_to_hub() -> void:
 	_close_event_ui()
 	Game.end_run_kit()        # as habilidades dos altares saem aqui: volta o kit permanente da arma
 	Game.reset_run_mods()     # melhorias temporárias saem aqui; a vida não passa do máximo sem elas
+	Game.reset_momentum()     # o Ímpeto do Guerreiro também (o teto já é 0 sem os run_mods)
 	Game.hp = minf(Game.hp, Game.max_hp())
 	Game.stats_changed.emit()
 	var hub: Vector3 = world.HORDE_RETURN   # na frente do portal da expedição, na vila

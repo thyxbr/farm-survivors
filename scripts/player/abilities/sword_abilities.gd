@@ -76,6 +76,10 @@ static func use(player: Node, id: String) -> bool:
 		"sword_fury", "sword_fury_great":
 			player.begin_ability(id, {})
 			Game.add_buff(FURY_BUFF, Game.buff_duration(FURY_BUFF))
+			# Fúria Desperta (bênção do Guerreiro na expedição): enche o Ímpeto e o segura enquanto a Fúria dura
+			if float(Game.run_mods.get("momentum_fury", 0.0)) > 0.0 and Game.momentum_cap() > 0:
+				Game.momentum_add(Game.momentum_cap())
+				Game.momentum.lock = Game.buff_duration(FURY_BUFF)
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
 			Sfx.play("sword_swing_heavy", 0.1, -4.0)
@@ -254,6 +258,10 @@ static func _charge_hits(player: Node, d: Dictionary) -> void:
 		Game.on_damage_dealt(dmg, e.max_hp)
 		any = true
 		FXEpic.sparks(e.global_position + Vector3.UP * 0.6, d.dir, Color(1.0, 0.85, 0.5), 14, 9.0, 0.3)
+	# Investida Predadora (bênção do Guerreiro na expedição): a Investida que acerta embala o Ímpeto
+	if any and not d.get("momentum", false):
+		d["momentum"] = true
+		Game.momentum_add(roundi(float(Game.run_mods.get("momentum_charge", 0.0))))
 	if any:
 		Sfx.play("sword_hit_flesh", 0.1)
 		player.add_shake(0.18)

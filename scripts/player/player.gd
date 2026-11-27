@@ -480,6 +480,7 @@ func _local_process(delta: float) -> void:
 
 	_tick_timers(delta)
 	_regen(delta)
+	_momentum_tick(delta)
 
 	var loading: bool = Loading.covering   # tela de carregamento: sem controle até ela abrir
 	if input_locked or horde_frozen or chat_typing or loading:
@@ -911,6 +912,8 @@ func _do_hit() -> void:
 		Sfx.play("punch_hit", 0.12)
 	elif hit_enemy:
 		Sfx.play(Sfx.melee_hit(_weapon_id(), flesh), 0.1)
+	if hit_enemy and fin and Game.momentum_burst_ready():
+		_momentum_burst()   # Explosão de Ímpeto (bênção do Guerreiro na expedição)
 	if great and fin:
 		add_shake(0.3)   # golpe final da montante: a câmera dá um tranco, acertando alguém ou não
 	if hit_any:
@@ -1808,6 +1811,80 @@ func crowd_damage_mult() -> float:
 	return ExpeditionClasses.crowd_mult(n, per)
 
 
+## Ímpeto do Guerreiro na expedição (Game.momentum, ExpeditionMomentum): o tempo corre aqui e o retorno visual
+## também sai daqui — faíscas laranja quando sobe, um estalo e "Ímpeto máximo!" ao encher, brasas em volta enquanto
+## está cheio. Fora da expedição o teto é 0 e nada disso acontece.
+const MOMENTUM_COLOR := Color(1.0, 0.55, 0.18)
+const MOMENTUM_EMBER_GAP := 0.45
+var _mom_seen := 0
+var _mom_ember := 0.0
+
+
+func _momentum_tick(delta: float) -> void:
+	var cap := Game.momentum_cap()
+	if cap <= 0 and _mom_seen == 0 and Game.momentum.stacks == 0:
+		return
+	Game.momentum_tick(delta)
+	var n := Game.momentum_stacks()
+	if n == _mom_seen:
+		if n > 0 and n >= cap:
+			_mom_ember -= delta
+			if _mom_ember <= 0.0:
+				_mom_ember = MOMENTUM_EMBER_GAP
+				FX.burst(global_position + Vector3.UP * 1.0, MOMENTUM_COLOR, 5, 1.6, 0.07, 0.45, 1.5)
+		return
+	var full := n >= cap and n > 0
+	if n > _mom_seen:
+		var at := global_position + Vector3.UP * KnightLook.body_y(self, 1.3)
+		FX.burst(at, MOMENTUM_COLOR, 3 + n, 2.4, 0.06, 0.3)
+		if full:
+			FX.ring(global_position + Vector3.UP * 0.1, MOMENTUM_COLOR, 2.0, 0.35)
+			FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.4), "Ímpeto máximo!", MOMENTUM_COLOR, 34)
+			Sfx.play("sword_swing_heavy", 0.1, -10.0)
+			_mom_ember = MOMENTUM_EMBER_GAP
+	_mom_seen = n
+	Game.stats_changed.emit()
+
+
+## Couraça do Embalo (bênção do Guerreiro): multiplicador do dano recebido pelo Ímpeto (1.0 sem a bênção).
+func momentum_damage_mult() -> float:
+	var per := float(Game.run_mods.get("momentum_guard", 0.0))
+	if per <= 0.0:
+		return 1.0
+	return ExpeditionClasses.momentum_guard(Game.momentum_stacks(), per)
+
+
+## Explosão de Ímpeto: o 3º golpe do combo com o Ímpeto cheio solta tudo em volta do herói (dano pelo golpe, já com
+## o Ímpeto que tinha), empurra e zera o Ímpeto. A janela de dano concentrado do estilo explosivo.
+func _momentum_burst() -> void:
+	var stacks := Game.momentum_stacks()
+	var dmg := ExpeditionClasses.momentum_burst(Game.melee_damage(), float(Game.run_mods.get("momentum_burst", 0.0)), stacks)
+	if dmg <= 0.0:
+		return
+	var c := global_position
+	var r := ExpeditionClasses.MOMENTUM_BURST_RADIUS
+	var hits := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or bool(e.get("dead")) or not e.has_method("take_damage"):
+			continue
+		var dv: Vector3 = (e as Node3D).global_position - c
+		var er := float(e.get("radius")) if e.get("radius") != null else 0.0
+		if Vector2(dv.x, dv.z).length() > r + er or absf(dv.y) > 3.0:
+			continue
+		e.take_damage(dmg, c, false, 0.0, 0.0, -ExpeditionClasses.MOMENTUM_BURST_PUSH, ElementRules.NEUTRAL)
+		Game.on_damage_dealt(dmg, float(e.get("max_hp")))
+		hits += 1
+	Game.momentum.consume()
+	_mom_seen = 0
+	FX.ring(c + Vector3.UP * 0.1, MOMENTUM_COLOR, r, 0.4)
+	FX.burst(c + Vector3.UP * 0.9, MOMENTUM_COLOR, 30, 7.0, 0.12, 0.5, -4.0)
+	Sfx.play("sword_swing_heavy", 0.05, -2.0)
+	add_shake(0.35)
+	if hits > 0:
+		FX.damage_number(c + Vector3.UP * KnightLook.body_y(self, 2.6), "Explosão de Ímpeto!", MOMENTUM_COLOR, 40)
+	Game.stats_changed.emit()
+
+
 func take_damage(amount: float, from_pos: Vector3) -> void:
 	if remote:
 		# no servidor, o golpe de um inimigo na réplica vira dano no PC do dono
@@ -1816,7 +1893,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
-	var final_dmg: float = max(1.0, amount * Game.damage_taken_mult() * crowd_damage_mult())
+	var final_dmg: float = max(1.0, amount * Game.damage_taken_mult() * crowd_damage_mult() * momentum_damage_mult())
 	# Égide Cristalina erguida: o escudo absorve primeiro (integridade própria); só o que sobra chega à vida
 	if ability == ShieldAbilities.ID:
 		final_dmg = ShieldAbilities.absorb(self, final_dmg, from_pos)
